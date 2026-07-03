@@ -1,0 +1,2783 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventario de Patio · Tracto Partes Magaña</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { font-family: Georgia, 'Times New Roman', serif; background: #f2efe9; color: #1a1a1a; font-size: 16px; line-height: 1.5; }
+  main, .modal { zoom: 1; }
+  body { padding-bottom: 60px; }
+
+  /* HEADER */
+  header { background: #17140f; color: #fff; padding: 18px 32px; position: sticky; top: 0; z-index: 100; border-bottom: 3px solid #b03a2e; }
+  header h1 { font-size: 22px; font-weight: 700; letter-spacing: 0.5px; font-family: Georgia, serif; }
+  header .sub { font-size: 11px; color: #c9a24b; font-weight: 700; margin-top: 3px; text-transform: uppercase; letter-spacing: 2px; font-family: Arial, sans-serif; }
+
+  /* NAV TABS */
+  nav { background: #fff; border-bottom: 1px solid #d8d2c4; display: flex; position: sticky; top: 62px; z-index: 99; max-width: 1400px; margin: 0 auto; }
+  nav button { flex: 1; background: none; border: none; padding: 16px 8px; font-size: 13px; font-weight: 700; color: #6b6459; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; transition: all .15s; text-transform: uppercase; letter-spacing: 1px; font-family: Arial, sans-serif; }
+  nav button:hover { background: #faf8f3; }
+  nav button.active { color: #17140f; border-bottom-color: #b03a2e; }
+  nav button:active { opacity: 0.7; }
+
+  /* MAIN */
+  main { padding: 32px; max-width: 1400px; margin: 0 auto; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* SECTION TITLES */
+  h2 { font-size: 30px; font-weight: 700; margin-bottom: 20px; color: #17140f; padding-left: 14px; border-left: 4px solid #b03a2e; font-family: Georgia, serif; }
+  h3 { font-size: 15px; font-weight: 700; margin: 22px 0 12px; color: #17140f; text-transform: uppercase; letter-spacing: 1px; font-family: Arial, sans-serif; }
+
+  /* BUTTONS */
+  .btn { display: inline-block; padding: 13px 22px; font-size: 14px; font-weight: 700; border: 1px solid #17140f; background: #fff; color: #17140f; cursor: pointer; border-radius: 2px; text-align: center; transition: all .1s; font-family: Arial, sans-serif; letter-spacing: 0.3px; }
+  .btn:active { transform: scale(0.98); }
+  .btn:hover { background: #17140f; color: #fff; }
+  .btn-primary { background: #17140f; color: #fff; }
+  .btn-primary:hover { background: #333; }
+  .btn-gold { background: #c9a24b; color: #17140f; border-color: #c9a24b; }
+  .btn-gold:hover { background: #b8923f; color: #17140f; }
+  .btn-danger { background: #b03a2e; color: #fff; border-color: #b03a2e; }
+  .btn-danger:hover { background: #922f25; color: #fff; }
+  .btn-success { background: #2e7d46; color: #fff; border-color: #2e7d46; }
+  .btn-success:hover { background: #256339; color: #fff; }
+  .btn-whatsapp { background: #128c4a; color: #fff; border-color: #128c4a; }
+  .btn-whatsapp:hover { background: #0e7a40; color: #fff; }
+  .btn-mini { padding: 8px 12px !important; font-size: 12px !important; min-height: 0 !important; }
+  .btn-grid-mini { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)) !important; gap: 8px !important; }
+  .btn-small { padding: 9px 14px; font-size: 13px; }
+  .btn-block { display: block; width: 100%; }
+  .btn.selected { background: #17140f; color: #fff; border-color: #17140f; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .btn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
+  .btn-grid-large { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+
+  /* FORM FIELDS */
+  label { display: block; font-size: 11px; font-weight: 700; color: #6b6459; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; font-family: Arial, sans-serif; }
+  input[type="text"], input[type="number"], input[type="date"], select, textarea {
+    width: 100%; padding: 12px 14px; font-size: 15px; border: 1px solid #cec7b8; border-radius: 2px; background: #fff; font-family: Arial, sans-serif;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: #b03a2e; }
+  .field { margin-bottom: 16px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  /* CARDS */
+  .card { background: #fff; border: 1px solid #ddd6c8; border-radius: 3px; padding: 22px 26px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+  .card-title { font-size: 20px; font-weight: 700; color: #17140f; font-family: Georgia, serif; }
+  .card-meta { font-size: 13px; color: #6b6459; line-height: 1.5; font-family: Arial, sans-serif; }
+  .card-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .badge { display: inline-block; padding: 3px 9px; font-size: 11px; font-weight: 700; background: #c9a24b; color: #17140f; border-radius: 2px; text-transform: uppercase; letter-spacing: 0.5px; font-family: Arial, sans-serif; }
+  .badge-count { background: #2e7d46; color: #fff; font-size: 14px; padding: 4px 11px; }
+  .precio-tag { display: inline-block; background: #2e7d46; color: #fff; padding: 3px 11px; border-radius: 2px; font-weight: 700; font-size: 15px; font-family: 'Courier New', monospace; letter-spacing: 0.3px; }
+
+  /* SEARCH */
+  .search-bar { padding: 12px 0; }
+  .search-bar input { font-size: 17px; padding: 14px; border: 1px solid #17140f; }
+  .filters { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .filter-chip { padding: 8px 16px; border-radius: 2px; background: #fff; border: 1px solid #cec7b8; font-size: 13px; font-weight: 700; cursor: pointer; font-family: Arial, sans-serif; }
+  .filter-chip.active { background: #17140f; color: #fff; border-color: #17140f; }
+
+  /* MODAL */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(23,20,15,0.65); z-index: 1000; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 30px 16px; }
+  .modal-bg.active { display: flex; }
+  .modal { background: #fff; border-radius: 3px; width: 100%; max-width: 680px; padding: 30px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #17140f; }
+  .modal-title { font-size: 22px; font-weight: 700; font-family: Georgia, serif; }
+  .modal-close { background: none; border: none; font-size: 28px; cursor: pointer; line-height: 1; color: #999; padding: 0 6px; }
+
+  /* PIEZAS LIST */
+  .piezas-list { margin-top: 12px; }
+  .pieza-item { background: #faf8f3; border: 1px solid #e5ded0; border-radius: 3px; padding: 14px 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .pieza-info { flex: 1; }
+  .pieza-name { font-weight: 700; font-size: 16px; font-family: Georgia, serif; }
+  .pieza-detail { font-size: 13px; color: #6b6459; margin-top: 3px; font-family: Arial, sans-serif; }
+  .pieza-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+  /* DASHBOARD STATS */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .stat { background: #fff; border: 1px solid #ddd6c8; border-radius: 3px; padding: 18px; text-align: center; }
+  .stat-num { font-size: 36px; font-weight: 700; color: #17140f; line-height: 1; font-family: Georgia, serif; }
+  .stat-label { font-size: 11px; color: #6b6459; text-transform: uppercase; letter-spacing: 1px; margin-top: 8px; font-weight: 700; font-family: Arial, sans-serif; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); background: #17140f; color: #fff; padding: 14px 24px; border-radius: 3px; font-weight: 700; z-index: 2000; box-shadow: 0 4px 20px rgba(0,0,0,0.35); opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90%; text-align: center; font-family: Arial, sans-serif; }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #2e7d46; }
+  .toast.error { background: #b03a2e; }
+
+  /* INFO BAR */
+  .info-bar { background: #faf8f3; border: 1px solid #c9a24b; border-left: 3px solid #c9a24b; padding: 12px 16px; border-radius: 2px; font-size: 14px; color: #6b6459; margin-bottom: 18px; font-family: Arial, sans-serif; }
+  .info-bar strong { color: #1a1a1a; }
+
+  /* RESPONSIVE TWEAKS */
+  @media (max-width: 480px) {
+    nav button { font-size: 12px; padding: 11px 4px; min-width: 80px; }
+    main { padding: 12px; }
+    .field-row { grid-template-columns: 1fr; }
+    h1 { font-size: 16px; }
+    /* En celular, cada pieza apila info arriba y botones abajo a lo ancho */
+    .pieza-item { flex-direction: column; align-items: stretch; }
+    .pieza-actions { justify-content: flex-start; margin-top: 8px; }
+    .pieza-actions .btn-small { flex: 1; min-width: 70px; }
+    /* Botones de modelo/marca más compactos */
+    .btn-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+    .btn { padding: 14px 14px; font-size: 15px; }
+    /* Tablas de Motor/Cabina/Chasis: que no se desborden */
+    table { font-size: 14px; }
+    table td { padding: 6px 8px !important; word-break: break-word; }
+    .card-title { font-size: 15px; }
+  }
+
+  /* PRINT */
+  @media print {
+    header, nav, .search-bar, .card-actions, .btn { display: none !important; }
+    body { background: #fff; padding: 0; }
+    .card { break-inside: avoid; border: 1px solid #ccc; }
+  }
+</style>
+</head>
+<body>
+
+<header style="display:flex; justify-content:space-between; align-items:center;">
+  <div>
+    <h1>Inventario de Patio</h1>
+    <div class="sub">Tracto Partes Magaña · S.A. de C.V.</div>
+  </div>
+  <div id="sync-estado" style="font-size:12px; color:#e8e2d5; font-family:Arial,sans-serif; font-weight:600; white-space:nowrap;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#c9a24b;margin-right:6px;"></span>Conectando…</div>
+</header>
+
+<nav>
+  <button class="active" data-view="camiones">🏠 Inicio</button>
+  <button data-view="buscar">🔧 Piezas</button>
+  <button data-view="admin">📝 Administrar</button>
+  <button data-view="exportar">⚙️ Exportar</button>
+</nav>
+
+<main>
+
+<!-- INICIO + CAMIONES UNIFICADOS -->
+<section class="view active" id="view-camiones">
+  <h3 style="margin-top:0;">Ver todas las piezas de:</h3>
+  <div class="btn-grid btn-grid-mini" style="margin-bottom:18px">
+    <button class="btn btn-mini" style="background:#ffe9a8; color:#1a1a1a; border-color:#d4a017;" onclick="verTodasPiezas('motores')">Motor</button>
+    <button class="btn btn-mini" style="background:#d6ecff; color:#1a1a1a; border-color:#5fa3d8;" onclick="verTodasPiezas('transmisiones')">Transmisión</button>
+    <button class="btn btn-mini" style="background:#d4d4d4; color:#1a1a1a; border-color:#999;" onclick="verTodasPiezas('chasis')">Chasis</button>
+    <button class="btn btn-mini" style="background:#cfe9e9; color:#1a1a1a; border-color:#6db8a0;" onclick="verTodasPiezas('mancuernas')">Mancuerna</button>
+    <button class="btn btn-mini" style="background:#f5d6e8; color:#1a1a1a; border-color:#c87da8;" onclick="verTodasPiezas('cabinas')">Cabina</button>
+  </div>
+
+  <button class="btn btn-block" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="openCamionModal()">🚛 Registrar Camión Nuevo 🚛</button>
+  <div style="height: 10px"></div>
+  <button class="btn btn-block" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="addPiezaSuelta()">🔧 Agregar Pieza Suelta (sin camión) 🔧</button>
+
+  <h3 style="margin-top:24px">Buscador de Piezas y Camiones</h3>
+  <input type="text" id="filtro-camiones" placeholder="Buscar por folio, marca, modelo, motor, VIN, serie, CPL, N°Motor, terminación, año..." oninput="renderCamiones()">
+  <div id="aviso-busqueda" style="display:none; margin-top:6px; padding:6px 12px; background:#fff3cd; border-radius:5px; font-size:12px; color:#856404; font-weight:600;">
+    🔍 Filtro activo: "<span id="aviso-busqueda-texto"></span>" · <a href="#" onclick="document.getElementById('filtro-camiones').value=''; renderCamiones(); return false;" style="color:#c0392b; text-decoration:underline;">✕ Limpiar</a>
+  </div>
+  <div id="contador-camiones" style="margin-top:6px; font-size:12px; color:#888; font-weight:600;"></div>
+
+  <details id="ultimos-registros" style="margin-top:10px; background:#fff; border:1px solid #e0e0d8; border-radius:6px; padding:0;">
+    <summary style="cursor:pointer; padding:10px 14px; font-size:13px; font-weight:700; color:#555;">📋 Últimos registros creados</summary>
+    <div id="ultimos-registros-lista" style="padding:8px 14px 12px; max-height:300px; overflow-y:auto;"></div>
+  </details>
+
+  <div style="height: 12px"></div>
+  <div id="lista-camiones"></div>
+</section>
+
+<!-- BUSCAR PIEZAS POR FAMILIA -->
+<section class="view" id="view-buscar">
+  <h2>Piezas por Familia</h2>
+  <div class="info-bar" id="info-busqueda">Selecciona una familia para ver todas sus piezas.</div>
+  <div class="filters" id="filtros-familia" style="margin-bottom:16px"></div>
+  <div id="resultados-busqueda"></div>
+</section>
+
+<!-- ADMINISTRAR -->
+<section class="view" id="view-admin">
+  <h2>Administrar Catálogos</h2>
+  <div class="info-bar">Agrega o quita <strong>marcas, modelos, motores</strong> sin depender de nadie. Los cambios se guardan al momento.</div>
+  <div id="admin-listas"></div>
+</section>
+
+<!-- EXPORTAR -->
+<section class="view" id="view-exportar">
+  <h2>Exportar / Respaldar</h2>
+  <div class="info-bar">El respaldo se guarda en <strong>tu computadora</strong>, no dentro de esta página. Recomendamos descargar Excel al menos una vez por semana.</div>
+
+  <h3>📊 Excel completo</h3>
+  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Una hoja por cada familia (Árboles, Motores, etc.) + hoja de Camiones. Listo para imprimir.</p>
+  <button class="btn btn-success btn-block" onclick="exportExcel()">⬇ Descargar Excel</button>
+
+  <div style="height: 20px"></div>
+  <h3>📄 PDF</h3>
+  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Reporte general para imprimir o compartir.</p>
+  <button class="btn btn-primary btn-block" onclick="exportPDF()">⬇ Descargar PDF</button>
+
+  <div style="height: 20px"></div>
+  <h3>📝 Word</h3>
+  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Documento editable con todo el inventario.</p>
+  <button class="btn btn-block" onclick="exportWord()">⬇ Descargar Word</button>
+
+  <div style="height: 30px"></div>
+  <h3>💾 Respaldo de seguridad</h3>
+  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Archivo JSON con TODOS los datos. Útil para restaurar en otra computadora.</p>
+  <button class="btn btn-block" onclick="exportJSON()">⬇ Descargar Respaldo</button>
+  <div style="height: 10px"></div>
+  <label class="btn btn-block" style="cursor:pointer; display:block;">
+    ⬆ Restaurar desde Respaldo (reemplaza todo)
+    <input type="file" accept=".json,.xlsx,.xls" style="display:none" onchange="importJSON(event)">
+  </label>
+
+  <div style="height: 30px"></div>
+  <h3>📥 Importar Inventario Masivo</h3>
+  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Sube el Excel (.xlsx) o JSON con la plantilla. Las piezas se AGREGAN a lo que ya existe (no reemplaza).</p>
+  <label class="btn btn-block btn-primary" style="cursor:pointer; display:block;">
+    ⬆ Importar Excel / JSON
+    <input type="file" accept=".xlsx,.xls,.json" style="display:none" onchange="importarMasivo(event)">
+  </label>
+  <div id="import-resultado" style="margin-top:12px;"></div>
+</section>
+
+</main>
+
+<!-- MODAL CAMION -->
+<div class="modal-bg" id="modal-camion">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-camion-title">Registrar Camión</div>
+      <button class="modal-close" onclick="closeModal('modal-camion')">×</button>
+    </div>
+    <div id="modal-camion-body"></div>
+  </div>
+</div>
+
+<!-- MODAL PIEZA -->
+<div class="modal-bg" id="modal-pieza">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-pieza-title">Agregar Pieza</div>
+      <button class="modal-close" onclick="closeModal('modal-pieza')">×</button>
+    </div>
+    <div id="modal-pieza-body"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// CATÁLOGOS BASE (editables desde "Administrar")
+// ============================================================
+const CATALOGOS_DEFAULT = {
+  marcasCamion: ['Freightliner', 'Kenworth', 'International', 'Volvo'],
+  modelosPorMarca: {
+    'Freightliner': ['Cascadia', 'Columbia', 'FLD120', 'Century'],
+    'Kenworth': ['T600', 'T660', 'T800', 'T2000', 'T880'],
+    'International': ['Prostar', '9200', '9400', '8600'],
+    'Volvo': ['Primero Generación', 'Segunda Generación', 'Tercera Generación']
+  },
+  motores: ['ISX sin EGR','ISX con VGT','ISM','M11','M11 Celect Plus','Big Cam','DD4','DD5','DD6','DD15','Caterpillar C13','Caterpillar C15','Navistar 210','I313 Navistar','ISX Valvula de Aire','ISX15','ISX870','ISX871','X15','Volvo D12','Volvo D13','Max Force 13','N14 Celect','N14 Celect Plus','N14 Mecanico','ISC','PX8','PX6','L-10 Mecanico','L-10 Electronico']
+};
+
+// Overrides de familias (los cambios que hiciste en Administrar para Turbos, Transmisiones, Compresores)
+const FAMILIAS_OVERRIDE_DEFAULT = {
+  'turbos': ['BigCam','N14','DD4','DD5','DD6','DD15','ISB','ISM','ISX','ISX VGT','ISX15','Caterpillar C13/C15','PX6','PX8','X15'],
+  'transmisiones': ['RTLO 169/13 (13 vel)','RTLO 169/18 B (18 vel)','RTLO 189/18B','RTLO 156-10B Super 10','Métrica 162/10B','Métrica 152/10B','FS6106A','Eaton Fuller (otras)','8LL','RTLO 156-10A'],
+  'compresores': ['ISX','N14','ISB','ISM','Maxforce','BC','DD4','C13','C15','Caterpillar 3406','Volvo D13','Volvo D12','M11']
+};
+
+const FAMILIAS = [
+  { id: 'arboles', nombre: 'Árboles de Levas', nombreSingular: 'Árbol de Levas', color: '#fde7d3', tipo: 'libre',
+    botones: [], placeholderLibre: 'Terminación, número de parte, etc.' },
+  { id: 'motores', nombre: 'Motores', nombreSingular: 'Motor', color: '#ffe9a8', tipo: 'porMotor', tieneInfoMotor: true, tieneFichaTecnica: true,
+    botones: ['ISX sin EGR','ISX con EGR','ISX con VGT','ISX12','N14','ISM','M11','L-10','Big Cam','DD4','DD5','DD6','DD15','Detroit S60','Caterpillar C13','Caterpillar C15','Maxforce','Navistar 210'],
+    extraCheck: { aplicaA: ['Caterpillar C13','Caterpillar C15'], label: '¿Doble Turbo?' } },
+  { id: 'transmisiones', nombre: 'Transmisiones', nombreSingular: 'Transmisión', color: '#d6ecff', tipo: 'modelos',
+    botones: ['RTLO 169/13 (13 vel)','RTLO 169/18 B (18 vel)','RTLO 189/18B','RTLO 156-10B Super 10','Métrica 162/10B','Métrica 152/10B','FS6106A','Eaton Fuller (otras)'] },
+  { id: 'turbos', nombre: 'Turbos', nombreSingular: 'Turbo', color: '#e5d8f5', tipo: 'porMotor',
+    botones: ['BigCam','N14','N14 Plus','Detroit S60','DD4','DD5','DD6','DD15','ISB','ISM','ISX','ISX VGT','ISX15','Caterpillar C13/C15','PX6','PX8'] },
+  { id: 'compresores', nombre: 'Compresores', nombreSingular: 'Compresor', color: '#d4f0d6', tipo: 'porMotor',
+    botones: ['ISX','N14','ISB','ISM','Maxforce','BC','DD4','C13','C15'] },
+  { id: 'diferenciales', nombre: 'Diferenciales', nombreSingular: 'Diferencial', color: '#ffd6d6', tipo: 'especial-diferenciales',
+    botones: ['Delantero 40k','Delantero 42k','Delantero 44k','Delantero 46k','Trasero 40k','Trasero 42k','Trasero 44k','Trasero 46k'],
+    marcas: ['Rockwell','Spicer','Eaton'] },
+  { id: 'mancuernas', nombre: 'Mancuernas', nombreSingular: 'Mancuerna', color: '#cfe9e9', tipo: 'especial-mancuernas',
+    botones: ['Mancuerna 42k','Mancuerna 44k','Mancuerna 46k'],
+    marcas: ['Meritor (Rockwell)','Spicer','Unemon'],
+    suspensiones: ['4 Bolsas','Muelles (tuerca y capuchón)'] },
+  { id: 'cabinas', nombre: 'Cabinas', nombreSingular: 'Cabina', color: '#f5d6e8', tipo: 'fichaSolo', tieneFichaTecnica: true,
+    botones: [] },
+  { id: 'cofres', nombre: 'Cofres', nombreSingular: 'Cofre', color: '#e8e0c8', tipo: 'cofre',
+    botones: [] },
+  { id: 'puertas', nombre: 'Puertas', nombreSingular: 'Puerta', color: '#d8e8d0', tipo: 'heredaCamion',
+    botones: ['Puerta Piloto','Puerta Copiloto'] },
+  { id: 'quintaRueda', nombre: 'Quinta Rueda', nombreSingular: 'Quinta Rueda', color: '#ffd9b8', tipo: 'modelos',
+    botones: ['Host','Fontaine','Holland','Simplex'] },
+  { id: 'fanclutches', nombre: 'Fanclutches', nombreSingular: 'Fanclutch', color: '#c8e4f0', tipo: 'porMotor',
+    botones: ['ISX','N14','ISM','Detroit S60','DD4','DD5','DD6','DD15','Caterpillar','ISB','ISC','Maxforce','BC'] },
+  { id: 'radiadores', nombre: 'Radiadores', nombreSingular: 'Radiador', color: '#ffcccb', tipo: 'heredaCamion',
+    botones: ['Radiador'] },
+  { id: 'cabezas', nombre: 'Cabezas de Motor', nombreSingular: 'Cabeza de Motor', color: '#e0d4c0', tipo: 'porMotor',
+    botones: ['ISX','N14','N14 Plus','ISM','M11','Detroit S60','DD4','DD5','DD6','DD15','Caterpillar C13','Caterpillar C15','PX8','BigCam'] },
+  { id: 'ciguenales', nombre: 'Cigüeñales', nombreSingular: 'Cigüeñal', color: '#d4d8f0', tipo: 'libre',
+    botones: [], placeholderLibre: 'Modelo, número, estado (010/020), etc.' },
+  { id: 'campanas', nombre: 'Campanas de Motor', nombreSingular: 'Campana de Motor', color: '#f0e0d4', tipo: 'porMotor',
+    botones: ['ISX','N14','ISM','M11','Detroit S60','DD4','DD5','DD6','DD15','Caterpillar','BigCam'] },
+  { id: 'chasis', nombre: 'Chasis', nombreSingular: 'Chasis', color: '#d4d4d4', tipo: 'fichaSolo', tieneFichaTecnica: true,
+    botones: [] },
+  { id: 'complementos', nombre: 'Complementos de Cabina', nombreSingular: 'Complemento de Cabina', color: '#e0e8d4', tipo: 'heredaCamion',
+    botones: ['Defensa','Tablero','Asiento Piloto','Asiento Copiloto','Espejo','Volante de Motor'] },
+  { id: 'computadoras', nombre: 'Computadoras', nombreSingular: 'Computadora', color: '#d0e8e0', tipo: 'porMotor',
+    botones: ['ISX CM870','ISX CM871','N14 Celect','N14 Celect Plus','M11','ISM','ISC','ISB','C15','C13','C10','C12','3406','DD15','DDEC4','DDEC5','Serie 60','MaxForce 13','PX6','PX8'] },
+  { id: 'inyectores', nombre: 'Inyectores', nombreSingular: 'Inyector', color: '#f0d8d0', tipo: 'porMotor',
+    botones: ['ISX','N14','ISM','ISC','ISB','C15','C13','C12','C10','3406','DD15','Detroit S60','MaxForce','PX6','PX8','BigCam'] },
+  { id: 'otros', nombre: 'Otros', nombreSingular: 'Otro', color: '#e8e8e8', tipo: 'libre',
+    botones: [], placeholderLibre: '¿Qué pieza es?' }
+];
+
+// ============================================================
+// ESTADO (localStorage)
+// ============================================================
+const STORE_KEY = 'tpm_inventario_v1';
+
+// ============================================================
+// FIREBASE — sincronización en tiempo real (acceso abierto)
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyB8MRNvbAhk7tJa731DolvnnFr_1S9imLk",
+  authDomain: "inventario-julio-26.firebaseapp.com",
+  databaseURL: "https://inventario-julio-26-default-rtdb.firebaseio.com",
+  projectId: "inventario-julio-26",
+  storageBucket: "inventario-julio-26.firebasestorage.app",
+  messagingSenderId: "237695179240",
+  appId: "1:237695179240:web:57f16b77af33aa00cdec5d"
+};
+
+let fbApp = null, fbRef = null, fbListo = false, fbAplicandoRemoto = false;
+const FB_PATH = 'inventario_patio';       // rama separada para este inventario
+const DEVICE_ID = (() => {
+  let d = localStorage.getItem('tpm_device_id');
+  if (!d) { d = 'dev_' + Math.random().toString(36).slice(2,10); localStorage.setItem('tpm_device_id', d); }
+  return d;
+})();
+
+function initFirebase() {
+  try {
+    fbApp = firebase.initializeApp(firebaseConfig);
+    fbRef = firebase.database().ref(FB_PATH);
+
+    // Escucha cambios de otros dispositivos en tiempo real
+    fbRef.on('value', (snap) => {
+      const remoto = snap.val();
+      fbListo = true;
+      if (!remoto) {
+        // Primera vez: la nube está vacía → subimos lo local
+        if (DATA.camiones.length || DATA.piezas.length) empujarAFirebase();
+        return;
+      }
+      // Ignorar el eco de nuestro propio guardado
+      if (remoto._origen === DEVICE_ID) return;
+      // Aplicar datos remotos
+      fbAplicandoRemoto = true;
+      DATA = normalizarData(remoto);
+      guardarLocal();
+      refrescarVistaActual();
+      fbAplicandoRemoto = false;
+      setEstadoSync('ok', 'Sincronizado');
+    }, (err) => {
+      console.error('Firebase:', err);
+      setEstadoSync('offline', 'Sin conexión — datos locales');
+    });
+
+    // Estado de conexión
+    firebase.database().ref('.info/connected').on('value', (s) => {
+      setEstadoSync(s.val() ? 'ok' : 'offline', s.val() ? 'Sincronizado' : 'Sin conexión — datos locales');
+    });
+  } catch(e) {
+    console.error('No se pudo iniciar Firebase:', e);
+    setEstadoSync('offline', 'Sin nube — solo local');
+  }
+}
+
+function empujarAFirebase() {
+  if (!fbRef) return;
+  const payload = { ...DATA, _origen: DEVICE_ID, _ts: Date.now() };
+  fbRef.set(payload).then(() => setEstadoSync('ok', 'Sincronizado'))
+    .catch(() => setEstadoSync('offline', 'Cambios guardados local'));
+}
+
+function normalizarData(obj) {
+  const d = {
+    camiones: Array.isArray(obj.camiones) ? obj.camiones : [],
+    piezas: Array.isArray(obj.piezas) ? obj.piezas : [],
+    catalogos: obj.catalogos || JSON.parse(JSON.stringify(CATALOGOS_DEFAULT)),
+    familiasOverride: obj.familiasOverride || JSON.parse(JSON.stringify(FAMILIAS_OVERRIDE_DEFAULT)),
+    folioCounter: obj.folioCounter || 1
+  };
+  return d;
+}
+
+function setEstadoSync(estado, texto) {
+  const el = document.getElementById('sync-estado');
+  if (!el) return;
+  const colores = { ok: '#2e7d46', offline: '#b03a2e', sync: '#c9a24b' };
+  el.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colores[estado]||'#999'};margin-right:6px;"></span>${texto}`;
+}
+
+function refrescarVistaActual() {
+  const activa = document.querySelector('.view.active');
+  if (!activa) { renderCamiones(); return; }
+  if (activa.id === 'view-camiones') renderCamiones();
+  else if (activa.id === 'view-buscar') renderBusqueda();
+  else if (activa.id === 'view-admin' && typeof renderAdmin === 'function') renderAdmin();
+}
+
+let DATA = cargar();
+
+function cargar() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) { console.error(e); }
+  return {
+    camiones: [],
+    piezas: [],
+    catalogos: JSON.parse(JSON.stringify(CATALOGOS_DEFAULT)),
+    familiasOverride: JSON.parse(JSON.stringify(FAMILIAS_OVERRIDE_DEFAULT)),
+    folioCounter: 1
+  };
+}
+function guardarLocal() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); }
+  catch(e) { console.error('Error local:', e); }
+}
+function guardar() {
+  guardarLocal();
+  // Si el cambio viene de la nube, no lo re-subimos
+  if (!fbAplicandoRemoto && fbRef) empujarAFirebase();
+}
+
+function getCatalogos() {
+  if (!DATA.catalogos) DATA.catalogos = JSON.parse(JSON.stringify(CATALOGOS_DEFAULT));
+  if (!DATA.familiasOverride) DATA.familiasOverride = JSON.parse(JSON.stringify(FAMILIAS_OVERRIDE_DEFAULT));
+  // merge con defaults para nuevos campos si actualizamos el sistema
+  for (const k in CATALOGOS_DEFAULT) {
+    if (!DATA.catalogos[k]) DATA.catalogos[k] = JSON.parse(JSON.stringify(CATALOGOS_DEFAULT[k]));
+  }
+  // Asegurar que la familia "motores" NO tenga override propio (siempre usa catalogos.motores)
+  if (DATA.familiasOverride && DATA.familiasOverride.motores) {
+    delete DATA.familiasOverride.motores;
+  }
+  return DATA.catalogos;
+}
+
+// ============================================================
+// UI: NAVEGACIÓN
+// ============================================================
+document.querySelectorAll('nav button').forEach(b => {
+  b.addEventListener('click', () => showView(b.dataset.view));
+});
+
+function showView(name) {
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+  if (name === 'camiones') renderCamiones();
+  if (name === 'buscar') renderBusqueda();
+  if (name === 'admin') renderAdmin();
+  window.scrollTo(0,0);
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function toast(msg, tipo) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (tipo ? ' ' + tipo : '');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// Sonido de confirmación (ding corto) — no necesita archivos externos
+function playDing() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch(e) {}
+}
+
+// Formato fecha corto español: "29-may-2026 · 8:30 PM"
+const MESES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function fechaCorta(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const dia = d.getDate();
+  const mes = MESES_CORTO[d.getMonth()];
+  const año = d.getFullYear();
+  let h = d.getHours(); const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  const min = String(d.getMinutes()).padStart(2,'0');
+  return `${dia}-${mes}-${año} · ${h}:${min} ${ampm}`;
+}
+
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Escape para usar dentro de onclick="func('${jsAttr(...)}')" — escapa quotes y backslashes para JS
+function jsAttr(s) {
+  if (s === null || s === undefined || s === '') return '';
+  return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/\n/g,'\\n').replace(/\r/g,'');
+}
+
+// Renderiza un QR a un contenedor dado un input con la URL
+function actualizarQRPreview(inputId, containerId) {
+  const input = document.getElementById(inputId);
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const url = (input?.value || '').trim();
+  container.innerHTML = '';
+  if (!url) return;
+  try {
+    new QRCode(container, { text: url, width: 140, height: 140, correctLevel: QRCode.CorrectLevel.M });
+    container.insertAdjacentHTML('beforeend', '<div style="font-size:11px; color:#888; margin-top:6px;">Escanea este QR para ir a la carpeta</div>');
+  } catch(e) {
+    container.innerHTML = '<div style="font-size:12px; color:#c0392b;">No se pudo generar el QR</div>';
+  }
+}
+
+// Modal flotante con QR grande para escanear
+// Compartir una pieza por el menú nativo del teléfono (WhatsApp, etc.)
+function compartirPieza(id) {
+  const p = DATA.piezas.find(x => x.id === id);
+  if (!p) return;
+  const f = FAMILIAS.find(x => x.id === p.familia);
+  const ex = p.extras || {};
+
+  // Armar el mensaje
+  const lineas = [];
+  lineas.push(`🔧 ${(f?.nombreSingular || 'PIEZA').toUpperCase()} — Tracto Partes Magaña`);
+  lineas.push('');
+  if (p.modelo) lineas.push(`Modelo: ${p.modelo}`);
+  // Datos de motor / ficha si los tiene
+  if (ex.estadoMotor) lineas.push(`Estado: ${ex.estadoMotor}`);
+  if (ex.serie) lineas.push(`N° Serie: ${ex.serie}`);
+  if (ex.cpl) lineas.push(`CPL: ${ex.cpl}`);
+  if (ex.hp) lineas.push(`HP: ${ex.hp}`);
+  if (ex.fichaMarca) lineas.push(`Marca: ${ex.fichaMarca}`);
+  if (ex.fichaModelo) lineas.push(`Modelo (ficha): ${ex.fichaModelo}`);
+  if (ex.fichaAño) lineas.push(`Año: ${ex.fichaAño}`);
+  // Extras genéricos (diferenciales, mancuernas, etc.)
+  const extrasTxt = formatExtras(ex, p.modelo);
+  if (extrasTxt && !ex.estadoMotor && !ex.fichaMarca) lineas.push(`Detalles: ${extrasTxt}`);
+  // Si viene de un camión, mencionar el origen
+  const camion = DATA.camiones.find(c => c.id === p.camionId);
+  if (camion) lineas.push(`Tipo de camión: ${camion.marca} ${camion.modelo} ${camion.año || ''}`.trim());
+  // Precio
+  if (p.precioSugerido || p.precioMax) {
+    const min = p.precioSugerido ? `$${Number(p.precioSugerido).toLocaleString('es-MX')}` : '';
+    const max = p.precioMax ? ` - $${Number(p.precioMax).toLocaleString('es-MX')}` : '';
+    lineas.push(`Precio: ${min}${max}`);
+  }
+  // Link Drive
+  if (ex.driveLink) {
+    lineas.push('');
+    lineas.push('📷 Fotos y video:');
+    lineas.push(ex.driveLink);
+  }
+
+  const mensaje = lineas.join('\n');
+
+  // Usar menú nativo de compartir (abre WhatsApp y demás apps en celular)
+  if (navigator.share) {
+    navigator.share({ text: mensaje }).catch(() => {});
+  } else {
+    // Fallback en computadora: abrir WhatsApp Web con el texto
+    const url = 'https://wa.me/?text=' + encodeURIComponent(mensaje);
+    window.open(url, '_blank');
+  }
+}
+
+function verQR(urlCodificada, titulo) {
+  const url = decodeURIComponent(urlCodificada);
+  // Reusa el modal-pieza
+  document.getElementById('modal-pieza-title').textContent = 'QR · ' + (titulo || 'Carpeta');
+  document.getElementById('modal-pieza-body').innerHTML = `
+    <div style="text-align:center; padding:10px;">
+      <div id="qr-grande" style="display:inline-block; padding:16px; background:#fff; border:2px solid #1a1a1a; border-radius:8px;"></div>
+      <div style="margin-top:14px; font-size:13px; color:#666; word-break:break-all;">${escapeHtml(url)}</div>
+      <a href="${escapeHtml(url)}" target="_blank" class="btn btn-primary" style="margin-top:14px; display:inline-block; text-decoration:none;">Abrir en navegador</a>
+    </div>
+  `;
+  openModal('modal-pieza');
+  setTimeout(() => {
+    const c = document.getElementById('qr-grande');
+    if (c) try { new QRCode(c, { text: url, width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M }); } catch(e) {}
+  }, 50);
+}
+
+// ============================================================
+// COMAS AUTOMÁTICAS EN INPUTS DE PRECIO + ENTER PARA AVANZAR
+// ============================================================
+document.addEventListener('input', function(e) {
+  if (e.target.matches('.precio-input')) {
+    // Aceptar dígitos y un guión. Formato: "2,000 - 3,000"
+    const raw = e.target.value;
+    // Limpiar a solo dígitos y guion
+    let clean = raw.replace(/[^\d-]/g, '');
+    // Solo permitir UN guion
+    const firstDash = clean.indexOf('-');
+    if (firstDash !== -1) {
+      clean = clean.slice(0, firstDash + 1) + clean.slice(firstDash + 1).replace(/-/g, '');
+    }
+    if (clean === '' || clean === '-') { e.target.value = clean; return; }
+    const partes = clean.split('-');
+    const formateadas = partes.map(p => p === '' ? '' : Number(p).toLocaleString('es-MX'));
+    const nuevoValor = formateadas.join(' - ');
+    const posDesdeFin = raw.length - e.target.selectionStart;
+    e.target.value = nuevoValor;
+    const nuevaPos = Math.max(0, nuevoValor.length - posDesdeFin);
+    e.target.setSelectionRange(nuevaPos, nuevaPos);
+  }
+});
+
+// Parsear "2,000 - 3,000" o "2,000" → {min, max}
+function parsearPrecioRange(str) {
+  if (!str) return { min: null, max: null };
+  const partes = String(str).replace(/[,$\s]/g, '').split('-').filter(s => s !== '');
+  if (partes.length === 0) return { min: null, max: null };
+  if (partes.length === 1) return { min: parseFloat(partes[0]) || null, max: null };
+  return { min: parseFloat(partes[0]) || null, max: parseFloat(partes[1]) || null };
+}
+
+// Formatear precio para mostrar (devuelve HTML del badge verde)
+function precioBadge(p) {
+  if (!p.precioSugerido && !p.precioMax) return '';
+  const min = p.precioSugerido ? `$${Number(p.precioSugerido).toLocaleString('es-MX')}` : '';
+  const max = p.precioMax ? ` - $${Number(p.precioMax).toLocaleString('es-MX')}` : '';
+  return `<span class="precio-tag">${min}${max}</span>`;
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
+    if (e.target.type === 'submit' || e.target.type === 'button') return;
+    e.preventDefault();
+    // Si hay un modal activo, buscar inputs solo dentro de él
+    const modalActivo = document.querySelector('.modal.active');
+    const scope = modalActivo || document;
+    const inputs = Array.from(scope.querySelectorAll('input, select, textarea')).filter(el => {
+      return !el.disabled && !el.readOnly && el.offsetParent !== null && el.type !== 'hidden';
+    });
+    const idx = inputs.indexOf(e.target);
+    if (idx !== -1 && idx < inputs.length - 1) {
+      inputs[idx + 1].focus();
+      if (inputs[idx + 1].select) inputs[idx + 1].select();
+    }
+  }
+});
+
+// ============================================================
+// MODAL HELPERS
+// ============================================================
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+document.querySelectorAll('.modal-bg').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('active'); });
+});
+
+// ============================================================
+// CAMIONES - LISTADO (con stats integradas, antes era Dashboard)
+// ============================================================
+// Texto completo buscable de una pieza (todos los campos)
+function textoBuscablePieza(p) {
+  const ex = p.extras || {};
+  const f = FAMILIAS.find(x => x.id === p.familia);
+  return [
+    p.modelo, p.motor, p.marca, p.año, p.camionFolio, p.camionMarca, p.camionModelo,
+    f?.nombre, f?.nombreSingular,
+    ex.terminacion, ex.serie, ex.cpl, ex.hp, ex.libras, ex.condicion, ex.ubicacion,
+    ex.fichaVin, ex.fichaNoMotor, ex.fichaMarca, ex.fichaModelo, ex.fichaAño, ex.fichaExtra,
+    ex.estadoMotor, ex.estado, ex.marcaEje, ex.suspension, ex.paso, ex.descripcion,
+    ex.dobleTurbo ? 'biturbo doble turbo' : '',
+    p.precioSugerido, p.precioMax, p.notas
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function renderCamiones() {
+  // Lista de camiones (filtrar también por estado)
+  const filtro = (document.getElementById('filtro-camiones')?.value || '').toLowerCase().trim();
+  const camionesFiltrados = DATA.camiones.filter(c => {
+    if (!filtro) return true;
+    const txtCamion = [c.folio, c.marca, c.modelo, c.motor, c.año, c.notas].join(' ').toLowerCase();
+    if (txtCamion.includes(filtro)) return true;
+    return DATA.piezas.filter(p => p.camionId === c.id).some(p => textoBuscablePieza(p).includes(filtro));
+  });
+
+  const activos = camionesFiltrados.filter(c => !c.desmantelado).sort((a,b) => (b.fechaRegistro || 0) - (a.fechaRegistro || 0));
+  const desmantelados = camionesFiltrados.filter(c => c.desmantelado).sort((a,b) => (b.fechaDesmantelado || 0) - (a.fechaDesmantelado || 0));
+
+  // Aviso de búsqueda activa
+  const avisoEl = document.getElementById('aviso-busqueda');
+  const avisoTxt = document.getElementById('aviso-busqueda-texto');
+  if (filtro) {
+    avisoEl.style.display = 'block';
+    avisoTxt.textContent = filtro;
+  } else {
+    avisoEl.style.display = 'none';
+  }
+
+  // Contador de camiones
+  const totalActivos = DATA.camiones.filter(c => !c.desmantelado).length;
+  const totalDesm = DATA.camiones.filter(c => c.desmantelado).length;
+  const totalPiezas = DATA.piezas.filter(p => !p.vendida).length;
+  document.getElementById('contador-camiones').innerHTML = `${totalActivos} camión(es) activo(s)${totalDesm ? ` · ${totalDesm} desmantelado(s)` : ''} · ${totalPiezas} pieza(s) en patio`;
+
+  // Últimos registros creados (camiones + piezas mezclados, los 20 más recientes)
+  const registros = [];
+  DATA.camiones.forEach(c => registros.push({ tipo: 'camion', nombre: `🚛 ${c.marca} ${c.modelo} ${c.año||''}`, folio: c.folio, ts: c.fechaRegistro }));
+  DATA.piezas.forEach(p => {
+    const fNombre = FAMILIAS.find(x => x.id === p.familia)?.nombreSingular || 'Pieza';
+    registros.push({ tipo: 'pieza', nombre: `${fNombre}: ${p.modelo||''}`, folio: p.camionFolio || '', ts: p.fechaRegistro, vendida: p.vendida });
+  });
+  registros.sort((a,b) => (b.ts||0) - (a.ts||0));
+  const ultimos = registros.slice(0, 20);
+  document.getElementById('ultimos-registros-lista').innerHTML = ultimos.length === 0
+    ? '<div style="color:#aaa; font-size:13px;">Sin registros aún.</div>'
+    : ultimos.map(r => `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid #f0f0e8; font-size:13px;">
+        <div style="flex:1; min-width:0;">
+          <span style="font-weight:700; color:#1a1a1a;">${escapeHtml(r.nombre)}</span>
+          ${r.vendida ? '<span style="color:#c0392b; font-size:11px; font-weight:600;"> VENDIDA</span>' : ''}
+        </div>
+        <div style="font-size:11px; color:#aaa; font-family:ui-monospace,monospace; white-space:nowrap; margin-left:8px;">${fechaCorta(r.ts)}</div>
+      </div>
+    `).join('');
+
+  const cont = document.getElementById('lista-camiones');
+  let htmlCamiones = '';
+  if (DATA.camiones.length === 0 && DATA.piezas.filter(p=>!p.camionId).length === 0) {
+    cont.innerHTML = '<div class="info-bar">Aún no hay registros. Toca un botón de arriba para empezar.</div>';
+    return;
+  }
+  if (activos.length === 0 && desmantelados.length === 0 && filtro) {
+    htmlCamiones = '<div class="info-bar">Ningún camión coincide con la búsqueda.</div>';
+  } else {
+    htmlCamiones = activos.map(c => renderCamionCard(c)).join('');
+    if (desmantelados.length > 0) {
+      htmlCamiones += `<h3 style="margin-top:24px; color:#888;">Camiones Desmantelados (${desmantelados.length})</h3>`;
+      htmlCamiones += desmantelados.map(c => renderCamionCard(c)).join('');
+    }
+  }
+  cont.innerHTML = htmlCamiones;
+
+  // Sección de piezas sueltas (sin camión) — ordenadas: más reciente arriba
+  const filtroSueltas = (document.getElementById('filtro-camiones')?.value || '').toLowerCase().trim();
+  const sueltas = DATA.piezas.filter(p => !p.camionId && !p.vendida).filter(p => {
+    if (!filtroSueltas) return true;
+    return textoBuscablePieza(p).includes(filtroSueltas);
+  }).sort((a,b) => (b.fechaRegistro || 0) - (a.fechaRegistro || 0));
+
+  if (sueltas.length > 0) {
+    const sueltasHTML = sueltas.map(p => {
+      const f = FAMILIAS.find(x => x.id === p.familia);
+      // Si es Motor/Cabina/Chasis, usar formato tabla (igual que dentro del camión)
+      // Quitar el título "Motor"/"Cabina"/"Chasis" interno porque ya está afuera como "SUELTA · ..."
+      let lineasDetalle = detalleDePiezas([p]).join('');
+      const qrBtn = p.extras?.driveLink
+        ? `<button class="btn btn-small" style="padding:6px 10px; font-size:12px; min-height:30px;" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((f?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡 QR</button>`
+        : '';
+
+      return `
+        <div class="card" style="background:#fff; border:3px solid #e67e22; border-radius:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:15px; font-weight:800; color:#e67e22;">${f?.nombreSingular || 'Pieza'}</div>
+              <div style="margin-top:6px;">${lineasDetalle}</div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:5px; flex-shrink:0;">
+              ${qrBtn}
+              <button class="btn btn-small btn-mini btn-success" onclick="venderPieza('${p.id}')">Vendí</button>
+              <button class="btn btn-small btn-mini btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
+              <button class="btn btn-small btn-mini" onclick="editarPieza('${p.id}')">Editar</button>
+              <button class="btn btn-small btn-mini btn-danger" onclick="eliminarPieza('${p.id}')">🗑</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    cont.innerHTML += `
+      <h3 style="margin-top:24px; color:#e67e22;">Piezas Sueltas (sin camión)</h3>
+      ${sueltasHTML}
+    `;
+  }
+}
+
+function renderCamionCard(c) {
+  const piezas = DATA.piezas.filter(p => p.camionId === c.id && !p.vendida);
+  const piezasVend = DATA.piezas.filter(p => p.camionId === c.id && p.vendida).length;
+
+  // Lista: una línea por cada pieza individual (con bullets)
+  const lineasPiezas = detalleDePiezas(piezas);
+  const listaPiezas = piezas.length === 0
+    ? '<div style="color:#aaa; font-style:italic; margin: 6px 0 10px;">Sin piezas registradas</div>'
+    : '<ul style="margin: 10px 0 12px; padding-left: 22px; list-style-type: disc;">' + lineasPiezas.map(html => `<li style="margin: 4px 0; padding-left: 4px;">${html}</li>`).join('') + '</ul>';
+
+  const esDesmantelado = !!c.desmantelado;
+  const opacidad = esDesmantelado ? 'opacity:0.65;' : '';
+
+  // Color sutil de borde izquierdo según marca
+  const bordeMarca = {
+    'Freightliner': '#d4a017',
+    'Kenworth': '#2980b9',
+    'International': '#c0392b',
+    'Volvo': '#27ae60'
+  };
+  const bordeColor = esDesmantelado ? '#ccc' : (bordeMarca[c.marca] || '#999');
+
+  return `
+    <div class="card" style="${opacidad} background:#fff; border:3px solid ${bordeColor}; border-radius:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:17px; font-weight:900; color:#1a1a1a; letter-spacing:-0.3px;">🚛 ${escapeHtml(c.marca)} ${escapeHtml(c.modelo)} ${escapeHtml(c.año || '')}</div>
+          ${esDesmantelado ? '<div style="display:inline-block; margin-top:4px; padding:2px 8px; background:#888; color:#fff; border-radius:3px; font-size:11px; font-weight:700; text-transform:uppercase;">Desmantelado</div>' : ''}
+          ${c.motor ? `<div style="font-size:13px; color:#555; font-weight:600; margin-top:3px;">Motor: ${escapeHtml(c.motor)}</div>` : ''}
+          ${listaPiezas}
+        </div>
+        <div style="display:flex; flex-direction:column; gap:5px; flex-shrink:0;">
+          <button class="btn btn-small btn-mini" onclick="editarCamion('${c.id}')">Editar</button>
+          ${esDesmantelado
+            ? `<button class="btn btn-small btn-mini" onclick="reactivarCamion('${c.id}')">Reactivar</button>
+               <button class="btn btn-small btn-mini btn-danger" onclick="eliminarCamionPermanente('${c.id}')">Borrar</button>`
+            : `<button class="btn btn-small btn-mini btn-danger" onclick="eliminarCamion('${c.id}')">Desmantelar</button>`}
+        </div>
+      </div>
+
+      ${c.notas ? `<div style="margin-top:8px; padding:9px 13px; background:#f7f3ea; border-left:3px solid #c9a24b; border-radius:2px; font-size:14px; color:#4a4a4a; white-space:pre-wrap;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#999; font-weight:700; font-family:Arial,sans-serif;">Notas:</span> ${escapeHtml(c.notas)}</div>` : ''}
+
+      ${!esDesmantelado ? `<div style="display:flex; gap:8px; margin-top:12px;">
+        <button class="btn btn-small btn-mini btn-primary" onclick="openPiezaModal('${c.id}')">+ Agregar Pieza</button>
+        <button class="btn btn-small btn-mini" onclick="verPiezasCamion('${c.id}')">Ver Piezas</button>
+      </div>` : `<div style="margin-top:12px;"><button class="btn btn-small btn-mini" onclick="verPiezasCamion('${c.id}')">Ver Piezas</button></div>`}
+
+      <div style="margin-top:8px; font-size:11px; color:#bbb; font-family:ui-monospace,monospace;">
+        ${c.folio} · Llegó ${c.fechaLlegada || '—'}${piezasVend > 0 ? ` · ${piezasVend} vendida${piezasVend > 1 ? 's' : ''}` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function agruparPiezas(piezas) {
+  const m = {};
+  piezas.forEach(p => {
+    const fam = FAMILIAS.find(f => f.id === p.familia)?.nombre || p.familia;
+    m[fam] = (m[fam] || 0) + 1;
+  });
+  return Object.entries(m).sort((a,b) => b[1] - a[1]);
+}
+
+// Lista detallada: una línea por cada pieza. Para Motor/Cabina/Chasis devuelve tabla.
+function detalleDePiezas(piezas) {
+  return piezas.map(p => {
+    const f = FAMILIAS.find(x => x.id === p.familia);
+    const famSing = f?.nombreSingular || f?.nombre || p.familia;
+    const ex = p.extras || {};
+    const precioTag = precioBadge(p);
+
+    // Para Motor, Cabina, Chasis: formato de tabla con todos los datos
+    if (f && (f.tieneInfoMotor || f.tieneFichaTecnica)) {
+      const filas = [];
+      // Datos del motor
+      if (ex.estadoMotor) filas.push(['Estado', escapeHtml(ex.estadoMotor)]);
+      if (ex.serie) filas.push(['Serie', escapeHtml(ex.serie)]);
+      if (ex.cpl) filas.push(['CPL', escapeHtml(ex.cpl)]);
+      if (ex.hp) filas.push(['HP', escapeHtml(ex.hp)]);
+      if (ex.dobleTurbo) filas.push(['Doble Turbo', 'Sí']);
+      // Ficha técnica
+      if (ex.fichaMarca) filas.push(['Marca', escapeHtml(ex.fichaMarca)]);
+      if (ex.fichaModelo) filas.push(['Modelo', escapeHtml(ex.fichaModelo)]);
+      if (ex.fichaAño) filas.push(['Año', escapeHtml(ex.fichaAño)]);
+      if (ex.fichaVin) filas.push(['VIN', escapeHtml(ex.fichaVin)]);
+      if (ex.fichaNoMotor) filas.push(['N° Motor', escapeHtml(ex.fichaNoMotor)]);
+      if (ex.fichaExtra) filas.push(['Extra', escapeHtml(ex.fichaExtra)]);
+      if (p.notas) filas.push(['Notas', `<em style="color:#888;">${escapeHtml(p.notas)}</em>`]);
+
+      // Título: "Motor: ISX sin EGR" o solo "Cabina" si el modelo es genérico
+      const modeloEnTitulo = (p.modelo && p.modelo !== famSing) ? `: ${escapeHtml(p.modelo)}` : '';
+      const tituloConPrecio = `<strong>${famSing}${modeloEnTitulo}</strong> ${precioBadge(p)}`;
+      
+      const qrBtnTabla = ex.driveLink ? ` <button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(ex.driveLink)}', '${jsAttr(famSing + ' ' + (p.modelo||''))}')">📱🤡 QR</button>` : '';
+
+      if (filas.length === 0) {
+        // Sin datos en tabla, solo título con precio
+        return `<div style="font-size:15px; color:#1a1a1a; padding: 4px 0; line-height:1.6;">${tituloConPrecio}${qrBtnTabla}</div>`;
+      }
+
+      const tabla = filas.map(([k, v]) =>
+        `<tr><td style="padding:4px 8px; font-weight:700; color:#555; border-bottom:1px solid #eee; width:35%; font-size:13px;">${k}</td><td style="padding:4px 8px; color:#1a1a1a; border-bottom:1px solid #eee; font-size:13px;">${v}</td></tr>`
+      ).join('');
+
+      return `<div style="margin: 6px 0; padding: 4px 0;">
+        <div style="font-size:15px; color:#1a1a1a; margin-bottom:4px;">${tituloConPrecio}${qrBtnTabla}</div>
+        <table style="width:100%; border-collapse:collapse; background:#fff; border:1px solid #e0e0d8; border-radius:4px; overflow:hidden;">${tabla}</table>
+      </div>`;
+    }
+
+    // Para el resto: línea simple
+    const extras = formatExtras(ex, p.modelo);
+    let modeloMostrar = p.modelo || '';
+    if (f && f.tipo === 'heredaCamion' && modeloMostrar === famSing) modeloMostrar = '';
+
+    let textoSinPrecio;
+    if (modeloMostrar && extras) textoSinPrecio = `<strong>${escapeHtml(famSing)}:</strong> ${escapeHtml(modeloMostrar)} (${escapeHtml(extras)})`;
+    else if (modeloMostrar) textoSinPrecio = `<strong>${escapeHtml(famSing)}:</strong> ${escapeHtml(modeloMostrar)}`;
+    else if (extras) textoSinPrecio = `<strong>${escapeHtml(famSing)}:</strong> ${escapeHtml(extras)}`;
+    else textoSinPrecio = `<strong>${escapeHtml(famSing)}</strong>`;
+
+    const qrBtn = ex.driveLink ? ` <button class="btn btn-small" style="padding:3px 8px; font-size:11px; min-height:24px;" onclick="verQR('${encodeURIComponent(ex.driveLink)}', '${jsAttr(famSing + ' ' + (p.modelo||''))}')">📱🤡 QR</button>` : '';
+
+    const notaHTML = p.notas ? `<div style="font-size:14px; color:#4a4a4a; background:#f7f3ea; border-left:3px solid #c9a24b; border-radius:2px; padding:7px 11px; margin-top:5px;">📝 ${escapeHtml(p.notas)}</div>` : '';
+
+    return `<div style="font-size:15px; color:#1a1a1a; padding: 4px 0; line-height:1.6;">${textoSinPrecio} ${precioTag}${qrBtn}</div>${notaHTML}`;
+  });
+}
+
+// ============================================================
+// MODAL: REGISTRAR / EDITAR CAMIÓN
+// ============================================================
+let editandoCamionId = null;
+
+function openCamionModal() {
+  editandoCamionId = null;
+  document.getElementById('modal-camion-title').textContent = 'Registrar Camión Nuevo';
+  buildCamionForm({});
+  openModal('modal-camion');
+}
+
+function editarCamion(id) {
+  const c = DATA.camiones.find(x => x.id === id);
+  if (!c) return;
+  editandoCamionId = id;
+  document.getElementById('modal-camion-title').textContent = `Editar Camión Folio ${c.folio}`;
+  buildCamionForm(c);
+  openModal('modal-camion');
+}
+
+function buildCamionForm(c) {
+  const cat = getCatalogos();
+  const hoy = new Date().toISOString().slice(0,10);
+  const folio = c.folio || ('C-' + String(DATA.folioCounter).padStart(4,'0'));
+
+  document.getElementById('modal-camion-body').innerHTML = `
+    <div class="field">
+      <label>Folio</label>
+      <input type="text" id="cam-folio" value="${folio}" ${c.id ? '' : 'readonly style="background:#f5f5f0; color:#888"'}>
+    </div>
+    <div class="field">
+      <label>Marca</label>
+      <div class="btn-grid" id="cam-marcas"></div>
+    </div>
+    <div class="field" id="campo-modelo" style="display:none">
+      <label>Modelo</label>
+      <div class="btn-grid" id="cam-modelos"></div>
+      <input type="text" id="cam-modelo-libre" placeholder="O escribe un modelo nuevo..." style="margin-top:8px">
+    </div>
+    <div class="field-row" id="campo-anofecha">
+      <div class="field">
+        <label>Año</label>
+        <input type="number" id="cam-año" value="${c.año || ''}" placeholder="Ej. 2014">
+      </div>
+      <div class="field">
+        <label>Fecha de Llegada</label>
+        <input type="date" id="cam-fecha" value="${c.fechaLlegada || hoy}">
+      </div>
+    </div>
+    <div class="field" id="campo-motor">
+      <label>Tipo de Motor</label>
+      <div class="btn-grid" id="cam-motores"></div>
+    </div>
+    <div class="field">
+      <label>Notas (opcional)</label>
+      <textarea id="cam-notas" rows="2" placeholder="Cualquier observación...">${c.notas || ''}</textarea>
+    </div>
+    <button class="btn btn-primary btn-block" id="btn-guardar-camion" onclick="guardarCamion()">${c.id ? '💾 Guardar Cambios' : '✓ Registrar Camión'}</button>
+  `;
+
+  // Render marcas
+  const marcasDiv = document.getElementById('cam-marcas');
+  marcasDiv.innerHTML = cat.marcasCamion.map(m =>
+    `<button type="button" class="btn ${c.marca === m ? 'selected' : ''}" onclick="selectMarca(this, '${m.replace(/'/g,"\\'")}')">${m}</button>`
+  ).join('');
+
+  // Render motores
+  const motoresDiv = document.getElementById('cam-motores');
+  motoresDiv.innerHTML = cat.motores.map(m =>
+    `<button type="button" class="btn ${c.motor === m ? 'selected' : ''}" onclick="selectMotor(this, '${m.replace(/'/g,"\\'")}')">${m}</button>`
+  ).join('');
+
+  if (c.marca) selectMarcaInternal(c.marca, c.modelo);
+}
+
+let _selMarca = null, _selModelo = null, _selMotor = null;
+
+// Scroll suave a un elemento dentro del modal
+function scrollAModal(id) {
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 120);
+}
+
+function selectMarca(btn, marca) {
+  document.querySelectorAll('#cam-marcas .btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectMarcaInternal(marca);
+  scrollAModal('campo-modelo');
+}
+
+function selectMarcaInternal(marca, modeloPreSel) {
+  _selMarca = marca;
+  _selModelo = modeloPreSel || null;
+  const cat = getCatalogos();
+  const modelos = cat.modelosPorMarca[marca] || [];
+  document.getElementById('campo-modelo').style.display = 'block';
+  document.getElementById('cam-modelos').innerHTML = modelos.map(m =>
+    `<button type="button" class="btn ${modeloPreSel === m ? 'selected' : ''}" onclick="selectModelo(this, '${m.replace(/'/g,"\\'")}')">${m}</button>`
+  ).join('');
+  if (modeloPreSel && !modelos.includes(modeloPreSel)) {
+    document.getElementById('cam-modelo-libre').value = modeloPreSel;
+  }
+}
+
+function selectModelo(btn, modelo) {
+  document.querySelectorAll('#cam-modelos .btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  _selModelo = modelo;
+  document.getElementById('cam-modelo-libre').value = '';
+  scrollAModal('campo-anofecha');
+}
+
+function selectMotor(btn, motor) {
+  document.querySelectorAll('#cam-motores .btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  _selMotor = motor;
+  scrollAModal('btn-guardar-camion');
+}
+
+function guardarCamion() {
+  const folio = document.getElementById('cam-folio').value.trim();
+  const año = document.getElementById('cam-año').value.trim();
+  const fechaLlegada = document.getElementById('cam-fecha').value;
+  const modeloLibre = document.getElementById('cam-modelo-libre').value.trim();
+  const modeloFinal = modeloLibre || _selModelo;
+  const notas = document.getElementById('cam-notas').value.trim();
+
+  if (!_selMarca) { toast('Selecciona la marca', 'error'); return; }
+  if (!modeloFinal) { toast('Selecciona o escribe el modelo', 'error'); return; }
+  if (!_selMotor) { toast('Selecciona el tipo de motor', 'error'); return; }
+
+  if (editandoCamionId) {
+    const c = DATA.camiones.find(x => x.id === editandoCamionId);
+    Object.assign(c, { folio, marca: _selMarca, modelo: modeloFinal, año, fechaLlegada, motor: _selMotor, notas });
+    playDing(); toast('Camión actualizado', 'success');
+  } else {
+    const id = 'cam_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    DATA.camiones.push({
+      id, folio, marca: _selMarca, modelo: modeloFinal, año, fechaLlegada, motor: _selMotor, notas,
+      fechaRegistro: Date.now()
+    });
+    DATA.folioCounter++;
+    playDing(); toast('Camión registrado · Folio ' + folio, 'success');
+  }
+  _selMarca = _selModelo = _selMotor = null;
+  guardar();
+  closeModal('modal-camion');
+  showView('camiones');
+}
+
+function eliminarCamion(id) {
+  const c = DATA.camiones.find(x => x.id === id);
+  if (!c) return;
+  const piezasCamion = DATA.piezas.filter(p => p.camionId === id);
+  const sinVender = piezasCamion.filter(p => !p.vendida).length;
+  const vendidas = piezasCamion.filter(p => p.vendida).length;
+
+  if (piezasCamion.length === 0) {
+    // Sin piezas: se elimina directo
+    if (!confirm(`¿Eliminar el camión ${c.folio} (${c.marca} ${c.modelo})?\n\nNo tiene piezas registradas.`)) return;
+    DATA.camiones = DATA.camiones.filter(x => x.id !== id);
+    guardar();
+    toast('Camión eliminado');
+    renderCamiones();
+    return;
+  }
+
+  // Con piezas: ofrecer desmantelar (conservar piezas)
+  const msg = `El camión ${c.folio} tiene ${piezasCamion.length} pieza(s):\n` +
+    `  · ${sinVender} sin vender\n` +
+    `  · ${vendidas} ya vendidas\n\n` +
+    `Opción recomendada: DESMANTELAR el camión.\n` +
+    `(Se cierra el camión pero sus piezas siguen vivas en inventario y el historial de ventas se conserva.)\n\n` +
+    `¿Desmantelar este camión?`;
+
+  if (!confirm(msg)) return;
+  c.desmantelado = true;
+  c.fechaDesmantelado = Date.now();
+  guardar();
+  toast('Camión desmantelado · Sus piezas siguen en inventario', 'success');
+  renderCamiones();
+}
+
+// Reactivar (deshacer desmantelado)
+function reactivarCamion(id) {
+  const c = DATA.camiones.find(x => x.id === id);
+  if (!c) return;
+  if (!confirm(`¿Reactivar el camión ${c.folio}?`)) return;
+  delete c.desmantelado;
+  delete c.fechaDesmantelado;
+  guardar();
+  toast('Camión reactivado', 'success');
+  renderCamiones();
+}
+
+// Eliminar PERMANENTE (solo si está desmantelado)
+function eliminarCamionPermanente(id) {
+  const c = DATA.camiones.find(x => x.id === id);
+  if (!c) return;
+  const piezasCamion = DATA.piezas.filter(p => p.camionId === id);
+  if (!confirm(`⚠ ELIMINACIÓN PERMANENTE\n\nVas a borrar el camión ${c.folio} y SUS ${piezasCamion.length} PIEZA(S) para siempre.\n\nEsto NO se puede deshacer. ¿Continuar?`)) return;
+  if (!confirm(`Confirmación final: ¿Borrar TODO del camión ${c.folio}?`)) return;
+  DATA.camiones = DATA.camiones.filter(x => x.id !== id);
+  DATA.piezas = DATA.piezas.filter(p => p.camionId !== id);
+  guardar();
+  toast('Camión y piezas eliminados', 'error');
+  renderCamiones();
+}
+
+// ============================================================
+// MODAL: AGREGAR PIEZA
+// ============================================================
+let _piezaCamionId = null;
+let _piezaFamilia = null;
+let _piezaModelo = null;
+let _heredaMarca = null;
+let _heredaModelo = null;
+
+function selectHeredaMarca(btn, marca) {
+  document.querySelectorAll('#hereda-marcas .btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  _heredaMarca = marca;
+  _heredaModelo = null;
+  const cat = getCatalogos();
+  const modelos = cat.modelosPorMarca[marca] || [];
+  const wrap = document.getElementById('hereda-modelo-wrap');
+  wrap.style.display = 'block';
+  document.getElementById('hereda-modelos').innerHTML = modelos.map(m =>
+    `<button type="button" class="btn" onclick="selectHeredaModelo(this, '${m.replace(/'/g,"\\'")}')">${m}</button>`
+  ).join('');
+  scrollAModal('hereda-modelo-wrap');
+}
+
+function selectHeredaModelo(btn, modelo) {
+  document.querySelectorAll('#hereda-modelos .btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  _heredaModelo = modelo;
+  // Scroll a los botones de tipo (Puerta Piloto/Copiloto, etc.)
+  scrollAModal('pieza-modelos');
+}
+let _piezaExtras = {};
+let _cofreMarcaSel = null;
+let _cofreModeloSel = null;
+
+function openPiezaModal(camionId) {
+  _piezaCamionId = camionId;
+  _piezaFamilia = null;
+  _piezaModelo = null; _heredaMarca = null; _heredaModelo = null;
+  _piezaExtras = {};
+  _cofreMarcaSel = null;
+  _cofreModeloSel = null;
+  const c = DATA.camiones.find(x => x.id === camionId);
+  document.getElementById('modal-pieza-title').textContent = c
+    ? `Agregar Pieza · Folio ${c.folio} (${c.marca} ${c.modelo})`
+    : 'Agregar Pieza Suelta';
+  buildPiezaSelectFamilia();
+  openModal('modal-pieza');
+}
+
+function addPiezaSuelta() {
+  openPiezaModal(null);
+}
+
+function buildPiezaSelectFamilia() {
+  document.getElementById('modal-pieza-body').innerHTML = `
+    <div class="info-bar">Selecciona el tipo de pieza:</div>
+    <div class="btn-grid btn-grid-large" id="fam-grid">
+      ${FAMILIAS.map(f => `<button class="btn" onclick="seleccionarFamilia('${f.id}')">${f.nombreSingular || f.nombre}</button>`).join('')}
+    </div>
+  `;
+}
+
+function seleccionarFamilia(famId) {
+  _piezaFamilia = famId;
+  _piezaModelo = null; _heredaMarca = null; _heredaModelo = null;
+  _piezaExtras = {};
+  const f = FAMILIAS.find(x => x.id === famId);
+  const camion = DATA.camiones.find(c => c.id === _piezaCamionId);
+
+  let html = `
+    <div style="margin-bottom: 12px">
+      <button class="btn btn-small" onclick="buildPiezaSelectFamilia()">← Cambiar tipo</button>
+    </div>
+    <h3 style="margin-top:0; background:#17140f; color:#fff; display:inline-block; padding:8px 16px; border-radius:2px; font-size:18px; font-family:Georgia,serif;">${f.nombreSingular || f.nombre}</h3>
+  `;
+
+  if (camion) {
+    html += `<div class="info-bar">Esta pieza hereda del camión: <strong>${camion.marca} ${camion.modelo} ${camion.año || ''} · Motor ${camion.motor}</strong></div>`;
+  } else {
+    html += `<div class="info-bar">⚠ Pieza suelta (sin camión). Llena los datos a mano.</div>`;
+  }
+
+  // Botones de modelo (SOLO si la familia tiene botones definidos)
+  const botonesFam = getBotonesFamilia(f.id);
+  const muestraBotonesModelo = botonesFam.length > 0 && f.tipo !== 'fichaSolo' && f.tipo !== 'cofre' && f.tipo !== 'libre';
+
+  if (muestraBotonesModelo) {
+    // Para piezas sueltas de tipo heredaCamion (Puerta, Radiador, Complementos), mostrar marca → modelo ANTES
+    if (!camion && (f.tipo === 'heredaCamion')) {
+      const cat = getCatalogos();
+      html += `<div class="field"><label>Marca del camión</label><div class="btn-grid" id="hereda-marcas">${cat.marcasCamion.map(m =>
+        `<button type="button" class="btn" onclick="selectHeredaMarca(this, '${m.replace(/'/g,"\\'")}')">${m}</button>`
+      ).join('')}</div></div>`;
+      html += `<div class="field" id="hereda-modelo-wrap" style="display:none"><label>Modelo</label><div class="btn-grid" id="hereda-modelos"></div></div>`;
+    }
+    html += `<div class="field"><label>Modelo / Tipo</label><div class="btn-grid" id="pieza-modelos"></div>`;
+    html += `<input type="text" id="pieza-modelo-libre" placeholder="O escribe uno nuevo..." style="margin-top:8px"></div>`;
+  }
+
+  // Tipo "libre" (Árbol de Levas, Cigüeñal, Otros): solo campo de texto libre, sin botones
+  if (f.tipo === 'libre') {
+    html += `<div class="field"><label>${f.id === 'arboles' ? 'Terminación / N° de Parte' : (f.id === 'ciguenales' ? 'Modelo / N° / Estado' : 'Describe la pieza')}</label>
+      <input type="text" id="pieza-descripcion" placeholder="${f.placeholderLibre || 'Escribe aquí...'}"></div>`;
+  }
+
+  // Extras según familia
+  if (f.tipo === 'especial-diferenciales' || f.tipo === 'especial-mancuernas') {
+    html += `<div class="field"><label>Marca del eje</label><div class="btn-grid" id="pieza-marcas-eje"></div></div>`;
+    if (f.tipo === 'especial-mancuernas') {
+      html += `<div class="field"><label>Suspensión</label><div class="btn-grid" id="pieza-suspensiones"></div></div>`;
+    }
+    html += `<div class="field"><label>Libras</label><input type="text" id="pieza-libras" list="libras-list" placeholder="Ej. 40,000">
+      <datalist id="libras-list"><option>40,000</option><option>42,000</option><option>44,000</option><option>46,000</option></datalist></div>`;
+    html += `<div class="field"><label>Paso / Relación (opcional)</label><input type="text" id="pieza-paso" placeholder="Ej. 11/39, 10/41, 4.10..."></div>`;
+  }
+
+  // Tipo "cofre": Marca → Modelo → Año (con datos del camión si existe)
+  if (f.tipo === 'cofre') {
+    const cat = getCatalogos();
+    if (camion) {
+      html += `<div class="info-bar">Cofre del camión: <strong>${escapeHtml(camion.marca)} ${escapeHtml(camion.modelo)} ${escapeHtml(camion.año || '')}</strong></div>`;
+    } else {
+      html += `<div class="field"><label>Marca del Cofre</label><div class="btn-grid" id="cofre-marcas"></div></div>`;
+      html += `<div class="field" id="cofre-modelo-wrap" style="display:none"><label>Modelo</label><div class="btn-grid" id="cofre-modelos"></div>
+        <input type="text" id="cofre-modelo-libre" placeholder="O escribe uno nuevo..." style="margin-top:8px"></div>`;
+      html += `<div class="field"><label>Año</label><input type="text" id="cofre-año" placeholder="Ej: 2015"></div>`;
+    }
+  }
+
+  // Campos exclusivos para Motores
+  if (f.tieneInfoMotor) {
+    html += `
+      <div style="background:#faf8f3; border:1px solid #cec7b8; border-left:3px solid #b03a2e; border-radius:2px; padding:14px; margin-bottom:16px;">
+        <div style="font-weight:800; color:#1a1a1a; margin-bottom:10px; font-size:14px; text-transform:uppercase; letter-spacing:0.5px;">Datos del motor</div>
+        <div class="field">
+          <label>N° de Serie</label>
+          <input type="text" id="pieza-serie" placeholder="Ej. 7987019">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>N° CPL</label>
+            <input type="text" id="pieza-cpl" placeholder="Ej. 4583">
+          </div>
+          <div class="field">
+            <label>HP (Caballos)</label>
+            <input type="text" id="pieza-hp" placeholder="Ej. 400">
+          </div>
+        </div>
+        <div class="field">
+          <label>Estado del motor</label>
+          <div class="btn-grid" id="pieza-estado-motor">
+            <button type="button" class="btn btn-small" onclick="selectPiezaExtra(this, 'estadoMotor', 'Usado')">Usado</button>
+            <button type="button" class="btn btn-small" onclick="selectPiezaExtra(this, 'estadoMotor', 'Reconstruido')">Reconstruido</button>
+            <button type="button" class="btn btn-small" onclick="selectPiezaExtra(this, 'estadoMotor', 'Nuevo')">Nuevo</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Ficha Técnica: para Motor, Cabina, Chasis. Precarga datos del camión si existe.
+  if (f.tieneFichaTecnica) {
+    const esMotor = (f.id === 'motores');
+    const valMarca = camion ? escapeHtml(camion.marca || '') : '';
+    const valModelo = camion ? escapeHtml(camion.modelo || '') : '';
+    const valAño = camion ? escapeHtml(camion.año || '') : '';
+    html += `
+      <div style="background:#faf8f3; border:1px solid #cec7b8; border-left:3px solid #b03a2e; border-radius:2px; padding:14px; margin-bottom:16px;">
+        <div style="font-weight:800; color:#1a1a1a; margin-bottom:10px; font-size:14px; text-transform:uppercase; letter-spacing:0.5px;">Ficha técnica${camion ? ' (precargada del camión, editable)' : ''}</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Marca</label>
+            <input type="text" id="ficha-marca" placeholder="Ej: Kenworth" value="${valMarca}">
+          </div>
+          <div class="field">
+            <label>Modelo</label>
+            <input type="text" id="ficha-modelo" placeholder="Ej: T800" value="${valModelo}">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Año</label>
+            <input type="text" id="ficha-año" placeholder="Ej: 2015" value="${valAño}">
+          </div>
+          <div class="field">
+            <label>N° Serie (VIN)</label>
+            <input type="text" id="ficha-vin" placeholder="VIN...">
+          </div>
+        </div>
+        ${esMotor ? `
+        <div class="field">
+          <label>N° Motor</label>
+          <input type="text" id="ficha-nomotor" placeholder="Ej: 79123456">
+        </div>` : ''}
+        <div class="field">
+          <label>Información Extra</label>
+          <textarea id="ficha-extra" rows="2" placeholder="Cualquier dato adicional del ${esMotor ? 'motor' : f.nombreSingular.toLowerCase()}..."></textarea>
+        </div>
+      </div>`;
+  }
+
+  if (!camion) {
+    const cat = getCatalogos();
+    html += `<div class="field"><label>Motor</label><select id="pieza-motor-suelto"><option value="">—</option>${cat.motores.map(m => `<option>${m}</option>`).join('')}</select></div>`;
+  }
+
+  html += `
+    <div class="field">
+      <label>Ubicación en el patio</label>
+      <input type="text" id="pieza-ubicacion" list="ubicaciones-list" placeholder="Ej: Mostrador, Patio Motores...">
+      <datalist id="ubicaciones-list">
+        <option>Mostrador</option><option>Entrada Patio</option><option>Patio Motores</option>
+        <option>Patio Diferenciales</option><option>Techo Patio</option><option>Techo</option><option>Bodega</option>
+      </datalist>
+    </div>
+
+    <div class="field" style="margin-top:10px;">
+      <details style="background:#fafafa; border:1px dashed #ccc; border-radius:6px; padding:8px 12px;">
+        <summary style="cursor:pointer; font-size:13px; color:#666; font-weight:600;">+ Agregar carpeta Google Drive (con QR) — opcional</summary>
+        <div style="margin-top:10px;">
+          <label style="font-size:12px;">Pega aquí el link de la carpeta de Google Drive</label>
+          <input type="text" id="pieza-drive-link" placeholder="https://drive.google.com/drive/folders/..." oninput="actualizarQRPreview('pieza-drive-link','pieza-qr-preview')" style="font-size:14px;">
+          <div id="pieza-qr-preview" style="margin-top:10px; text-align:center;"></div>
+        </div>
+      </details>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Cantidad</label>
+        <input type="number" id="pieza-cantidad" value="1" min="1">
+      </div>
+      <div class="field">
+        <label>Precio venta (puedes poner rango: 2000-3000)</label>
+        <input type="text" inputmode="text" class="precio-input" id="pieza-precio" placeholder="$ ej. 2000-3000">
+      </div>
+    </div>
+    <div class="field">
+      <label>Notas (opcional)</label>
+      <textarea id="pieza-notas" rows="2"></textarea>
+    </div>
+    <button class="btn btn-success btn-block" onclick="guardarPieza()">✓ Agregar Pieza</button>
+  `;
+
+  document.getElementById('modal-pieza-body').innerHTML = html;
+
+  // Render botones de modelo (solo si la familia los tiene)
+  if (muestraBotonesModelo) {
+    // Si es familia Motor y viene de un camión, pre-seleccionar el motor del camión
+    const preSeleccion = (f.id === 'motores' && camion && camion.motor) ? camion.motor : null;
+    document.getElementById('pieza-modelos').innerHTML = botonesFam.map(m =>
+      `<button class="btn ${preSeleccion === m ? 'selected' : ''}" onclick="selectPiezaModelo(this, '${m.replace(/'/g,"\\'")}')">${m}</button>`
+    ).join('');
+    if (preSeleccion) {
+      _piezaModelo = preSeleccion;
+    }
+  }
+
+  if (f.tipo === 'especial-diferenciales' || f.tipo === 'especial-mancuernas') {
+    document.getElementById('pieza-marcas-eje').innerHTML = f.marcas.map(m =>
+      `<button class="btn btn-small" onclick="selectPiezaExtra(this, 'marcaEje', '${m.replace(/'/g,"\\'")}')">${m}</button>`
+    ).join('');
+    if (f.tipo === 'especial-mancuernas') {
+      document.getElementById('pieza-suspensiones').innerHTML = f.suspensiones.map(s =>
+        `<button class="btn btn-small" onclick="selectPiezaExtra(this, 'suspension', '${s.replace(/'/g,"\\'")}')">${s}</button>`
+      ).join('');
+    }
+  }
+
+  // Render botones de marca para Cofre (solo si NO viene de un camión)
+  if (f.tipo === 'cofre' && !camion) {
+    const cat = getCatalogos();
+    document.getElementById('cofre-marcas').innerHTML = cat.marcasCamion.map(m =>
+      `<button class="btn" onclick="selectCofreMarca(this, '${m.replace(/'/g,"\\'")}')">${m}</button>`
+    ).join('');
+  }
+}
+
+function selectCofreMarca(btn, marca) {
+  document.querySelectorAll('#cofre-marcas .btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  _cofreMarcaSel = marca;
+  const cat = getCatalogos();
+  const modelos = cat.modelosPorMarca[marca] || [];
+  document.getElementById('cofre-modelo-wrap').style.display = 'block';
+  document.getElementById('cofre-modelos').innerHTML = modelos.map(m =>
+    `<button class="btn" onclick="selectCofreModelo(this, '${m.replace(/'/g,"\\'")}')">${m}</button>`
+  ).join('');
+}
+
+function selectCofreModelo(btn, modelo) {
+  document.querySelectorAll('#cofre-modelos .btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  _cofreModeloSel = modelo;
+  document.getElementById('cofre-modelo-libre').value = '';
+}
+
+function selectPiezaModelo(btn, modelo) {
+  document.querySelectorAll('#pieza-modelos .btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  _piezaModelo = modelo;
+  document.getElementById('pieza-modelo-libre').value = '';
+
+  // Si motor con extra "Doble Turbo", mostrar check
+  const f = FAMILIAS.find(x => x.id === _piezaFamilia);
+  if (f.extraCheck && f.extraCheck.aplicaA.includes(modelo)) {
+    if (!document.getElementById('pieza-doble-turbo-wrap')) {
+      const div = document.createElement('div');
+      div.id = 'pieza-doble-turbo-wrap';
+      div.className = 'field';
+      div.innerHTML = `<label><input type="checkbox" id="pieza-doble-turbo" style="width:auto; margin-right:8px"> ${f.extraCheck.label}</label>`;
+      btn.closest('.field').after(div);
+    }
+  } else {
+    document.getElementById('pieza-doble-turbo-wrap')?.remove();
+  }
+}
+
+function selectPiezaExtra(btn, key, val) {
+  btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  _piezaExtras[key] = val;
+}
+
+function guardarPieza() {
+  const f = FAMILIAS.find(x => x.id === _piezaFamilia);
+  const camion = DATA.camiones.find(c => c.id === _piezaCamionId);
+
+  // Determinar modeloFinal según tipo de familia
+  let modeloFinal = null;
+  const modeloLibre = document.getElementById('pieza-modelo-libre')?.value.trim();
+  const descLibre = document.getElementById('pieza-descripcion')?.value.trim();
+
+  if (f.tipo === 'libre') {
+    // Árbol de Levas, Cigüeñal, Otros: el "modelo" es el texto libre
+    modeloFinal = descLibre || f.nombreSingular;
+  } else if (f.tipo === 'fichaSolo') {
+    // Chasis, Cabina: no hay botón, el "modelo" es solo el nombre singular (los datos van en ficha técnica)
+    modeloFinal = f.nombreSingular;
+  } else if (f.tipo === 'cofre') {
+    // Cofre: si hay camión, hereda; si no, se construye con marca/modelo/año
+    if (camion) {
+      modeloFinal = `${camion.marca} ${camion.modelo} ${camion.año || ''}`.trim();
+    } else {
+      const cMarca = _cofreMarcaSel;
+      const cModeloLibre = document.getElementById('cofre-modelo-libre')?.value.trim();
+      const cModelo = cModeloLibre || _cofreModeloSel;
+      const cAño = document.getElementById('cofre-año')?.value.trim();
+      if (!cMarca) { toast('Selecciona la marca del cofre', 'error'); return; }
+      if (!cModelo) { toast('Selecciona o escribe el modelo del cofre', 'error'); return; }
+      modeloFinal = `${cMarca} ${cModelo} ${cAño || ''}`.trim();
+    }
+  } else {
+    // Tipos con botones (porMotor, modelos, heredaCamion con botones, especiales)
+    modeloFinal = modeloLibre || _piezaModelo;
+    if (!modeloFinal) { toast('Selecciona o escribe el modelo', 'error'); return; }
+  }
+
+  const cantidad = parseInt(document.getElementById('pieza-cantidad').value) || 1;
+  if (cantidad < 1) { toast('Cantidad inválida', 'error'); return; }
+
+  const baseExtras = { ...(_piezaExtras || {}) };
+  if (f.tieneTerminacion) baseExtras.terminacion = document.getElementById('pieza-terminacion')?.value.trim() || '';
+  if (f.tipo === 'especial-diferenciales' || f.tipo === 'especial-mancuernas') {
+    baseExtras.paso = document.getElementById('pieza-paso')?.value.trim() || '';
+    baseExtras.libras = document.getElementById('pieza-libras')?.value.trim() || '';
+  }
+  if (f.tipo === 'libre' && descLibre) baseExtras.descripcion = descLibre;
+  if (document.getElementById('pieza-doble-turbo')?.checked) baseExtras.dobleTurbo = true;
+
+  // Datos exclusivos de motor
+  if (f.tieneInfoMotor) {
+    const serie = document.getElementById('pieza-serie')?.value.trim();
+    const cpl = document.getElementById('pieza-cpl')?.value.trim();
+    const hp = document.getElementById('pieza-hp')?.value.trim();
+    if (serie) baseExtras.serie = serie;
+    if (cpl) baseExtras.cpl = cpl;
+    if (hp) baseExtras.hp = hp;
+    // estadoMotor ya se guarda en _piezaExtras vía selectPiezaExtra
+  }
+
+  // Ficha técnica (Motor, Cabina, Chasis)
+  if (f.tieneFichaTecnica) {
+    const fMarca = document.getElementById('ficha-marca')?.value.trim();
+    const fModelo = document.getElementById('ficha-modelo')?.value.trim();
+    const fAño = document.getElementById('ficha-año')?.value.trim();
+    const fVin = document.getElementById('ficha-vin')?.value.trim();
+    const fNoMotor = document.getElementById('ficha-nomotor')?.value.trim();
+    const fExtra = document.getElementById('ficha-extra')?.value.trim();
+    if (fMarca) baseExtras.fichaMarca = fMarca;
+    if (fModelo) baseExtras.fichaModelo = fModelo;
+    if (fAño) baseExtras.fichaAño = fAño;
+    if (fVin) baseExtras.fichaVin = fVin;
+    if (fNoMotor) baseExtras.fichaNoMotor = fNoMotor;
+    if (fExtra) baseExtras.fichaExtra = fExtra;
+  }
+
+  const precioRaw = document.getElementById('pieza-precio').value || '';
+  const { min: precio, max: precioMax } = parsearPrecioRange(precioRaw);
+  const notas = document.getElementById('pieza-notas').value.trim();
+
+  // Link Drive (con QR)
+  const driveLink = document.getElementById('pieza-drive-link')?.value.trim();
+  if (driveLink) baseExtras.driveLink = driveLink;
+
+  // Ubicación en el patio
+  const ubicacion = document.getElementById('pieza-ubicacion')?.value.trim();
+  if (ubicacion) baseExtras.ubicacion = ubicacion;
+
+  let datosCamion = {};
+  if (camion) {
+    datosCamion = {
+      camionFolio: camion.folio,
+      camionMarca: camion.marca,
+      camionModelo: camion.modelo,
+      camionAño: camion.año,
+      motor: camion.motor,
+      // Compatibilidad con código existente que usa estos campos:
+      marca: camion.marca,
+      año: camion.año
+    };
+  } else {
+    const marcaSuelta = _heredaMarca || '';
+    const modeloSuelta = _heredaModelo || '';
+    const motorSuelto = document.getElementById('pieza-motor-suelto')?.value || '';
+    datosCamion = {
+      camionFolio: 'SUELTA',
+      camionMarca: marcaSuelta,
+      camionModelo: modeloSuelta,
+      camionAño: '',
+      motor: motorSuelto,
+      marca: marcaSuelta,
+      año: ''
+    };
+  }
+
+  for (let i = 0; i < cantidad; i++) {
+    DATA.piezas.push({
+      id: 'pza_' + Date.now() + '_' + Math.random().toString(36).slice(2,7) + '_' + i,
+      familia: _piezaFamilia,
+      camionId: _piezaCamionId,
+      ...datosCamion,
+      modelo: modeloFinal,  // ← AHORA va DESPUÉS del spread para no ser pisado
+      extras: { ...baseExtras },
+      precioSugerido: precio,
+      precioMax: precioMax,
+      notas,
+      vendida: false,
+      fechaRegistro: Date.now()
+    });
+  }
+
+  guardar();
+  playDing(); toast(`✓ ${cantidad} pieza${cantidad > 1 ? 's' : ''} agregada${cantidad > 1 ? 's' : ''}`, 'success');
+  closeModal('modal-pieza');
+  if (document.getElementById('view-camiones').classList.contains('active')) renderCamiones();
+  if (document.getElementById('view-camiones').classList.contains('active')) renderCamiones();
+}
+
+// ============================================================
+// VER PIEZAS DE UN CAMIÓN
+// ============================================================
+function verPiezasCamion(camionId) {
+  const c = DATA.camiones.find(x => x.id === camionId);
+  if (!c) return;
+  document.getElementById('modal-pieza-title').textContent = `Piezas del Folio ${c.folio}`;
+  const piezas = DATA.piezas.filter(p => p.camionId === camionId);
+  const activas = piezas.filter(p => !p.vendida);
+  const vendidas = piezas.filter(p => p.vendida);
+
+  let html = `
+    <div class="info-bar"><strong>${c.marca} ${c.modelo} ${c.año || ''}</strong> · Motor ${c.motor}<br>${activas.length} pieza(s) disponibles · ${vendidas.length} vendida(s)</div>
+    <button class="btn btn-primary btn-block" onclick="openPiezaModal('${camionId}')">+ Agregar Pieza</button>
+    <div style="height:14px"></div>
+  `;
+
+  if (activas.length === 0 && vendidas.length === 0) {
+    html += '<p style="color:#888; text-align:center; padding:20px">Sin piezas registradas aún.</p>';
+  } else {
+    if (activas.length > 0) {
+      html += '<h3>En el patio</h3><div class="piezas-list">';
+      html += activas.map(p => renderPiezaItem(p)).join('');
+      html += '</div>';
+    }
+    if (vendidas.length > 0) {
+      html += '<h3 style="margin-top:20px">Vendidas</h3><div class="piezas-list">';
+      html += vendidas.map(p => renderPiezaItem(p)).join('');
+      html += '</div>';
+    }
+  }
+  document.getElementById('modal-pieza-body').innerHTML = html;
+  openModal('modal-pieza');
+}
+
+function renderPiezaItem(p) {
+  const f = FAMILIAS.find(x => x.id === p.familia);
+  const extras = formatExtras(p.extras, p.modelo);
+  const precio = precioBadge(p) ? " " + precioBadge(p) : "";
+  const qrBtn = p.extras?.driveLink
+    ? `<button class="btn btn-small" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((f?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡 QR</button>`
+    : '';
+  return `
+    <div class="pieza-item" style="${p.vendida ? 'opacity:0.55' : ''}">
+      <div class="pieza-info">
+        <div class="pieza-name">${f?.nombreSingular || f?.nombre || p.familia}: ${p.modelo}${precio}</div>
+        <div class="pieza-detail">${extras}${p.vendida ? ' · <strong style="color:#c0392b">VENDIDA</strong>' : ''}</div>
+      </div>
+      <div class="pieza-actions">
+        ${p.vendida
+          ? `<button class="btn btn-small" onclick="reactivarPieza('${p.id}')">↶</button>`
+          : `<button class="btn btn-small btn-success" onclick="venderPieza('${p.id}')">Vendí</button>`}
+        <button class="btn btn-small btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
+        ${qrBtn}
+        <button class="btn btn-small" onclick="editarPieza('${p.id}')">Editar</button>
+        <button class="btn btn-small btn-danger" onclick="eliminarPieza('${p.id}')">🗑</button>
+      </div>
+    </div>
+  `;
+}
+
+function formatExtras(ex, modelo) {
+  if (!ex) return '';
+  const parts = [];
+  // No mostrar terminación si es igual al modelo (evita duplicado)
+  if (ex.terminacion && ex.terminacion !== modelo) parts.push(`Term. ${ex.terminacion}`);
+  if (ex.estado) parts.push(ex.estado);
+  if (ex.estadoMotor) parts.push(ex.estadoMotor);
+  if (ex.hp) parts.push(`${ex.hp} HP`);
+  if (ex.serie) parts.push(`Serie ${ex.serie}`);
+  if (ex.cpl) parts.push(`CPL ${ex.cpl}`);
+  if (ex.fichaVin) parts.push(`VIN ${ex.fichaVin}`);
+  if (ex.fichaNoMotor) parts.push(`N°Motor ${ex.fichaNoMotor}`);
+  if (ex.fichaExtra) parts.push(ex.fichaExtra);
+  if (ex.marcaEje) parts.push(ex.marcaEje);
+  if (ex.libras) parts.push(`${ex.libras} lb`);
+  if (ex.suspension) parts.push(ex.suspension);
+  if (ex.paso) parts.push(`Paso ${ex.paso}`);
+  if (ex.descripcion && ex.descripcion !== modelo) parts.push(ex.descripcion);
+  if (ex.dobleTurbo) parts.push('Doble Turbo');
+  if (ex.ubicacion) parts.push(`📍 ${ex.ubicacion}`);
+  return parts.join(' · ');
+}
+
+// Modal de "Ver todas las piezas de una familia" (botones rápidos del Inicio)
+function verTodasPiezas(famId) {
+  const f = FAMILIAS.find(x => x.id === famId);
+  if (!f) return;
+  const todas = DATA.piezas.filter(p => p.familia === famId);
+  const activas = todas.filter(p => !p.vendida).sort((a,b) => (b.fechaRegistro||0) - (a.fechaRegistro||0));
+  const vendidas = todas.filter(p => p.vendida);
+
+  document.getElementById('modal-pieza-title').textContent = `Todas las piezas: ${f.nombreSingular || f.nombre}`;
+
+  let html = `
+    <div class="info-bar"><strong>${activas.length}</strong> en patio · ${vendidas.length} vendida(s)</div>
+  `;
+
+  if (activas.length === 0 && vendidas.length === 0) {
+    html += '<p style="color:#888; text-align:center; padding:20px">No hay piezas de este tipo registradas.</p>';
+  } else {
+    if (activas.length > 0) {
+      html += '<h3 style="margin-top:0">En el patio</h3>';
+      html += activas.map(p => renderPiezaItemConCamion(p)).join('');
+    }
+    if (vendidas.length > 0) {
+      html += '<h3 style="margin-top:20px">Vendidas</h3>';
+      html += vendidas.map(p => renderPiezaItemConCamion(p)).join('');
+    }
+  }
+
+  document.getElementById('modal-pieza-body').innerHTML = html;
+  openModal('modal-pieza');
+}
+
+// Item de pieza con info del camión origen (para los botones rápidos)
+function renderPiezaItemConCamion(p) {
+  const f = FAMILIAS.find(x => x.id === p.familia);
+  const camion = DATA.camiones.find(c => c.id === p.camionId);
+  const extras = formatExtras(p.extras, p.modelo);
+  const precio = precioBadge(p) ? " " + precioBadge(p) : "";
+  const origen = camion
+    ? `<div style="font-size:12px; color:#999; margin-top:3px;">Viene de: ${escapeHtml(camion.marca)} ${escapeHtml(camion.modelo)} ${escapeHtml(camion.año||'')} <span style="color:#bbb;">${camion.folio}</span></div>`
+    : ((p.camionMarca || p.marca || p.camionModelo)
+      ? `<div style="font-size:12px; color:#999; margin-top:3px;">Marca: ${escapeHtml(p.camionMarca || p.marca || '')} ${escapeHtml(p.camionModelo || '')} ${escapeHtml(p.camionAño || p.año || '')}</div>`
+      : '');
+  return `
+    <div class="pieza-item" style="display:block; ${p.vendida ? 'opacity:0.55' : ''}">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+        <div style="flex:1;">
+          <div style="font-size:18px; font-weight:900; color:#1a1a1a;">${escapeHtml(p.modelo || '')}${precio}</div>
+          <div style="font-size:13px; color:#777; margin-top:2px;">${extras}${p.vendida ? ' · <strong style="color:#c0392b">VENDIDA</strong>' : ''}</div>
+          ${p.notas ? `<div style="font-size:14px; color:#4a4a4a; background:#f7f3ea; border-left:3px solid #c9a24b; border-radius:2px; padding:7px 11px; margin-top:5px;">📝 ${escapeHtml(p.notas)}</div>` : ''}
+          ${origen}
+        </div>
+        <div class="pieza-actions">
+          ${p.vendida
+            ? `<button class="btn btn-small btn-mini" onclick="reactivarPieza('${p.id}')">↶</button>`
+            : `<button class="btn btn-small btn-mini btn-success" onclick="venderPieza('${p.id}')">Vendí</button>`}
+          <button class="btn btn-small btn-mini btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
+          ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((f?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
+          <button class="btn btn-small btn-mini" onclick="editarPieza('${p.id}')">Editar</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function venderPieza(id) {
+  const p = DATA.piezas.find(x => x.id === id);
+  if (!p) return;
+  const f = FAMILIAS.find(x => x.id === p.familia);
+  const desc = `${f?.nombreSingular || 'Pieza'}: ${p.modelo || ''}`;
+  if (!confirm(`¿Confirmas que vendiste esta pieza?\n\n${desc}\n\nSe va a quitar del inventario.`)) return;
+  p.vendida = true;
+  p.fechaVenta = Date.now();
+  guardar();
+  playDing(); toast('Pieza marcada como vendida', 'success');
+  if (document.getElementById('modal-pieza').classList.contains('active') && p.camionId) {
+    closeModal('modal-pieza');
+  }
+  if (document.getElementById('view-buscar').classList.contains('active')) renderBusqueda();
+  if (document.getElementById('view-camiones').classList.contains('active')) renderCamiones();
+}
+
+function reactivarPieza(id) {
+  const p = DATA.piezas.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm('¿Marcar esta pieza como NO vendida (regresarla al patio)?')) return;
+  p.vendida = false;
+  delete p.fechaVenta;
+  guardar();
+  toast('Pieza reactivada');
+  if (p.camionId) verPiezasCamion(p.camionId);
+}
+
+function editarPieza(id) {
+  const p = DATA.piezas.find(x => x.id === id);
+  if (!p) return;
+  const f = FAMILIAS.find(x => x.id === p.familia);
+  const ex = p.extras || {};
+
+  document.getElementById('modal-pieza-title').textContent = `Editar ${f?.nombreSingular || 'Pieza'}`;
+
+  let html = `
+    <h3 style="margin-top:0; background:#17140f; color:#fff; display:inline-block; padding:8px 16px; border-radius:2px; font-size:18px; font-family:Georgia,serif;">${f?.nombreSingular || 'Pieza'}</h3>
+
+    <div class="field" style="margin-top:14px">
+      <label>Modelo / Identificación</label>
+      <input type="text" id="edit-modelo" value="${escapeHtml(p.modelo || '')}">
+    </div>
+  `;
+
+  if (f?.tipo === 'libre' || f?.id === 'arboles' || f?.id === 'ciguenales') {
+    html += `<div class="field"><label>${f.id === 'arboles' ? 'Terminación / N° de Parte' : 'Descripción'}</label>
+      <input type="text" id="edit-descripcion" value="${escapeHtml(ex.descripcion || ex.terminacion || '')}"></div>`;
+  }
+
+  if (f?.tipo === 'especial-diferenciales' || f?.tipo === 'especial-mancuernas') {
+    html += `<div class="field"><label>Marca del eje</label><input type="text" id="edit-marcaEje" value="${escapeHtml(ex.marcaEje || '')}"></div>`;
+    if (f.tipo === 'especial-mancuernas') {
+      html += `<div class="field"><label>Suspensión</label><input type="text" id="edit-suspension" value="${escapeHtml(ex.suspension || '')}"></div>`;
+    }
+    html += `<div class="field"><label>Libras</label><input type="text" id="edit-libras" value="${escapeHtml(ex.libras || '')}" placeholder="Ej. 40,000"></div>`;
+    html += `<div class="field"><label>Paso / Relación</label><input type="text" id="edit-paso" value="${escapeHtml(ex.paso || '')}"></div>`;
+  }
+
+  if (f?.tieneInfoMotor) {
+    html += `
+      <div style="background:#faf8f3; border:1px solid #cec7b8; border-left:3px solid #b03a2e; border-radius:2px; padding:14px; margin:16px 0;">
+        <div style="font-weight:800; margin-bottom:10px; font-size:14px; text-transform:uppercase;">Datos del motor</div>
+        <div class="field"><label>N° Serie</label><input type="text" id="edit-serie" value="${escapeHtml(ex.serie || '')}"></div>
+        <div class="field-row">
+          <div class="field"><label>CPL</label><input type="text" id="edit-cpl" value="${escapeHtml(ex.cpl || '')}"></div>
+          <div class="field"><label>HP</label><input type="text" id="edit-hp" value="${escapeHtml(ex.hp || '')}"></div>
+        </div>
+        <div class="field"><label>Estado</label><input type="text" id="edit-estadoMotor" value="${escapeHtml(ex.estadoMotor || '')}"></div>
+      </div>`;
+  }
+
+  if (f?.tieneFichaTecnica) {
+    html += `
+      <div style="background:#faf8f3; border:1px solid #cec7b8; border-left:3px solid #b03a2e; border-radius:2px; padding:14px; margin:16px 0;">
+        <div style="font-weight:800; margin-bottom:10px; font-size:14px; text-transform:uppercase;">Ficha técnica</div>
+        <div class="field-row">
+          <div class="field"><label>Marca</label><input type="text" id="edit-fichaMarca" value="${escapeHtml(ex.fichaMarca || '')}"></div>
+          <div class="field"><label>Modelo</label><input type="text" id="edit-fichaModelo" value="${escapeHtml(ex.fichaModelo || '')}"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Año</label><input type="text" id="edit-fichaAño" value="${escapeHtml(ex.fichaAño || '')}"></div>
+          <div class="field"><label>VIN</label><input type="text" id="edit-fichaVin" value="${escapeHtml(ex.fichaVin || '')}"></div>
+        </div>
+        ${f.id === 'motores' ? `<div class="field"><label>N° Motor</label><input type="text" id="edit-fichaNoMotor" value="${escapeHtml(ex.fichaNoMotor || '')}"></div>` : ''}
+        <div class="field"><label>Info Extra</label><textarea id="edit-fichaExtra" rows="2">${escapeHtml(ex.fichaExtra || '')}</textarea></div>
+      </div>`;
+  }
+
+  html += `
+    <div class="field">
+      <label>Ubicación en el patio</label>
+      <input type="text" id="edit-ubicacion" list="ubicaciones-list-edit" value="${escapeHtml(ex.ubicacion || '')}" placeholder="Ej: Mostrador, Patio Motores...">
+      <datalist id="ubicaciones-list-edit">
+        <option>Mostrador</option><option>Entrada Patio</option><option>Patio Motores</option>
+        <option>Patio Diferenciales</option><option>Techo Patio</option><option>Techo</option><option>Bodega</option>
+      </datalist>
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <details ${ex.driveLink ? 'open' : ''} style="background:#fafafa; border:1px dashed #ccc; border-radius:6px; padding:8px 12px;">
+        <summary style="cursor:pointer; font-size:13px; color:#666; font-weight:600;">${ex.driveLink ? 'Carpeta Google Drive (con QR)' : '+ Agregar carpeta Google Drive (con QR)'}</summary>
+        <div style="margin-top:10px;">
+          <label style="font-size:12px;">Link de la carpeta de Google Drive</label>
+          <input type="text" id="edit-drive-link" value="${escapeHtml(ex.driveLink || '')}" placeholder="https://drive.google.com/drive/folders/..." oninput="actualizarQRPreview('edit-drive-link','edit-qr-preview')" style="font-size:14px;">
+          <div id="edit-qr-preview" style="margin-top:10px; text-align:center;"></div>
+        </div>
+      </details>
+    </div>
+    <div class="field"><label>Precio venta (puedes poner rango: 2000-3000)</label><input type="text" inputmode="text" class="precio-input" id="edit-precio" value="${p.precioSugerido ? (Number(p.precioSugerido).toLocaleString('es-MX') + (p.precioMax ? ' - ' + Number(p.precioMax).toLocaleString('es-MX') : '')) : ''}"></div>
+    <div class="field"><label>Notas</label><textarea id="edit-notas" rows="2">${escapeHtml(p.notas || '')}</textarea></div>
+    <button class="btn btn-success btn-block" onclick="guardarEdicionPieza('${p.id}')">Guardar Cambios</button>
+  `;
+
+  document.getElementById('modal-pieza-body').innerHTML = html;
+  openModal('modal-pieza');
+  // Si hay link Drive guardado, renderizar QR de inicio
+  if (ex.driveLink) {
+    setTimeout(() => actualizarQRPreview('edit-drive-link','edit-qr-preview'), 50);
+  }
+}
+
+function guardarEdicionPieza(id) {
+  const p = DATA.piezas.find(x => x.id === id);
+  if (!p) return;
+  const f = FAMILIAS.find(x => x.id === p.familia);
+
+  p.modelo = document.getElementById('edit-modelo')?.value.trim() || p.modelo;
+  const precioRaw = document.getElementById('edit-precio')?.value || '';
+  const { min: precioMin, max: precioMax } = parsearPrecioRange(precioRaw);
+  p.precioSugerido = precioMin;
+  p.precioMax = precioMax;
+  p.notas = document.getElementById('edit-notas')?.value.trim() || '';
+
+  const ex = p.extras || {};
+  if (document.getElementById('edit-descripcion')) {
+    const desc = document.getElementById('edit-descripcion').value.trim();
+    if (f?.id === 'arboles') { ex.terminacion = desc; ex.descripcion = desc; }
+    else { ex.descripcion = desc; }
+  }
+  if (document.getElementById('edit-marcaEje')) ex.marcaEje = document.getElementById('edit-marcaEje').value.trim();
+  if (document.getElementById('edit-suspension')) ex.suspension = document.getElementById('edit-suspension').value.trim();
+  if (document.getElementById('edit-paso')) ex.paso = document.getElementById('edit-paso').value.trim();
+  if (document.getElementById('edit-libras')) ex.libras = document.getElementById('edit-libras').value.trim();
+  if (document.getElementById('edit-serie')) ex.serie = document.getElementById('edit-serie').value.trim();
+  if (document.getElementById('edit-cpl')) ex.cpl = document.getElementById('edit-cpl').value.trim();
+  if (document.getElementById('edit-hp')) ex.hp = document.getElementById('edit-hp').value.trim();
+  if (document.getElementById('edit-estadoMotor')) ex.estadoMotor = document.getElementById('edit-estadoMotor').value.trim();
+  if (document.getElementById('edit-fichaMarca')) ex.fichaMarca = document.getElementById('edit-fichaMarca').value.trim();
+  if (document.getElementById('edit-fichaModelo')) ex.fichaModelo = document.getElementById('edit-fichaModelo').value.trim();
+  if (document.getElementById('edit-fichaAño')) ex.fichaAño = document.getElementById('edit-fichaAño').value.trim();
+  if (document.getElementById('edit-fichaVin')) ex.fichaVin = document.getElementById('edit-fichaVin').value.trim();
+  if (document.getElementById('edit-fichaNoMotor')) ex.fichaNoMotor = document.getElementById('edit-fichaNoMotor').value.trim();
+  if (document.getElementById('edit-fichaExtra')) ex.fichaExtra = document.getElementById('edit-fichaExtra').value.trim();
+  if (document.getElementById('edit-drive-link')) {
+    const dl = document.getElementById('edit-drive-link').value.trim();
+    if (dl) ex.driveLink = dl; else delete ex.driveLink;
+  }
+  if (document.getElementById('edit-ubicacion')) {
+    const ub = document.getElementById('edit-ubicacion').value.trim();
+    if (ub) ex.ubicacion = ub; else delete ex.ubicacion;
+  }
+
+  p.extras = ex;
+  guardar();
+  playDing(); toast('Pieza actualizada', 'success');
+  closeModal('modal-pieza');
+  if (document.getElementById('view-camiones').classList.contains('active')) renderCamiones();
+}
+
+function eliminarPieza(id) {
+  if (!confirm('¿Eliminar esta pieza permanentemente?')) return;
+  const p = DATA.piezas.find(x => x.id === id);
+  DATA.piezas = DATA.piezas.filter(x => x.id !== id);
+  guardar();
+  toast('Pieza eliminada');
+  if (p && p.camionId && document.getElementById('modal-pieza').classList.contains('active')) verPiezasCamion(p.camionId);
+  if (document.getElementById('view-buscar').classList.contains('active')) renderBusqueda();
+}
+
+// ============================================================
+// BUSCAR PIEZAS (inteligente)
+// ============================================================
+let _filtroFamilia = null;
+let _filtroSinPrecio = false;
+const _acordeonesAbiertos = new Set();
+
+function toggleAcordeonFamilia(famId) {
+  if (_acordeonesAbiertos.has(famId)) {
+    _acordeonesAbiertos.delete(famId);
+  } else {
+    _acordeonesAbiertos.add(famId);
+  }
+  renderBusqueda();
+}
+
+function renderBusqueda() {
+  // Filtros de familia (cada uno con su color)
+  const filtros = document.getElementById('filtros-familia');
+  filtros.innerHTML =
+    '<button class="filter-chip ' + (!_filtroFamilia && !_filtroSinPrecio ? 'active' : '') + '" onclick="setFiltro(null)">Todas</button>' +
+    `<button class="filter-chip ${_filtroSinPrecio ? 'active' : ''}" style="background:#c0392b; color:#fff; border-color:#c0392b; font-weight:800;" onclick="toggleSinPrecio()">⚠ SIN PRECIO</button>` +
+    FAMILIAS.map(f => {
+      const isActive = _filtroFamilia === f.id;
+      const styleColor = isActive ? '' : `style="background:${f.color}; border-color:${f.color};"`;
+      return `<button class="filter-chip ${isActive ? 'active' : ''}" ${styleColor} onclick="setFiltro('${f.id}')">${f.nombreSingular || f.nombre}</button>`;
+    }).join('');
+
+  let piezas = DATA.piezas.filter(p => !p.vendida);
+  if (_filtroFamilia) piezas = piezas.filter(p => p.familia === _filtroFamilia);
+  if (_filtroSinPrecio) piezas = piezas.filter(p => !p.precioSugerido && !p.precioMax);
+
+  const info = document.getElementById('info-busqueda');
+  if (_filtroSinPrecio) {
+    info.innerHTML = `<strong>${piezas.length}</strong> pieza(s) <strong style="color:#e67e22;">SIN PRECIO</strong> — toca Editar para agregarles precio`;
+  } else {
+    info.innerHTML = `Mostrando: <strong>${piezas.length}</strong> pieza(s) en patio`;
+  }
+
+  // Agrupar SOLO por familia (todas las piezas de una familia juntas)
+  const grupos = {};
+  piezas.forEach(p => {
+    if (!grupos[p.familia]) grupos[p.familia] = { familia: p.familia, piezas: [] };
+    grupos[p.familia].piezas.push(p);
+  });
+
+  const cont = document.getElementById('resultados-busqueda');
+  if (Object.keys(grupos).length === 0) {
+    cont.innerHTML = '<div class="info-bar">No hay piezas con ese filtro.</div>';
+    return;
+  }
+
+  // Ordenar familias por orden en FAMILIAS array
+  const ordenFamilias = FAMILIAS.map(f => f.id);
+  const gruposOrdenados = Object.values(grupos).sort((a,b) => {
+    return ordenFamilias.indexOf(a.familia) - ordenFamilias.indexOf(b.familia);
+  });
+
+  // Si "Todas" activo (sin filtro de familia): modo ACORDEÓN (cerrados por default)
+  // Si una familia específica: abierto directo
+  const modoAcordeon = !_filtroFamilia && !_filtroSinPrecio;
+
+  cont.innerHTML = gruposOrdenados.map(g => {
+    const f = FAMILIAS.find(x => x.id === g.familia);
+    const colorFam = f?.color || '#f4f4f0';
+    const abierto = !modoAcordeon || _acordeonesAbiertos.has(g.familia);
+
+    const headerClick = modoAcordeon
+      ? `onclick="toggleAcordeonFamilia('${g.familia}')" style="cursor:pointer; background:${colorFam}; padding:14px; margin:0;"`
+      : `style="background:${colorFam}; padding:14px; margin:0;"`;
+
+    const flecha = modoAcordeon
+      ? `<span style="font-size:20px; color:#555; transition:transform 0.2s; display:inline-block; transform:rotate(${abierto ? '90' : '0'}deg);">▶</span>`
+      : '';
+
+    return `
+      <div class="card" style="padding:0; overflow:hidden; margin-bottom:14px;">
+        <div class="card-header" ${headerClick}>
+          <div style="display:flex; align-items:center; gap:10px;">
+            ${flecha}
+            <div>
+              <div class="card-title">${f?.nombre || g.familia}</div>
+              <div class="card-meta">${g.piezas.length} pieza(s)${modoAcordeon && !abierto ? ' · <span style="color:#c0392b; font-weight:700;">toca para ver</span>' : ''}</div>
+            </div>
+          </div>
+          <span class="badge badge-count">${g.piezas.length}</span>
+        </div>
+        ${abierto ? `<div class="piezas-list" style="padding:14px;">
+          ${g.piezas.sort((a,b) => (b.fechaRegistro||0) - (a.fechaRegistro||0)).map(p => {
+            const camion = DATA.camiones.find(c => c.id === p.camionId);
+            const extras = formatExtras(p.extras, p.modelo);
+            const precio = precioBadge(p) ? " " + precioBadge(p) : "";
+            const fam = FAMILIAS.find(x => x.id === p.familia);
+            const origenTexto = camion
+              ? `<div style="font-size:12px; color:#999; margin-top:4px;">Viene de: ${escapeHtml(camion.marca)} ${escapeHtml(camion.modelo)} ${escapeHtml(camion.año||'')} <span style="font-family:ui-monospace,monospace; color:#bbb;">${camion.folio}</span></div>`
+              : ((p.camionMarca || p.marca || p.camionModelo)
+                ? `<div style="font-size:12px; color:#999; margin-top:4px;">Marca: ${escapeHtml(p.camionMarca || p.marca || '')} ${escapeHtml(p.camionModelo || '')} ${escapeHtml(p.camionAño || p.año || '')}</div>`
+                : '');
+
+            let cuerpoPieza;
+            if (fam && (fam.tieneInfoMotor || fam.tieneFichaTecnica)) {
+              let tablaHTML = detalleDePiezas([p]).join('');
+              cuerpoPieza = `<div style="flex:1; min-width:0;">${tablaHTML}${origenTexto}</div>`;
+            } else {
+              cuerpoPieza = `
+                <div style="flex:1;">
+                  <div style="font-size:20px; font-weight:900; color:#1a1a1a; letter-spacing:-0.3px;">${escapeHtml(p.modelo || '')} ${precio}</div>
+                  <div style="font-size:13px; color:#777; margin-top:3px;">
+                    ${p.motor ? `Motor ${escapeHtml(p.motor)}` : ''}${extras ? (p.motor ? ' · ' : '') + extras : ''}
+                  </div>
+                  ${p.notas ? `<div style="font-size:14px; color:#4a4a4a; background:#f7f3ea; border-left:3px solid #c9a24b; border-radius:2px; padding:7px 11px; margin-top:5px;">📝 ${escapeHtml(p.notas)}</div>` : ''}
+                  ${origenTexto}
+                </div>`;
+            }
+
+            return `
+              <div class="pieza-item" style="display:block;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+                  ${cuerpoPieza}
+                  <div class="pieza-actions">
+                    <button class="btn btn-small btn-mini btn-success" onclick="venderPieza('${p.id}')">Vendí</button>
+                    <button class="btn btn-small btn-mini btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
+                    ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((fam?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
+                    <button class="btn btn-small btn-mini" onclick="editarPieza('${p.id}')">Editar</button>
+                  </div>
+                </div>
+                ${p.fechaRegistro ? `<div style="font-size:10px; color:#ccc; margin-top:3px; font-family:ui-monospace,monospace;">${fechaCorta(p.fechaRegistro)}</div>` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function setFiltro(id) {
+  _filtroFamilia = id;
+  _filtroSinPrecio = false;
+  _acordeonesAbiertos.clear();
+  renderBusqueda();
+}
+
+function toggleSinPrecio() {
+  _filtroSinPrecio = !_filtroSinPrecio;
+  _filtroFamilia = null;
+  _acordeonesAbiertos.clear();
+  renderBusqueda();
+}
+
+// ============================================================
+// ADMINISTRAR CATÁLOGOS
+// ============================================================
+function renderAdmin() {
+  const cat = getCatalogos();
+
+  // Inicializar overrides de familias si no existen
+  if (!DATA.familiasOverride) DATA.familiasOverride = {};
+
+  let html = `
+    <div class="info-bar">Aquí puedes agregar o quitar opciones de cada lista. Los cambios se guardan al instante.</div>
+
+    <h3>Marcas de Camión</h3>
+    ${renderListaEditable('marcasCamion', cat.marcasCamion)}
+
+    <h3 style="margin-top:24px">Modelos por Marca</h3>
+    ${cat.marcasCamion.map(marca => `
+      <div class="card">
+        <div class="card-title">${marca}</div>
+        <div style="margin-top:8px">${renderListaSubEditable('modelosPorMarca', marca, cat.modelosPorMarca[marca] || [])}</div>
+      </div>
+    `).join('')}
+
+    <h3 style="margin-top:24px">Motores</h3>
+    <div class="info-bar" style="margin-bottom:8px">Esta es la lista única de motores que se usa tanto al <strong>registrar un camión</strong> como al <strong>agregar un Motor como pieza</strong>.</div>
+    ${renderListaEditable('motores', cat.motores)}
+
+    <h3 style="margin-top:30px; border-left:4px solid #b03a2e; padding-left:12px;">Botones de cada Familia de Pieza</h3>
+    <div class="info-bar">Edita los botones que aparecen al agregar piezas. <strong>Motor</strong> se administra arriba. Familias sin botones (Árbol de Levas, Cigüeñal, Chasis, Cabina, Cofre, Otros) no aparecen porque usan campos libres o datos del camión.</div>
+    ${FAMILIAS.filter(f => f.id !== 'motores' && f.id !== 'radiadores' && f.tipo !== 'libre' && f.tipo !== 'fichaSolo' && f.tipo !== 'cofre').map(f => {
+      const botonesActuales = getBotonesFamilia(f.id);
+      return `
+        <div class="card">
+          <div class="card-title">${f.nombre}</div>
+          <div class="card-meta" style="margin-bottom:8px">${botonesActuales.length} botón(es)</div>
+          ${renderListaFamiliaEditable(f.id, botonesActuales)}
+        </div>
+      `;
+    }).join('')}
+
+    <h3 style="margin-top:30px">Reiniciar todo</h3>
+    <button class="btn btn-danger btn-block" onclick="resetCatalogos()">Volver a catálogos por defecto</button>
+  `;
+
+  document.getElementById('admin-listas').innerHTML = html;
+}
+
+// Devuelve los botones actuales de una familia (override del usuario o el default)
+function getBotonesFamilia(famId) {
+  // Caso especial: la familia "motores" usa SIEMPRE la lista general de motores del catálogo
+  // (es la misma lista para ambos contextos: motor del camión Y motor como pieza)
+  if (famId === 'motores') {
+    return [...getCatalogos().motores];
+  }
+  if (DATA.familiasOverride && DATA.familiasOverride[famId]) return DATA.familiasOverride[famId];
+  const f = FAMILIAS.find(x => x.id === famId);
+  return f ? [...f.botones] : [];
+}
+
+// Aplica override al render de modales (también lo usa el modal de pieza)
+function setBotonesFamilia(famId, lista) {
+  if (!DATA.familiasOverride) DATA.familiasOverride = {};
+  DATA.familiasOverride[famId] = lista;
+  guardar();
+}
+
+function renderListaFamiliaEditable(famId, lista) {
+  const items = lista.map((item, i) => `
+    <div class="pieza-item">
+      <div class="pieza-name">${item}</div>
+      <button class="btn btn-small btn-danger" onclick="quitarBotonFamilia('${famId}', ${i})">Quitar</button>
+    </div>
+  `).join('');
+  return `
+    <div class="piezas-list">${items}</div>
+    <div style="display:flex; gap:8px; margin-top:8px">
+      <input type="text" id="add-fam-${famId}" placeholder="Agregar nuevo botón...">
+      <button class="btn btn-primary" onclick="agregarBotonFamilia('${famId}')">+</button>
+    </div>
+  `;
+}
+
+function agregarBotonFamilia(famId) {
+  const input = document.getElementById('add-fam-' + famId);
+  const val = input.value.trim();
+  if (!val) return;
+  const lista = getBotonesFamilia(famId);
+  if (lista.includes(val)) { toast('Ya existe', 'error'); return; }
+  lista.push(val);
+  setBotonesFamilia(famId, lista);
+  renderAdmin();
+  toast('Agregado: ' + val, 'success');
+}
+
+function quitarBotonFamilia(famId, i) {
+  const lista = getBotonesFamilia(famId);
+  const item = lista[i];
+  if (!confirm(`¿Quitar el botón "${item}" de ${FAMILIAS.find(f => f.id === famId).nombre}?`)) return;
+  lista.splice(i, 1);
+  setBotonesFamilia(famId, lista);
+  renderAdmin();
+}
+
+function renderListaEditable(key, lista) {
+  const items = lista.map((item, i) => `
+    <div class="pieza-item">
+      <div class="pieza-name">${item}</div>
+      <button class="btn btn-small btn-danger" onclick="quitarItem('${key}', ${i})">Quitar</button>
+    </div>
+  `).join('');
+  return `
+    <div class="piezas-list">${items}</div>
+    <div style="display:flex; gap:8px; margin-top:8px">
+      <input type="text" id="add-${key}" placeholder="Agregar nuevo...">
+      <button class="btn btn-primary" onclick="agregarItem('${key}')">+</button>
+    </div>
+  `;
+}
+
+function renderListaSubEditable(key, marca, lista) {
+  const items = lista.map((item, i) => `
+    <div class="pieza-item">
+      <div class="pieza-name">${item}</div>
+      <button class="btn btn-small btn-danger" onclick="quitarSubItem('${key}', '${marca.replace(/'/g,"\\'")}', ${i})">Quitar</button>
+    </div>
+  `).join('');
+  return `
+    <div class="piezas-list">${items}</div>
+    <div style="display:flex; gap:8px; margin-top:8px">
+      <input type="text" id="add-${key}-${marca.replace(/\W/g,'')}" placeholder="Agregar modelo de ${marca}...">
+      <button class="btn btn-primary" onclick="agregarSubItem('${key}', '${marca.replace(/'/g,"\\'")}')">+</button>
+    </div>
+  `;
+}
+
+function agregarItem(key) {
+  const input = document.getElementById('add-' + key);
+  const val = input.value.trim();
+  if (!val) return;
+  const cat = getCatalogos();
+  if (cat[key].includes(val)) { toast('Ya existe', 'error'); return; }
+  cat[key].push(val);
+  if (key === 'marcasCamion' && !cat.modelosPorMarca[val]) cat.modelosPorMarca[val] = [];
+  guardar();
+  renderAdmin();
+  toast('Agregado: ' + val, 'success');
+}
+
+function quitarItem(key, i) {
+  const cat = getCatalogos();
+  const item = cat[key][i];
+  if (!confirm(`¿Quitar "${item}"?`)) return;
+  cat[key].splice(i, 1);
+  if (key === 'marcasCamion') delete cat.modelosPorMarca[item];
+  guardar();
+  renderAdmin();
+}
+
+function agregarSubItem(key, marca) {
+  const input = document.getElementById('add-' + key + '-' + marca.replace(/\W/g,''));
+  const val = input.value.trim();
+  if (!val) return;
+  const cat = getCatalogos();
+  if (!cat[key][marca]) cat[key][marca] = [];
+  if (cat[key][marca].includes(val)) { toast('Ya existe', 'error'); return; }
+  cat[key][marca].push(val);
+  guardar();
+  renderAdmin();
+  toast('Agregado', 'success');
+}
+
+function quitarSubItem(key, marca, i) {
+  const cat = getCatalogos();
+  if (!confirm(`¿Quitar "${cat[key][marca][i]}"?`)) return;
+  cat[key][marca].splice(i, 1);
+  guardar();
+  renderAdmin();
+}
+
+function resetCatalogos() {
+  if (!confirm('Esto va a borrar todas las marcas, modelos, motores Y botones de familias que hayas modificado a mano, y volver a los originales.\n\n¿Continuar?')) return;
+  DATA.catalogos = JSON.parse(JSON.stringify(CATALOGOS_DEFAULT));
+  DATA.familiasOverride = JSON.parse(JSON.stringify(FAMILIAS_OVERRIDE_DEFAULT));
+  guardar();
+  renderAdmin();
+  toast('Catálogos reiniciados', 'success');
+}
+
+// ============================================================
+// EXPORT EXCEL (1 hoja por familia + hoja de camiones)
+// ============================================================
+function exportExcel() {
+  if (DATA.camiones.length === 0 && DATA.piezas.length === 0) {
+    toast('No hay datos para exportar', 'error');
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const headers = ['Folio','Familia','Modelo/Tipo','Motor','Marca Camión','Modelo Camión','Año','Estado',
+    'Condición','CPL','HP','N° Serie o Parte','Libras','Marca Eje','Suspensión','Paso','VIN','N° Motor',
+    'Ubicación','Precio Mín','Precio Máx','Link Drive','Notas','Estatus','Fecha Registro'];
+  const anchos = [{wch:12},{wch:18},{wch:20},{wch:14},{wch:14},{wch:14},{wch:8},{wch:14},{wch:14},{wch:8},{wch:8},{wch:14},{wch:10},{wch:14},{wch:16},{wch:12},{wch:16},{wch:14},{wch:16},{wch:12},{wch:12},{wch:28},{wch:24},{wch:12},{wch:14}];
+
+  const filaDe = (p) => {
+    const ex = p.extras || {};
+    const f = FAMILIAS.find(x => x.id === p.familia);
+    const camion = DATA.camiones.find(c => c.id === p.camionId);
+    return [
+      camion ? camion.folio : (p.camionFolio && p.camionFolio !== 'SUELTA' ? p.camionFolio : ''),
+      f ? f.nombreSingular : p.familia, p.modelo || '', p.motor || '',
+      (ex.fichaMarca || p.camionMarca || p.marca || ''), (ex.fichaModelo || p.camionModelo || ''),
+      (ex.fichaAño || p.camionAño || p.año || ''), (ex.estadoMotor || ex.estado || ''), ex.condicion || '',
+      ex.cpl || '', ex.hp || '', ex.serie || ex.terminacion || '', ex.libras || '', ex.marcaEje || '',
+      ex.suspension || '', ex.paso || '', ex.fichaVin || '', ex.fichaNoMotor || '', ex.ubicacion || '',
+      p.precioSugerido || '', p.precioMax || '', ex.driveLink || '', p.notas || '',
+      p.vendida ? 'VENDIDA' : 'En Patio', p.fechaRegistro ? new Date(p.fechaRegistro).toLocaleDateString('es-MX') : ''
+    ];
+  };
+
+  // Una hoja por familia (solo las que tienen piezas)
+  FAMILIAS.forEach(f => {
+    const piezas = DATA.piezas.filter(p => p.familia === f.id);
+    if (piezas.length === 0) return;
+    const filas = [headers, ...piezas.map(filaDe)];
+    const ws = XLSX.utils.aoa_to_sheet(filas);
+    ws['!cols'] = anchos;
+    const nombreHoja = f.nombre.substring(0,31).replace(/[\\\/\?\*\[\]:]/g,'');
+    XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
+  });
+
+  // Hoja Camiones
+  const filasCamiones = [['Folio','Marca','Modelo','Año','Motor','Fecha Llegada','Estado','Piezas en Patio','Piezas Vendidas','Notas']];
+  DATA.camiones.forEach(c => {
+    const piezasAct = DATA.piezas.filter(p => p.camionId === c.id && !p.vendida).length;
+    const piezasVend = DATA.piezas.filter(p => p.camionId === c.id && p.vendida).length;
+    filasCamiones.push([c.folio, c.marca, c.modelo, c.año || '', c.motor, c.fechaLlegada || '', c.desmantelado ? 'DESMANTELADO' : 'Activo', piezasAct, piezasVend, c.notas || '']);
+  });
+  const wsC = XLSX.utils.aoa_to_sheet(filasCamiones);
+  wsC['!cols'] = [{wch:12},{wch:14},{wch:18},{wch:8},{wch:18},{wch:14},{wch:14},{wch:10},{wch:10},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, wsC, 'Camiones');
+
+  if (wb.SheetNames.length === 0) { toast('No hay datos para exportar', 'error'); return; }
+
+  const fecha = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `Inventario_Patio_TPM_${fecha}.xlsx`);
+  toast('Excel descargado', 'success');
+}
+
+// ============================================================
+// EXPORT PDF
+// ============================================================
+function exportPDF() {
+  if (DATA.camiones.length === 0 && DATA.piezas.length === 0) {
+    toast('No hay datos para exportar', 'error');
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const fecha = new Date().toLocaleString('es-MX');
+
+  doc.setFontSize(16);
+  doc.setFont(undefined, 'bold');
+  doc.text('Inventario de Patio · Tracto Partes Magaña', 14, 18);
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  doc.text('Generado: ' + fecha, 14, 25);
+
+  // Camiones
+  doc.autoTable({
+    startY: 32,
+    head: [['Folio', 'Marca', 'Modelo', 'Año', 'Motor', 'Llegada', 'Piezas']],
+    body: DATA.camiones.map(c => {
+      const pcs = DATA.piezas.filter(p => p.camionId === c.id && !p.vendida).length;
+      return [c.folio, c.marca, c.modelo, c.año || '', c.motor, c.fechaLlegada || '', pcs];
+    }),
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [26,26,26], textColor: [212,160,23] }
+  });
+
+  // Piezas por familia
+  FAMILIAS.forEach(f => {
+    const piezas = DATA.piezas.filter(p => p.familia === f.id && !p.vendida);
+    if (piezas.length === 0) return;
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text(`${f.nombre} (${piezas.length})`, 14, 18);
+    doc.autoTable({
+      startY: 25,
+      head: [['Folio', 'Modelo', 'Camión', 'Motor', 'Detalles']],
+      body: piezas.map(p => [p.camionFolio || 'SUELTA', p.modelo, `${p.marca||''} ${p.modelo||''}`, p.motor || '', formatExtras(p.extras, p.modelo)]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [26,26,26], textColor: [212,160,23] }
+    });
+  });
+
+  doc.save(`Inventario_TPM_${new Date().toISOString().slice(0,10)}.pdf`);
+  toast('PDF descargado', 'success');
+}
+
+// ============================================================
+// EXPORT WORD (HTML disfrazado de .doc, lo abre Word sin problema)
+// ============================================================
+function exportWord() {
+  if (DATA.camiones.length === 0 && DATA.piezas.length === 0) {
+    toast('No hay datos para exportar', 'error');
+    return;
+  }
+  let html = `
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset='utf-8'><title>Inventario TPM</title></head>
+<body style="font-family: Arial; font-size: 11pt;">
+<h1 style="color:#1a1a1a; border-bottom:3px solid #d4a017;">Inventario de Patio · Tracto Partes Magaña</h1>
+<p>Generado: ${new Date().toLocaleString('es-MX')}</p>
+
+<h2>Camiones (${DATA.camiones.length})</h2>
+<table border="1" cellpadding="6" style="border-collapse:collapse; width:100%;">
+<tr style="background:#1a1a1a; color:#d4a017; font-weight:bold;">
+  <th>Folio</th><th>Marca</th><th>Modelo</th><th>Año</th><th>Motor</th><th>Llegada</th><th>Piezas</th>
+</tr>`;
+  DATA.camiones.forEach(c => {
+    const pcs = DATA.piezas.filter(p => p.camionId === c.id && !p.vendida).length;
+    html += `<tr><td>${c.folio}</td><td>${c.marca}</td><td>${c.modelo}</td><td>${c.año||''}</td><td>${c.motor}</td><td>${c.fechaLlegada||''}</td><td>${pcs}</td></tr>`;
+  });
+  html += '</table>';
+
+  FAMILIAS.forEach(f => {
+    const piezas = DATA.piezas.filter(p => p.familia === f.id && !p.vendida);
+    if (piezas.length === 0) return;
+    html += `<h2>${f.nombre} (${piezas.length})</h2>
+<table border="1" cellpadding="6" style="border-collapse:collapse; width:100%;">
+<tr style="background:#1a1a1a; color:#d4a017; font-weight:bold;">
+  <th>Folio</th><th>Modelo</th><th>Camión Origen</th><th>Motor</th><th>Detalles</th>
+</tr>`;
+    piezas.forEach(p => {
+      html += `<tr><td>${p.camionFolio||''}</td><td>${p.modelo}</td><td>${p.marca||''} ${p.modelo||''} ${p.año||''}</td><td>${p.motor||''}</td><td>${formatExtras(p.extras, p.modelo)}</td></tr>`;
+    });
+    html += '</table>';
+  });
+
+  html += '</body></html>';
+  const blob = new Blob([html], {type: 'application/msword'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Inventario_TPM_${new Date().toISOString().slice(0,10)}.doc`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Word descargado', 'success');
+}
+
+// ============================================================
+// JSON BACKUP
+// ============================================================
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(DATA, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `respaldo_TPM_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Respaldo descargado', 'success');
+}
+
+// Importar inventario masivo (AGREGA, no reemplaza)
+function importarMasivo(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const esExcel = /\.(xlsx|xls)$/i.test(file.name);
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      let nuevas;
+      if (esExcel) {
+        nuevas = leerPiezasDeExcel(e.target.result);
+      } else {
+        const obj = JSON.parse(e.target.result);
+        if (obj.piezas && obj.camiones) {
+          if (!confirm('Este JSON es un respaldo completo. ¿Reemplazar TODO el inventario?')) return;
+          DATA = obj;
+          if (!DATA.catalogos) DATA.catalogos = JSON.parse(JSON.stringify(CATALOGOS_DEFAULT));
+          if (!DATA.folioCounter) DATA.folioCounter = DATA.camiones.length + 1;
+          guardar(); toast('Respaldo restaurado', 'success'); renderCamiones(); showView('camiones');
+          return;
+        }
+        nuevas = [];
+      }
+      if (nuevas.length === 0) {
+        document.getElementById('import-resultado').innerHTML = '<div class="info-bar" style="color:#c0392b;">No se encontraron piezas válidas. Revisa que el archivo use la plantilla.</div>';
+        return;
+      }
+      if (!confirm(`Se van a AGREGAR ${nuevas.length} pieza(s) al inventario actual.\n\n¿Continuar?`)) return;
+      DATA.piezas.push(...nuevas);
+      guardar(); playDing();
+      document.getElementById('import-resultado').innerHTML = `<div class="info-bar" style="background:#d4edda; color:#155724;">✓ ${nuevas.length} pieza(s) importada(s) correctamente.</div>`;
+      toast(`${nuevas.length} piezas importadas`, 'success');
+      renderCamiones();
+    } catch(err) {
+      document.getElementById('import-resultado').innerHTML = `<div class="info-bar" style="color:#c0392b;">Error: ${err.message}</div>`;
+    }
+  };
+  if (esExcel) reader.readAsArrayBuffer(file); else reader.readAsText(file);
+}
+
+function importarMasivo_old(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const esExcel = /\.(xlsx|xls)$/i.test(file.name);
+  const reader = new FileReader();
+
+  reader.onload = e => {
+    try {
+      let filas;
+      if (esExcel) {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        filas = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      } else {
+        const obj = JSON.parse(e.target.result);
+        // Si es un respaldo completo, usar importJSON normal
+        if (obj.piezas && obj.camiones) {
+          if (!confirm('Este JSON es un respaldo completo. ¿Reemplazar TODO el inventario?')) return;
+          DATA = obj;
+          if (!DATA.catalogos) DATA.catalogos = JSON.parse(JSON.stringify(CATALOGOS_DEFAULT));
+          if (!DATA.folioCounter) DATA.folioCounter = DATA.camiones.length + 1;
+          guardar(); toast('Respaldo restaurado', 'success'); renderCamiones(); showView('camiones');
+          return;
+        }
+        // Si es array de filas tipo plantilla
+        filas = Array.isArray(obj) ? obj : [];
+      }
+
+      // Detectar fila de encabezados
+      let headerIdx = filas.findIndex(f => f.some(c => String(c).toLowerCase().includes('familia')));
+      if (headerIdx === -1) headerIdx = 0;
+      const headers = filas[headerIdx].map(h => String(h).toLowerCase().trim());
+
+      const col = (nombre) => headers.findIndex(h => h.includes(nombre));
+      const idx = {
+        folio: col('folio'), familia: col('familia'), modelo: col('modelo/tipo') !== -1 ? col('modelo/tipo') : col('modelo'),
+        motor: headers.findIndex(h => h === 'motor'), marcaCam: col('marca cami'), modeloCam: headers.findIndex(h => h.includes('modelo cami')),
+        año: col('año'), estado: col('estado'), serie: col('serie'), parte: col('parte'),
+        ubicacion: col('ubicaci'), precioMin: col('precio mín') !== -1 ? col('precio mín') : col('precio min'),
+        precioMax: col('precio máx') !== -1 ? col('precio máx') : col('precio max'),
+        drive: col('drive'), notas: col('notas')
+      };
+
+      // Mapa de nombre de familia -> id
+      const famPorNombre = {};
+      FAMILIAS.forEach(f => {
+        famPorNombre[f.nombre.toLowerCase()] = f.id;
+        famPorNombre[f.nombreSingular.toLowerCase()] = f.id;
+      });
+
+      const get = (fila, i) => (i >= 0 && fila[i] != null) ? String(fila[i]).trim() : '';
+      let agregadas = 0, saltadas = 0;
+      const nuevasPiezas = [];
+
+      for (let r = headerIdx + 1; r < filas.length; r++) {
+        const fila = filas[r];
+        if (!fila || fila.every(c => String(c).trim() === '')) continue;
+        const famNombre = get(fila, idx.familia).toLowerCase();
+        const familiaId = famPorNombre[famNombre] || 'otros';
+        const modelo = get(fila, idx.modelo);
+        if (!modelo && !famNombre) { saltadas++; continue; }
+
+        const precioMin = parseFloat(get(fila, idx.precioMin).replace(/[,$\s]/g,'')) || null;
+        const precioMax = parseFloat(get(fila, idx.precioMax).replace(/[,$\s]/g,'')) || null;
+        const folio = get(fila, idx.folio);
+        const camion = folio ? DATA.camiones.find(c => c.folio === folio) : null;
+
+        const extras = {};
+        const serie = get(fila, idx.serie);
+        const parte = get(fila, idx.parte);
+        const estado = get(fila, idx.estado);
+        const ubic = get(fila, idx.ubicacion);
+        const drive = get(fila, idx.drive);
+        const f = FAMILIAS.find(x => x.id === familiaId);
+        if (serie) extras.serie = serie;
+        if (parte) extras.terminacion = parte;
+        if (estado && f?.tieneInfoMotor) extras.estadoMotor = estado;
+        else if (estado) extras.estado = estado;
+        if (ubic) extras.ubicacion = ubic;
+        if (drive) extras.driveLink = drive;
+
+        nuevasPiezas.push({
+          id: 'imp_' + Date.now() + '_' + r + '_' + Math.random().toString(36).slice(2,6),
+          familia: familiaId,
+          camionId: camion ? camion.id : null,
+          camionFolio: camion ? camion.folio : 'SUELTA',
+          camionMarca: get(fila, idx.marcaCam), camionModelo: get(fila, idx.modeloCam), camionAño: get(fila, idx.año),
+          motor: get(fila, idx.motor), marca: get(fila, idx.marcaCam), año: get(fila, idx.año),
+          modelo: modelo || (f?.nombreSingular || ''),
+          extras, precioSugerido: precioMin, precioMax: precioMax,
+          notas: get(fila, idx.notas), vendida: false, fechaRegistro: Date.now() + r
+        });
+        agregadas++;
+      }
+
+      if (agregadas === 0) {
+        document.getElementById('import-resultado').innerHTML = '<div class="info-bar" style="color:#c0392b;">No se encontraron piezas válidas. Revisa que el archivo use la plantilla.</div>';
+        return;
+      }
+
+      if (!confirm(`Se van a AGREGAR ${agregadas} pieza(s) al inventario actual.\n${saltadas ? saltadas + ' fila(s) vacías se ignoraron.\n' : ''}\n¿Continuar?`)) return;
+
+      DATA.piezas.push(...nuevasPiezas);
+      guardar();
+      playDing();
+      document.getElementById('import-resultado').innerHTML = `<div class="info-bar" style="background:#d4edda; color:#155724;">✓ ${agregadas} pieza(s) importada(s) correctamente.</div>`;
+      toast(`${agregadas} piezas importadas`, 'success');
+      renderCamiones();
+    } catch(err) {
+      document.getElementById('import-resultado').innerHTML = `<div class="info-bar" style="color:#c0392b;">Error: ${err.message}</div>`;
+      toast('Error al importar: ' + err.message, 'error');
+    }
+  };
+
+  if (esExcel) reader.readAsArrayBuffer(file);
+  else reader.readAsText(file);
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const esExcel = /\.(xlsx|xls)$/i.test(file.name);
+  const reader = new FileReader();
+
+  reader.onload = e => {
+    try {
+      if (esExcel) {
+        // Reemplazar TODO el inventario con las piezas del Excel
+        const piezas = leerPiezasDeExcel(e.target.result);
+        if (piezas.length === 0) { toast('No se encontraron piezas válidas en el Excel', 'error'); return; }
+        if (!confirm(`⚠ Esto va a REEMPLAZAR todo el inventario actual con ${piezas.length} pieza(s) del Excel.\n\n¿Estás seguro?`)) return;
+        DATA.piezas = piezas;
+        DATA.camiones = [];
+        guardar(); playDing();
+        toast(`${piezas.length} piezas cargadas (reemplazo)`, 'success');
+        renderCamiones(); showView('camiones');
+        return;
+      }
+      const obj = JSON.parse(e.target.result);
+      if (!obj.camiones || !obj.piezas) throw new Error('Archivo no válido');
+      if (!confirm('⚠ Esto va a REEMPLAZAR todo el inventario actual con el del archivo.\n\n¿Estás seguro?')) return;
+      DATA = obj;
+      if (!DATA.catalogos) DATA.catalogos = JSON.parse(JSON.stringify(CATALOGOS_DEFAULT));
+      if (!DATA.folioCounter) DATA.folioCounter = DATA.camiones.length + 1;
+      guardar();
+      toast('Respaldo restaurado', 'success');
+      renderCamiones();
+      showView('camiones');
+    } catch(err) {
+      toast('Error al leer respaldo: ' + err.message, 'error');
+    }
+  };
+
+  if (esExcel) reader.readAsArrayBuffer(file);
+  else reader.readAsText(file);
+}
+
+// Lee un Excel (ArrayBuffer) y devuelve array de piezas en formato del HTML
+function leerPiezasDeExcel(arrayBuffer) {
+  const wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const filas = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+  let headerIdx = filas.findIndex(f => f.some(c => String(c).toLowerCase().includes('familia')));
+  if (headerIdx === -1) headerIdx = 0;
+  const headers = filas[headerIdx].map(h => String(h).toLowerCase().trim());
+  const col = (nombre) => headers.findIndex(h => h.includes(nombre));
+  const idx = {
+    folio: col('folio'), familia: col('familia'),
+    modelo: col('modelo/tipo') !== -1 ? col('modelo/tipo') : col('modelo'),
+    motor: headers.findIndex(h => h === 'motor'), marcaCam: col('marca cami'),
+    modeloCam: headers.findIndex(h => h.includes('modelo cami')),
+    año: headers.findIndex(h => h === 'año'), estado: col('estado'),
+    condicion: col('condici'),
+    serie: col('serie') !== -1 ? col('serie') : col('n° serie'),
+    libras: col('libras'), cpl: headers.findIndex(h => h === 'cpl'), hp: headers.findIndex(h => h === 'hp'),
+    parte: col('parte'), vin: col('vin'), noMotor: col('n° motor') !== -1 ? col('n° motor') : col('no motor'),
+    marcaEje: col('marca eje') !== -1 ? col('marca eje') : col('eje'), suspension: col('suspen'), paso: col('paso'),
+    ubicacion: col('ubicaci'), precioMin: col('precio mín') !== -1 ? col('precio mín') : col('precio min'),
+    precioMax: col('precio máx') !== -1 ? col('precio máx') : col('precio max'),
+    drive: col('drive'), notas: col('notas')
+  };
+  const famPorNombre = {};
+  FAMILIAS.forEach(f => { famPorNombre[f.nombre.toLowerCase()] = f.id; famPorNombre[f.nombreSingular.toLowerCase()] = f.id; });
+  const get = (fila, i) => (i >= 0 && fila[i] != null) ? String(fila[i]).trim() : '';
+
+  const piezas = [];
+  for (let r = headerIdx + 1; r < filas.length; r++) {
+    const fila = filas[r];
+    if (!fila || fila.every(c => String(c).trim() === '')) continue;
+    const famNombre = get(fila, idx.familia).toLowerCase();
+    const familiaId = famPorNombre[famNombre] || 'otros';
+    const modelo = get(fila, idx.modelo);
+    if (!modelo && !famNombre) continue;
+    const f = FAMILIAS.find(x => x.id === familiaId);
+    const extras = {};
+    const serie = get(fila, idx.serie), parte = get(fila, idx.parte), estado = get(fila, idx.estado);
+    const condicion = get(fila, idx.condicion);
+    const ubic = get(fila, idx.ubicacion), drive = get(fila, idx.drive);
+    const cpl = get(fila, idx.cpl), hp = get(fila, idx.hp), vin = get(fila, idx.vin), noMotor = get(fila, idx.noMotor);
+    const libras = get(fila, idx.libras), marcaEje = get(fila, idx.marcaEje), susp = get(fila, idx.suspension), paso = get(fila, idx.paso);
+    // "N° Serie o Parte" es una sola columna: se guarda en serie, y si es motor también sirve como terminación
+    const serieParte = serie || parte;
+    if (serieParte) extras.serie = serieParte;
+    if (parte && parte !== serieParte) extras.terminacion = parte;
+    if (estado && f?.tieneInfoMotor) extras.estadoMotor = estado; else if (estado) extras.estado = estado;
+    if (condicion) extras.condicion = condicion;
+    if (cpl) extras.cpl = cpl;
+    if (hp) extras.hp = hp;
+    if (vin) extras.fichaVin = vin;
+    if (noMotor) extras.fichaNoMotor = noMotor;
+    if (get(fila, idx.marcaCam) && f?.tieneFichaTecnica) extras.fichaMarca = get(fila, idx.marcaCam);
+    if (get(fila, idx.modeloCam) && f?.tieneFichaTecnica) extras.fichaModelo = get(fila, idx.modeloCam);
+    if (get(fila, idx.año) && f?.tieneFichaTecnica) extras.fichaAño = get(fila, idx.año);
+    if (libras) extras.libras = libras;
+    if (marcaEje) extras.marcaEje = marcaEje;
+    if (susp) extras.suspension = susp;
+    if (paso) extras.paso = paso;
+    if (ubic) extras.ubicacion = ubic;
+    if (drive) extras.driveLink = drive;
+    piezas.push({
+      id: 'imp_' + Date.now() + '_' + r + '_' + Math.random().toString(36).slice(2,6),
+      familia: familiaId, camionId: null, camionFolio: 'SUELTA',
+      camionMarca: get(fila, idx.marcaCam), camionModelo: get(fila, idx.modeloCam), camionAño: get(fila, idx.año),
+      motor: get(fila, idx.motor), marca: get(fila, idx.marcaCam), año: get(fila, idx.año),
+      modelo: modelo || (f?.nombreSingular || ''),
+      extras,
+      precioSugerido: parseFloat(get(fila, idx.precioMin).replace(/[,$\s]/g,'')) || null,
+      precioMax: parseFloat(get(fila, idx.precioMax).replace(/[,$\s]/g,'')) || null,
+      notas: get(fila, idx.notas), vendida: false, fechaRegistro: Date.now() + r
+    });
+  }
+  return piezas;
+}
+
+function importJSONold(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const obj = JSON.parse(e.target.result);
+      if (!obj.camiones || !obj.piezas) throw new Error('Archivo no válido');
+      if (!confirm('⚠ Esto va a REEMPLAZAR todo el inventario actual con el del archivo.\n\n¿Estás seguro?')) return;
+      DATA = obj;
+      if (!DATA.catalogos) DATA.catalogos = JSON.parse(JSON.stringify(CATALOGOS_DEFAULT));
+      if (!DATA.folioCounter) DATA.folioCounter = DATA.camiones.length + 1;
+      guardar();
+      toast('Respaldo restaurado', 'success');
+      renderCamiones();
+      showView('camiones');
+    } catch(err) {
+      toast('Error al leer respaldo: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+renderCamiones();
+initFirebase();
+</script>
+</body>
+</html>
