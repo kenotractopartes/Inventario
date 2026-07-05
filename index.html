@@ -121,7 +121,6 @@
   /* MODO SOLO VER: ocultar todo lo que edita */
   body.modo-ver .solo-editor { display: none !important; }
   body.modo-ver nav button[data-view="admin"] { display: none !important; }
-  body.modo-ver nav button[data-view="exportar"] { display: none !important; }
   #modo-badge { font-family: Arial, sans-serif; font-size: 12px; }
   .info-bar strong { color: #1a1a1a; }
 
@@ -168,6 +167,7 @@
 <nav>
   <button class="active" data-view="camiones">🏠 Inicio</button>
   <button data-view="buscar">🔧 Piezas</button>
+  <button data-view="ventas">💵 Ventas</button>
   <button data-view="admin">📝 Administrar</button>
   <button data-view="exportar">⚙️ Exportar</button>
 </nav>
@@ -201,6 +201,16 @@
     <div id="ultimos-registros-lista" style="padding:8px 14px 12px; max-height:300px; overflow-y:auto;"></div>
   </details>
 
+  <div class="solo-editor" style="margin-top:10px;">
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+      <button class="btn btn-mini btn-danger" onclick="deshacerUltima()">↩︎ Deshacer última acción</button>
+    </div>
+    <details style="background:#fff; border:1px solid #e0e0d8; border-radius:6px; padding:0;">
+      <summary style="cursor:pointer; padding:10px 14px; font-size:13px; font-weight:700; color:#555;">🕐 Historial de acciones (esta sesión)</summary>
+      <div id="historial-acciones-lista" style="padding:8px 14px 12px; max-height:260px; overflow-y:auto;"></div>
+    </details>
+  </div>
+
   <div style="height: 12px"></div>
   <div id="lista-camiones"></div>
 </section>
@@ -213,6 +223,22 @@
   <div id="resultados-busqueda"></div>
 </section>
 
+<!-- VENTAS / HISTORIAL -->
+<section class="view" id="view-ventas">
+  <h2>Historial de Ventas</h2>
+  <div class="stats-grid" id="ventas-stats"></div>
+  <div class="field" style="max-width:340px;">
+    <label>Filtrar por fecha</label>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <input type="date" id="ventas-desde" onchange="renderVentas()" style="flex:1;">
+      <span style="color:#888;">a</span>
+      <input type="date" id="ventas-hasta" onchange="renderVentas()" style="flex:1;">
+    </div>
+    <button class="btn btn-mini" style="margin-top:8px;" onclick="document.getElementById('ventas-desde').value='';document.getElementById('ventas-hasta').value='';renderVentas()">Limpiar filtro</button>
+  </div>
+  <div id="ventas-lista"></div>
+</section>
+
 <!-- ADMINISTRAR -->
 <section class="view" id="view-admin">
   <h2>Administrar Catálogos</h2>
@@ -222,26 +248,32 @@
 
 <!-- EXPORTAR -->
 <section class="view" id="view-exportar">
-  <h2>Exportar / Respaldar</h2>
-  <div class="info-bar">El respaldo se guarda en <strong>tu computadora</strong>, no dentro de esta página. Recomendamos descargar Excel al menos una vez por semana.</div>
+  <h2>Exportar / Imprimir</h2>
 
+  <h3>🖨️ Imprimir una familia</h3>
+  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Elige una familia y imprime directo su tabla (motores con serie, chasis, etc.). Sin descargar nada.</p>
+  <div class="btn-grid btn-grid-mini" id="botones-imprimir-familia"></div>
+
+  <div style="height: 24px"></div>
   <h3>📊 Excel completo</h3>
-  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Una hoja por cada familia (Árboles, Motores, etc.) + hoja de Camiones. Listo para imprimir.</p>
-  <button class="btn btn-success btn-block" onclick="exportExcel()">⬇ Descargar Excel</button>
+  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Un archivo con una hoja por familia + hoja de Camiones, en tabla con formato.</p>
+  <button class="btn btn-success btn-block" onclick="exportExcel()">⬇ Descargar Excel completo</button>
+  <div style="height:8px"></div>
+  <label style="font-size:12px; color:#888;">O una sola familia:</label>
+  <div class="btn-grid btn-grid-mini" id="botones-excel-familia" style="margin-top:6px;"></div>
 
   <div style="height: 20px"></div>
   <h3>📄 PDF</h3>
-  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Reporte general para imprimir o compartir.</p>
   <button class="btn btn-primary btn-block" onclick="exportPDF()">⬇ Descargar PDF</button>
 
   <div style="height: 20px"></div>
   <h3>📝 Word</h3>
-  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Documento editable con todo el inventario.</p>
   <button class="btn btn-block" onclick="exportWord()">⬇ Descargar Word</button>
 
   <div style="height: 30px"></div>
+  <div class="solo-editor">
   <h3>💾 Respaldo de seguridad</h3>
-  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Archivo JSON con TODOS los datos. Útil para restaurar en otra computadora.</p>
+  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Archivo JSON con TODOS los datos.</p>
   <button class="btn btn-block" onclick="exportJSON()">⬇ Descargar Respaldo</button>
   <div style="height: 10px"></div>
   <label class="btn btn-block" style="cursor:pointer; display:block;">
@@ -251,12 +283,13 @@
 
   <div style="height: 30px"></div>
   <h3>📥 Importar Inventario Masivo</h3>
-  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Sube el Excel (.xlsx) o JSON con la plantilla. Las piezas se AGREGAN a lo que ya existe (no reemplaza).</p>
+  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Sube el Excel (.xlsx) o JSON con la plantilla. Las piezas se AGREGAN.</p>
   <label class="btn btn-block btn-primary" style="cursor:pointer; display:block;">
     ⬆ Importar Excel / JSON
     <input type="file" accept=".xlsx,.xls,.json" style="display:none" onchange="importarMasivo(event)">
   </label>
   <div id="import-resultado" style="margin-top:12px;"></div>
+  </div>
 </section>
 
 </main>
@@ -280,6 +313,26 @@
       <button class="modal-close" onclick="closeModal('modal-pieza')">×</button>
     </div>
     <div id="modal-pieza-body"></div>
+  </div>
+</div>
+
+<!-- MODAL VENTA -->
+<div class="modal-bg" id="modal-venta">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title">Registrar Venta</div>
+      <button class="modal-close" onclick="closeModal('modal-venta')">×</button>
+    </div>
+    <p style="font-size:15px; color:#17140f; font-weight:700; margin-bottom:16px;" id="venta-desc"></p>
+    <div class="field">
+      <label>Fecha de venta</label>
+      <input type="date" id="venta-fecha">
+    </div>
+    <div class="field">
+      <label>Precio de venta (opcional)</label>
+      <input type="text" id="venta-precio" placeholder="$ ej. 25000">
+    </div>
+    <button class="btn btn-success btn-block" onclick="confirmarVenta()">✓ Confirmar Venta</button>
   </div>
 </div>
 
@@ -382,6 +435,58 @@ const DEVICE_ID = (() => {
   if (!d) { d = 'dev_' + Math.random().toString(36).slice(2,10); localStorage.setItem('tpm_device_id', d); }
   return d;
 })();
+
+// ============================================================
+// DESHACER — historial de acciones (solo editor)
+// ============================================================
+let _undoStack = [];          // hasta 15 snapshots
+let _accionActual = null;     // descripción de la acción en curso
+let _snapPrevio = null;       // estado antes del último guardar
+
+function snapActual() {
+  return JSON.stringify({ camiones: DATA.camiones, piezas: DATA.piezas, folioCounter: DATA.folioCounter });
+}
+function marcarAccion(desc) { _accionActual = desc; }
+
+// Se llama DENTRO de guardar(): apila el estado que había ANTES de este cambio
+function registrarUndo() {
+  if (!_snapPrevio) { _snapPrevio = snapActual(); return; }
+  _undoStack.push({ desc: _accionActual || 'Cambio', ts: Date.now(), snap: _snapPrevio });
+  if (_undoStack.length > 15) _undoStack.shift();
+  _accionActual = null;
+  _snapPrevio = snapActual();   // el nuevo "previo" es el estado ya guardado
+}
+
+// compat: las funciones de acción llaman pushUndo('desc') solo para nombrar la acción
+function pushUndo(desc) { _accionActual = desc; }
+
+function deshacerUltima() {
+  if (_undoStack.length === 0) { toast('Nada que deshacer', 'error'); return; }
+  const ultima = _undoStack.pop();
+  if (!confirm(`¿Deshacer: "${ultima.desc}"?`)) { _undoStack.push(ultima); return; }
+  const snap = JSON.parse(ultima.snap);
+  DATA.camiones = snap.camiones;
+  DATA.piezas = snap.piezas;
+  DATA.folioCounter = snap.folioCounter;
+  _snapPrevio = snapActual();
+  guardarLocal();
+  if (!fbAplicandoRemoto && fbRef && esEditor()) empujarAFirebase();
+  toast('Acción deshecha', 'success');
+  refrescarVistaActual();
+  renderHistorialAcciones();
+}
+
+function renderHistorialAcciones() {
+  const cont = document.getElementById('historial-acciones-lista');
+  if (!cont) return;
+  if (_undoStack.length === 0) { cont.innerHTML = '<div style="color:#aaa; font-size:13px; padding:6px 0;">Sin acciones recientes en esta sesión.</div>'; return; }
+  cont.innerHTML = [..._undoStack].reverse().map((a,i) => `
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f0ece2; font-size:13px;">
+      <span>${i===0?'<strong style="color:#2e7d46;">● última</strong> · ':''}${escapeHtml(a.desc)}</span>
+      <span style="font-size:11px; color:#aaa; font-family:ui-monospace,monospace;">${fechaCorta(a.ts).split(' · ')[1]||''}</span>
+    </div>
+  `).join('');
+}
 
 // ============================================================
 // PERMISOS — Editor (Raúl) vs Solo Ver (vendedores)
@@ -500,6 +605,7 @@ function refrescarVistaActual() {
 }
 
 let DATA = cargar();
+_snapPrevio = JSON.stringify({ camiones: DATA.camiones, piezas: DATA.piezas, folioCounter: DATA.folioCounter });
 
 function cargar() {
   try {
@@ -519,9 +625,10 @@ function guardarLocal() {
   catch(e) { console.error('Error local:', e); }
 }
 function guardar() {
+  registrarUndo();
   guardarLocal();
-  // Si el cambio viene de la nube, no lo re-subimos
   if (!fbAplicandoRemoto && fbRef) empujarAFirebase();
+  renderHistorialAcciones();
 }
 
 function getCatalogos() {
@@ -551,6 +658,8 @@ function showView(name) {
   if (name === 'camiones') renderCamiones();
   if (name === 'buscar') renderBusqueda();
   if (name === 'admin') renderAdmin();
+  if (name === 'ventas') renderVentas();
+  if (name === 'exportar') poblarBotonesFamilia();
   window.scrollTo(0,0);
 }
 
@@ -1012,8 +1121,9 @@ function detalleDePiezas(piezas) {
     const qrBtn = ex.driveLink ? ` <button class="btn btn-small" style="padding:3px 8px; font-size:11px; min-height:24px;" onclick="verQR('${encodeURIComponent(ex.driveLink)}', '${jsAttr(famSing + ' ' + (p.modelo||''))}')">📱🤡 QR</button>` : '';
 
     const notaHTML = p.notas ? `<div style="font-size:14px; color:#4a4a4a; background:#f7f3ea; border-left:3px solid #c9a24b; border-radius:2px; padding:7px 11px; margin-top:5px;">📝 ${escapeHtml(p.notas)}</div>` : '';
+    const bpTag = p.bajoPedido ? ' <span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : '';
 
-    return `<div style="font-size:15px; color:#1a1a1a; padding: 4px 0; line-height:1.6;">${textoSinPrecio} ${precioTag}${qrBtn}</div>${notaHTML}`;
+    return `<div style="font-size:15px; color:#1a1a1a; padding: 4px 0; line-height:1.6;">${textoSinPrecio} ${precioTag}${bpTag}${qrBtn}</div>${notaHTML}`;
   });
 }
 
@@ -1140,6 +1250,7 @@ function selectMotor(btn, motor) {
 }
 
 function guardarCamion() {
+  pushUndo(editandoCamionId ? 'Editar camión' : 'Registrar camión');
   const folio = document.getElementById('cam-folio').value.trim();
   const año = document.getElementById('cam-año').value.trim();
   const fechaLlegada = document.getElementById('cam-fecha').value;
@@ -1171,6 +1282,7 @@ function guardarCamion() {
 }
 
 function eliminarCamion(id) {
+  pushUndo('Desmantelar camión');
   const c = DATA.camiones.find(x => x.id === id);
   if (!c) return;
   const piezasCamion = DATA.piezas.filter(p => p.camionId === id);
@@ -1205,6 +1317,7 @@ function eliminarCamion(id) {
 
 // Reactivar (deshacer desmantelado)
 function reactivarCamion(id) {
+  pushUndo('Reactivar camión');
   const c = DATA.camiones.find(x => x.id === id);
   if (!c) return;
   if (!confirm(`¿Reactivar el camión ${c.folio}?`)) return;
@@ -1217,6 +1330,7 @@ function reactivarCamion(id) {
 
 // Eliminar PERMANENTE (solo si está desmantelado)
 function eliminarCamionPermanente(id) {
+  pushUndo('Borrar camión');
   const c = DATA.camiones.find(x => x.id === id);
   if (!c) return;
   const piezasCamion = DATA.piezas.filter(p => p.camionId === id);
@@ -1815,10 +1929,10 @@ function renderPiezaItemConCamion(p) {
       ? `<div style="font-size:12px; color:#999; margin-top:3px;">Marca: ${escapeHtml(p.camionMarca || p.marca || '')} ${escapeHtml(p.camionModelo || '')} ${escapeHtml(p.camionAño || p.año || '')}</div>`
       : '');
   return `
-    <div class="pieza-item" style="display:block; ${p.vendida ? 'opacity:0.55' : ''}">
+    <div class="pieza-item" style="display:block; ${p.vendida ? 'opacity:0.55' : ''} ${p.bajoPedido ? 'border-left:4px solid #c9a24b; background:#fdfaf0;' : ''}">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
         <div style="flex:1;">
-          <div style="font-size:18px; font-weight:900; color:#1a1a1a;">${escapeHtml(p.modelo || '')}${precio}</div>
+          <div style="font-size:18px; font-weight:900; color:#1a1a1a;">${escapeHtml(p.modelo || '')}${precio}${p.bajoPedido ? ' <span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : ''}</div>
           <div style="font-size:13px; color:#777; margin-top:2px;">${extras}${p.vendida ? ' · <strong style="color:#c0392b">VENDIDA</strong>' : ''}</div>
           ${p.notas ? `<div style="font-size:14px; color:#4a4a4a; background:#f7f3ea; border-left:3px solid #c9a24b; border-radius:2px; padding:7px 11px; margin-top:5px;">📝 ${escapeHtml(p.notas)}</div>` : ''}
           ${origen}
@@ -1829,6 +1943,7 @@ function renderPiezaItemConCamion(p) {
             : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
           <button class="btn btn-small btn-mini btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
           ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((f?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
+          <button class="btn btn-small btn-mini solo-editor" onclick="toggleBajoPedido('${p.id}')" title="Sin existencia / bajo pedido">${p.bajoPedido ? '📦✓' : '📦'}</button>
           <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
         </div>
       </div>
@@ -1836,32 +1951,124 @@ function renderPiezaItemConCamion(p) {
   `;
 }
 
+let _piezaVendiendoId = null;
 function venderPieza(id) {
   const p = DATA.piezas.find(x => x.id === id);
   if (!p) return;
+  _piezaVendiendoId = id;
   const f = FAMILIAS.find(x => x.id === p.familia);
-  const desc = `${f?.nombreSingular || 'Pieza'}: ${p.modelo || ''}`;
-  if (!confirm(`¿Confirmas que vendiste esta pieza?\n\n${desc}\n\nSe va a quitar del inventario.`)) return;
+  const hoy = new Date().toISOString().slice(0,10);
+  document.getElementById('venta-desc').textContent = `${f?.nombreSingular || 'Pieza'}: ${p.modelo || ''}`;
+  document.getElementById('venta-fecha').value = hoy;
+  const precio = p.precioSugerido || '';
+  document.getElementById('venta-precio').value = precio;
+  document.getElementById('modal-venta').classList.add('active');
+}
+
+function confirmarVenta() {
+  const p = DATA.piezas.find(x => x.id === _piezaVendiendoId);
+  if (!p) return;
+  pushUndo('Registrar venta');
+  const fechaStr = document.getElementById('venta-fecha').value;
+  const precioVenta = document.getElementById('venta-precio').value.replace(/[,$\s]/g,'');
+  // Fecha elegida a mediodía (evita desfase de zona horaria)
   p.vendida = true;
-  p.fechaVenta = Date.now();
+  p.fechaVenta = fechaStr ? new Date(fechaStr + 'T12:00:00').getTime() : Date.now();
+  if (precioVenta) p.precioVenta = parseFloat(precioVenta);
   guardar();
-  playDing(); toast('Pieza marcada como vendida', 'success');
-  if (document.getElementById('modal-pieza').classList.contains('active') && p.camionId) {
-    closeModal('modal-pieza');
-  }
-  if (document.getElementById('view-buscar').classList.contains('active')) renderBusqueda();
-  if (document.getElementById('view-camiones').classList.contains('active')) renderCamiones();
+  playDing(); toast('Venta registrada', 'success');
+  closeModal('modal-venta');
+  if (document.getElementById('modal-pieza')?.classList.contains('active') && p.camionId) closeModal('modal-pieza');
+  refrescarVistaActual();
 }
 
 function reactivarPieza(id) {
   const p = DATA.piezas.find(x => x.id === id);
   if (!p) return;
-  if (!confirm('¿Marcar esta pieza como NO vendida (regresarla al patio)?')) return;
+  if (!confirm('¿Regresar esta pieza al patio (no vendida)?')) return;
+  pushUndo('Regresar pieza al patio');
   p.vendida = false;
-  delete p.fechaVenta;
+  delete p.fechaVenta; delete p.precioVenta;
   guardar();
   toast('Pieza reactivada');
-  if (p.camionId) verPiezasCamion(p.camionId);
+  refrescarVistaActual();
+}
+
+// ============================================================
+// HISTORIAL DE VENTAS
+// ============================================================
+function renderVentas() {
+  const vendidas = DATA.piezas.filter(p => p.vendida);
+  const desde = document.getElementById('ventas-desde')?.value;
+  const hasta = document.getElementById('ventas-hasta')?.value;
+  const dMin = desde ? new Date(desde + 'T00:00:00').getTime() : null;
+  const dMax = hasta ? new Date(hasta + 'T23:59:59').getTime() : null;
+
+  let lista = vendidas.filter(p => {
+    const t = p.fechaVenta || 0;
+    if (dMin && t < dMin) return false;
+    if (dMax && t > dMax) return false;
+    return true;
+  }).sort((a,b) => (b.fechaVenta||0) - (a.fechaVenta||0));
+
+  const totalPiezas = lista.length;
+  const totalDinero = lista.reduce((s,p) => s + (p.precioVenta || p.precioSugerido || 0), 0);
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const ventasHoy = vendidas.filter(p => p.fechaVenta && p.fechaVenta >= hoy.getTime()).length;
+  document.getElementById('ventas-stats').innerHTML = `
+    <div class="stat"><div class="stat-num">${totalPiezas}</div><div class="stat-label">Piezas vendidas${(desde||hasta)?' (filtro)':''}</div></div>
+    <div class="stat"><div class="stat-num">$${totalDinero.toLocaleString()}</div><div class="stat-label">Total vendido</div></div>
+    <div class="stat"><div class="stat-num">${ventasHoy}</div><div class="stat-label">Vendidas hoy</div></div>`;
+
+  const cont = document.getElementById('ventas-lista');
+  if (lista.length === 0) { cont.innerHTML = '<div class="info-bar">Sin ventas en este periodo.</div>'; return; }
+
+  const porFecha = {};
+  lista.forEach(p => {
+    const key = p.fechaVenta ? new Date(p.fechaVenta).toISOString().slice(0,10) : 'sin-fecha';
+    (porFecha[key] = porFecha[key] || []).push(p);
+  });
+
+  cont.innerHTML = Object.keys(porFecha).sort((a,b)=>b.localeCompare(a)).map(fecha => {
+    const piezas = porFecha[fecha];
+    const fechaTxt = fecha === 'sin-fecha' ? 'Sin fecha' : fechaCorta(new Date(fecha+'T12:00:00').getTime()).split(' · ')[0];
+    const totalDia = piezas.reduce((s,p)=>s+(p.precioVenta||p.precioSugerido||0),0);
+    return `
+      <div class="card" style="padding:0; overflow:hidden; margin-bottom:14px;">
+        <div class="card-header" style="background:#17140f; color:#fff; padding:12px 16px; margin:0;">
+          <div class="card-title" style="color:#fff; font-size:16px;">${fechaTxt}</div>
+          <span style="font-family:'Courier New',monospace; font-weight:700;">$${totalDia.toLocaleString()} · ${piezas.length} pza(s)</span>
+        </div>
+        <div style="padding:8px 16px;">
+          ${piezas.map(p => {
+            const f = FAMILIAS.find(x => x.id === p.familia);
+            const precio = p.precioVenta || p.precioSugerido || 0;
+            return `
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #f0ece2;">
+                <div>
+                  <span style="font-weight:700;">${escapeHtml(f?.nombreSingular||'Pieza')}: ${escapeHtml(p.modelo||'')}</span>
+                  <span style="font-size:12px; color:#999;"> ${p.motor?'· '+escapeHtml(p.motor):''}</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="font-family:'Courier New',monospace; font-weight:700; color:#2e7d46;">${precio?'$'+precio.toLocaleString():'—'}</span>
+                  <button class="btn btn-mini solo-editor" onclick="reactivarPieza('${p.id}')" title="Regresar al patio">↶</button>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// Estado "Bajo pedido": se maneja pero no hay stock ahora
+function toggleBajoPedido(id) {
+  const p = DATA.piezas.find(x => x.id === id);
+  if (!p) return;
+  pushUndo(p.bajoPedido ? 'Quitar bajo pedido' : 'Marcar bajo pedido');
+  p.bajoPedido = !p.bajoPedido;
+  guardar();
+  toast(p.bajoPedido ? 'Marcada como Bajo Pedido' : 'Ya no es Bajo Pedido', 'success');
+  refrescarVistaActual();
 }
 
 function editarPieza(id) {
@@ -1958,6 +2165,7 @@ function editarPieza(id) {
 }
 
 function guardarEdicionPieza(id) {
+  pushUndo('Editar pieza');
   const p = DATA.piezas.find(x => x.id === id);
   if (!p) return;
   const f = FAMILIAS.find(x => x.id === p.familia);
@@ -2006,6 +2214,7 @@ function guardarEdicionPieza(id) {
 }
 
 function eliminarPieza(id) {
+  pushUndo('Eliminar pieza');
   if (!confirm('¿Eliminar esta pieza permanentemente?')) return;
   const p = DATA.piezas.find(x => x.id === id);
   DATA.piezas = DATA.piezas.filter(x => x.id !== id);
@@ -2020,6 +2229,7 @@ function eliminarPieza(id) {
 // ============================================================
 let _filtroFamilia = null;
 let _filtroSinPrecio = false;
+let _filtroBajoPedido = false;
 const _acordeonesAbiertos = new Set();
 
 function toggleAcordeonFamilia(famId) {
@@ -2031,25 +2241,42 @@ function toggleAcordeonFamilia(famId) {
   renderBusqueda();
 }
 
+function toggleBajoPedidoFiltro() {
+  _filtroBajoPedido = !_filtroBajoPedido;
+  _filtroFamilia = null;
+  _filtroSinPrecio = false;
+  _acordeonesAbiertos.clear();
+  renderBusqueda();
+}
+
 function renderBusqueda() {
-  // Filtros de familia (cada uno con su color)
+  const nBajoPedido = DATA.piezas.filter(p => !p.vendida && p.bajoPedido).length;
+  // Fila 1: especiales (Todas, Sin Precio, Bajo Pedido). Fila 2: familias.
   const filtros = document.getElementById('filtros-familia');
   filtros.innerHTML =
-    '<button class="filter-chip ' + (!_filtroFamilia && !_filtroSinPrecio ? 'active' : '') + '" onclick="setFiltro(null)">Todas</button>' +
-    `<button class="filter-chip ${_filtroSinPrecio ? 'active' : ''}" style="background:#c0392b; color:#fff; border-color:#c0392b; font-weight:800;" onclick="toggleSinPrecio()">⚠ SIN PRECIO</button>` +
-    FAMILIAS.map(f => {
-      const isActive = _filtroFamilia === f.id;
-      const styleColor = isActive ? '' : `style="background:${f.color}; border-color:${f.color};"`;
-      return `<button class="filter-chip ${isActive ? 'active' : ''}" ${styleColor} onclick="setFiltro('${f.id}')">${f.nombreSingular || f.nombre}</button>`;
-    }).join('');
+    '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; padding-bottom:16px; border-bottom:2px solid #ddd6c8;">' +
+      '<button class="filter-chip ' + (!_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido ? 'active' : '') + '" onclick="setFiltro(null)">Todas</button>' +
+      `<button class="filter-chip ${_filtroSinPrecio ? 'active' : ''}" style="background:#c0392b; color:#fff; border-color:#c0392b; font-weight:800;" onclick="toggleSinPrecio()">⚠ SIN PRECIO</button>` +
+      `<button class="filter-chip ${_filtroBajoPedido ? 'active' : ''}" style="background:#c9a24b; color:#17140f; border-color:#c9a24b; font-weight:800;" onclick="toggleBajoPedidoFiltro()">📦 BAJO PEDIDO${nBajoPedido ? ` (${nBajoPedido})` : ''}</button>` +
+    '</div>' +
+    '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+      FAMILIAS.map(f => {
+        const isActive = _filtroFamilia === f.id;
+        const styleColor = isActive ? '' : `style="background:${f.color}; border-color:${f.color};"`;
+        return `<button class="filter-chip ${isActive ? 'active' : ''}" ${styleColor} onclick="setFiltro('${f.id}')">${f.nombreSingular || f.nombre}</button>`;
+      }).join('') +
+    '</div>';
 
   let piezas = DATA.piezas.filter(p => !p.vendida);
   if (_filtroFamilia) piezas = piezas.filter(p => p.familia === _filtroFamilia);
   if (_filtroSinPrecio) piezas = piezas.filter(p => !p.precioSugerido && !p.precioMax);
+  if (_filtroBajoPedido) piezas = piezas.filter(p => p.bajoPedido);
 
   const info = document.getElementById('info-busqueda');
   if (_filtroSinPrecio) {
     info.innerHTML = `<strong>${piezas.length}</strong> pieza(s) <strong style="color:#e67e22;">SIN PRECIO</strong> — toca Editar para agregarles precio`;
+  } else if (_filtroBajoPedido) {
+    info.innerHTML = `<strong>${piezas.length}</strong> pieza(s) marcadas como <strong style="color:#c9a24b;">BAJO PEDIDO</strong> (se manejan, sin stock actual)`;
   } else {
     info.innerHTML = `Mostrando: <strong>${piezas.length}</strong> pieza(s) en patio`;
   }
@@ -2075,7 +2302,7 @@ function renderBusqueda() {
 
   // Si "Todas" activo (sin filtro de familia): modo ACORDEÓN (cerrados por default)
   // Si una familia específica: abierto directo
-  const modoAcordeon = !_filtroFamilia && !_filtroSinPrecio;
+  const modoAcordeon = !_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido;
 
   cont.innerHTML = gruposOrdenados.map(g => {
     const f = FAMILIAS.find(x => x.id === g.familia);
@@ -2131,13 +2358,15 @@ function renderBusqueda() {
             }
 
             return `
-              <div class="pieza-item" style="display:block;">
+              <div class="pieza-item" style="display:block; ${p.bajoPedido ? 'border-left:4px solid #c9a24b; background:#fdfaf0;' : ''}">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
                   ${cuerpoPieza}
                   <div class="pieza-actions">
+                    ${p.bajoPedido ? '<span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : ''}
                     <button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>
                     <button class="btn btn-small btn-mini btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
                     ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((fam?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
+                    <button class="btn btn-small btn-mini solo-editor" onclick="toggleBajoPedido('${p.id}')" title="Sin existencia / bajo pedido">${p.bajoPedido ? '📦✓' : '📦'}</button>
                     <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
                   </div>
                 </div>
@@ -2154,6 +2383,7 @@ function renderBusqueda() {
 function setFiltro(id) {
   _filtroFamilia = id;
   _filtroSinPrecio = false;
+  _filtroBajoPedido = false;
   _acordeonesAbiertos.clear();
   renderBusqueda();
 }
@@ -2161,6 +2391,7 @@ function setFiltro(id) {
 function toggleSinPrecio() {
   _filtroSinPrecio = !_filtroSinPrecio;
   _filtroFamilia = null;
+  _filtroBajoPedido = false;
   _acordeonesAbiertos.clear();
   renderBusqueda();
 }
@@ -2354,63 +2585,158 @@ function resetCatalogos() {
 }
 
 // ============================================================
-// EXPORT EXCEL (1 hoja por familia + hoja de camiones)
+// EXPORT EXCEL — helpers compartidos
+// ============================================================
+const EXCEL_HEADERS = ['Folio','Familia','Modelo/Tipo','Motor','Marca Camión','Modelo Camión','Año','Estado',
+  'Condición','CPL','HP','N° Serie o Parte','Libras','Marca Eje','Suspensión','Paso','VIN','N° Motor',
+  'Ubicación','Precio Mín','Precio Máx','Link Drive','Notas','Estatus','Fecha Registro'];
+const EXCEL_ANCHOS = [{wch:12},{wch:18},{wch:20},{wch:14},{wch:14},{wch:14},{wch:8},{wch:14},{wch:14},{wch:8},{wch:8},{wch:14},{wch:10},{wch:14},{wch:16},{wch:12},{wch:16},{wch:14},{wch:16},{wch:12},{wch:12},{wch:28},{wch:24},{wch:12},{wch:14}];
+
+function excelFilaDe(p) {
+  const ex = p.extras || {};
+  const f = FAMILIAS.find(x => x.id === p.familia);
+  const camion = DATA.camiones.find(c => c.id === p.camionId);
+  return [
+    camion ? camion.folio : (p.camionFolio && p.camionFolio !== 'SUELTA' ? p.camionFolio : ''),
+    f ? f.nombreSingular : p.familia, p.modelo || '', p.motor || '',
+    (ex.fichaMarca || p.camionMarca || p.marca || ''), (ex.fichaModelo || p.camionModelo || ''),
+    (ex.fichaAño || p.camionAño || p.año || ''), (ex.estadoMotor || ex.estado || ''), ex.condicion || '',
+    ex.cpl || '', ex.hp || '', ex.serie || ex.terminacion || '', ex.libras || '', ex.marcaEje || '',
+    ex.suspension || '', ex.paso || '', ex.fichaVin || '', ex.fichaNoMotor || '', ex.ubicacion || '',
+    p.precioSugerido || '', p.precioMax || '', ex.driveLink || '', p.notas || '',
+    p.vendida ? 'VENDIDA' : 'En Patio', p.fechaRegistro ? new Date(p.fechaRegistro).toLocaleDateString('es-MX') : ''
+  ];
+}
+
+// Convierte filas en hoja CON formato de tabla (autofilter + header congelado)
+function hojaConFormato(filas, nCols) {
+  const ws = XLSX.utils.aoa_to_sheet(filas);
+  ws['!cols'] = EXCEL_ANCHOS.slice(0, nCols);
+  const lastCol = XLSX.utils.encode_col(nCols - 1);
+  ws['!autofilter'] = { ref: `A1:${lastCol}1` };
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+  // Negrita en encabezados
+  for (let c = 0; c < nCols; c++) {
+    const ref = XLSX.utils.encode_cell({ r: 0, c });
+    if (ws[ref]) ws[ref].s = { font: { bold: true } };
+  }
+  return ws;
+}
+
+// ============================================================
+// EXPORT EXCEL COMPLETO (1 hoja por familia + camiones)
 // ============================================================
 function exportExcel() {
   if (DATA.camiones.length === 0 && DATA.piezas.length === 0) {
-    toast('No hay datos para exportar', 'error');
-    return;
+    toast('No hay datos para exportar', 'error'); return;
   }
   const wb = XLSX.utils.book_new();
-  const headers = ['Folio','Familia','Modelo/Tipo','Motor','Marca Camión','Modelo Camión','Año','Estado',
-    'Condición','CPL','HP','N° Serie o Parte','Libras','Marca Eje','Suspensión','Paso','VIN','N° Motor',
-    'Ubicación','Precio Mín','Precio Máx','Link Drive','Notas','Estatus','Fecha Registro'];
-  const anchos = [{wch:12},{wch:18},{wch:20},{wch:14},{wch:14},{wch:14},{wch:8},{wch:14},{wch:14},{wch:8},{wch:8},{wch:14},{wch:10},{wch:14},{wch:16},{wch:12},{wch:16},{wch:14},{wch:16},{wch:12},{wch:12},{wch:28},{wch:24},{wch:12},{wch:14}];
-
-  const filaDe = (p) => {
-    const ex = p.extras || {};
-    const f = FAMILIAS.find(x => x.id === p.familia);
-    const camion = DATA.camiones.find(c => c.id === p.camionId);
-    return [
-      camion ? camion.folio : (p.camionFolio && p.camionFolio !== 'SUELTA' ? p.camionFolio : ''),
-      f ? f.nombreSingular : p.familia, p.modelo || '', p.motor || '',
-      (ex.fichaMarca || p.camionMarca || p.marca || ''), (ex.fichaModelo || p.camionModelo || ''),
-      (ex.fichaAño || p.camionAño || p.año || ''), (ex.estadoMotor || ex.estado || ''), ex.condicion || '',
-      ex.cpl || '', ex.hp || '', ex.serie || ex.terminacion || '', ex.libras || '', ex.marcaEje || '',
-      ex.suspension || '', ex.paso || '', ex.fichaVin || '', ex.fichaNoMotor || '', ex.ubicacion || '',
-      p.precioSugerido || '', p.precioMax || '', ex.driveLink || '', p.notas || '',
-      p.vendida ? 'VENDIDA' : 'En Patio', p.fechaRegistro ? new Date(p.fechaRegistro).toLocaleDateString('es-MX') : ''
-    ];
-  };
-
-  // Una hoja por familia (solo las que tienen piezas)
   FAMILIAS.forEach(f => {
     const piezas = DATA.piezas.filter(p => p.familia === f.id);
     if (piezas.length === 0) return;
-    const filas = [headers, ...piezas.map(filaDe)];
-    const ws = XLSX.utils.aoa_to_sheet(filas);
-    ws['!cols'] = anchos;
-    const nombreHoja = f.nombre.substring(0,31).replace(/[\\\/\?\*\[\]:]/g,'');
-    XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
+    const ws = hojaConFormato([EXCEL_HEADERS, ...piezas.map(excelFilaDe)], EXCEL_HEADERS.length);
+    XLSX.utils.book_append_sheet(wb, ws, f.nombre.substring(0,31).replace(/[\\\/\?\*\[\]:]/g,''));
   });
-
-  // Hoja Camiones
   const filasCamiones = [['Folio','Marca','Modelo','Año','Motor','Fecha Llegada','Estado','Piezas en Patio','Piezas Vendidas','Notas']];
   DATA.camiones.forEach(c => {
-    const piezasAct = DATA.piezas.filter(p => p.camionId === c.id && !p.vendida).length;
-    const piezasVend = DATA.piezas.filter(p => p.camionId === c.id && p.vendida).length;
-    filasCamiones.push([c.folio, c.marca, c.modelo, c.año || '', c.motor, c.fechaLlegada || '', c.desmantelado ? 'DESMANTELADO' : 'Activo', piezasAct, piezasVend, c.notas || '']);
+    const act = DATA.piezas.filter(p => p.camionId === c.id && !p.vendida).length;
+    const vend = DATA.piezas.filter(p => p.camionId === c.id && p.vendida).length;
+    filasCamiones.push([c.folio, c.marca, c.modelo, c.año || '', c.motor, c.fechaLlegada || '', c.desmantelado ? 'DESMANTELADO' : 'Activo', act, vend, c.notas || '']);
   });
-  const wsC = XLSX.utils.aoa_to_sheet(filasCamiones);
-  wsC['!cols'] = [{wch:12},{wch:14},{wch:18},{wch:8},{wch:18},{wch:14},{wch:14},{wch:10},{wch:10},{wch:30}];
+  const wsC = hojaConFormato(filasCamiones, 10);
   XLSX.utils.book_append_sheet(wb, wsC, 'Camiones');
-
-  if (wb.SheetNames.length === 0) { toast('No hay datos para exportar', 'error'); return; }
-
-  const fecha = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb, `Inventario_Patio_TPM_${fecha}.xlsx`);
+  if (wb.SheetNames.length === 0) { toast('No hay datos', 'error'); return; }
+  XLSX.writeFile(wb, `Inventario_Patio_TPM_${new Date().toISOString().slice(0,10)}.xlsx`);
   toast('Excel descargado', 'success');
 }
+
+// Excel de UNA sola familia
+function exportExcelFamilia(famId) {
+  const f = FAMILIAS.find(x => x.id === famId);
+  const piezas = DATA.piezas.filter(p => p.familia === famId);
+  if (piezas.length === 0) { toast(`No hay ${f.nombre.toLowerCase()}`, 'error'); return; }
+  const wb = XLSX.utils.book_new();
+  const ws = hojaConFormato([EXCEL_HEADERS, ...piezas.map(excelFilaDe)], EXCEL_HEADERS.length);
+  XLSX.utils.book_append_sheet(wb, ws, f.nombre.substring(0,31).replace(/[\\\/\?\*\[\]:]/g,''));
+  XLSX.writeFile(wb, `${f.nombre}_TPM_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast(`Excel de ${f.nombre} descargado`, 'success');
+}
+
+// Columnas relevantes a mostrar por tipo de familia (para impresión limpia)
+function columnasImprimir(f) {
+  const base = ['Modelo/Tipo'];
+  if (f.tieneInfoMotor) return [...base,'Serie','CPL','HP','Estado','Ubicación','Precio'];
+  if (f.tieneFichaTecnica) return [...base,'Marca','Modelo','Año','VIN','N° Motor','Ubicación','Precio'];
+  if (f.id === 'diferenciales' || f.id === 'mancuernas') return [...base,'Libras','Marca Eje','Suspensión','Paso','Ubicación','Precio'];
+  return [...base,'Motor','Serie / N° Parte','Estado','Ubicación','Precio'];
+}
+function valorColumna(p, col) {
+  const ex = p.extras || {};
+  const precio = (p.precioSugerido||p.precioMax)
+    ? '$' + (p.precioSugerido||'').toLocaleString() + (p.precioMax ? ' - $'+p.precioMax.toLocaleString() : '')
+    : '';
+  const camion = DATA.camiones.find(c => c.id === p.camionId);
+  const map = {
+    'Modelo/Tipo': p.modelo||'', 'Motor': p.motor||'',
+    'Serie': ex.serie||'', 'Serie / N° Parte': ex.serie||ex.terminacion||'',
+    'CPL': ex.cpl||'', 'HP': ex.hp||'', 'Estado': ex.estadoMotor||ex.estado||'',
+    'Marca': ex.fichaMarca||p.camionMarca||'', 'Modelo': ex.fichaModelo||p.camionModelo||'',
+    'Año': ex.fichaAño||p.año||'', 'VIN': ex.fichaVin||'', 'N° Motor': ex.fichaNoMotor||'',
+    'Libras': ex.libras||'', 'Marca Eje': ex.marcaEje||'', 'Suspensión': ex.suspension||'', 'Paso': ex.paso||'',
+    'Ubicación': ex.ubicacion||'', 'Precio': precio
+  };
+  return map[col] ?? '';
+}
+
+// IMPRIMIR directo una familia (abre diálogo de impresión con tabla limpia)
+function imprimirFamilia(famId) {
+  const f = FAMILIAS.find(x => x.id === famId);
+  const piezas = DATA.piezas.filter(p => p.familia === famId && !p.vendida);
+  if (piezas.length === 0) { toast(`No hay ${f.nombre.toLowerCase()}`, 'error'); return; }
+  const cols = columnasImprimir(f);
+  const fecha = new Date().toLocaleDateString('es-MX', {day:'numeric',month:'long',year:'numeric'});
+  const filas = piezas.map(p => `<tr>${cols.map(c => `<td>${escapeHtml(String(valorColumna(p,c)))}</td>`).join('')}</tr>`).join('');
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${f.nombre}</title>
+    <style>
+      @page { margin: 1.5cm; }
+      body { font-family: Georgia, serif; color:#1a1a1a; }
+      .hd { display:flex; justify-content:space-between; align-items:flex-end; border-bottom:3px solid #b03a2e; padding-bottom:8px; margin-bottom:14px; }
+      h1 { font-size:22px; margin:0; } .sub { font-size:11px; color:#888; text-transform:uppercase; letter-spacing:1px; }
+      .meta { font-size:12px; color:#666; text-align:right; }
+      table { width:100%; border-collapse:collapse; font-size:12px; font-family:Arial,sans-serif; }
+      th { background:#17140f; color:#fff; text-align:left; padding:7px 9px; font-size:11px; text-transform:uppercase; letter-spacing:.5px; }
+      td { padding:6px 9px; border-bottom:1px solid #ddd; }
+      tr:nth-child(even) td { background:#faf8f3; }
+      .foot { margin-top:14px; font-size:11px; color:#999; text-align:center; }
+    </style></head><body>
+    <div class="hd">
+      <div><h1>${f.nombre}</h1><div class="sub">Tracto Partes Magaña · Inventario de Patio</div></div>
+      <div class="meta">${fecha}<br>${piezas.length} pieza(s) en patio</div>
+    </div>
+    <table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${filas}</tbody></table>
+    <div class="foot">Tracto Partes Magaña S.A. de C.V. — Generado ${fecha}</div>
+    <script>window.onload=()=>{window.print();}<\/script>
+    </body></html>`;
+  const w = window.open('', '_blank');
+  w.document.write(html); w.document.close();
+}
+
+// Pobla los botones de familia en la pestaña Exportar
+function poblarBotonesFamilia() {
+  const conteo = {};
+  DATA.piezas.forEach(p => { if(!p.vendida) conteo[p.familia]=(conteo[p.familia]||0)+1; });
+  const fams = FAMILIAS.filter(f => conteo[f.id]);
+  const btnImp = document.getElementById('botones-imprimir-familia');
+  const btnXls = document.getElementById('botones-excel-familia');
+  if (btnImp) btnImp.innerHTML = fams.map(f =>
+    `<button class="btn btn-mini" style="background:${f.color};color:#1a1a1a;border-color:#cec7b8;" onclick="imprimirFamilia('${f.id}')">🖨️ ${f.nombre} <span style="opacity:.6">(${conteo[f.id]})</span></button>`
+  ).join('') || '<span style="color:#aaa;font-size:13px;">Sin piezas para imprimir.</span>';
+  if (btnXls) btnXls.innerHTML = fams.map(f =>
+    `<button class="btn btn-mini" style="background:#fff;border-color:#cec7b8;" onclick="exportExcelFamilia('${f.id}')">⬇ ${f.nombre}</button>`
+  ).join('') || '';
+}
+
+
 
 // ============================================================
 // EXPORT PDF
