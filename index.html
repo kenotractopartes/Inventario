@@ -117,6 +117,12 @@
 
   /* INFO BAR */
   .info-bar { background: #faf8f3; border: 1px solid #c9a24b; border-left: 3px solid #c9a24b; padding: 12px 16px; border-radius: 2px; font-size: 14px; color: #6b6459; margin-bottom: 18px; font-family: Arial, sans-serif; }
+
+  /* MODO SOLO VER: ocultar todo lo que edita */
+  body.modo-ver .solo-editor { display: none !important; }
+  body.modo-ver nav button[data-view="admin"] { display: none !important; }
+  body.modo-ver nav button[data-view="exportar"] { display: none !important; }
+  #modo-badge { font-family: Arial, sans-serif; font-size: 12px; }
   .info-bar strong { color: #1a1a1a; }
 
   /* RESPONSIVE TWEAKS */
@@ -153,7 +159,10 @@
     <h1>Inventario de Patio</h1>
     <div class="sub">Tracto Partes Magaña · S.A. de C.V.</div>
   </div>
-  <div id="sync-estado" style="font-size:12px; color:#e8e2d5; font-family:Arial,sans-serif; font-weight:600; white-space:nowrap;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#c9a24b;margin-right:6px;"></span>Conectando…</div>
+  <div style="text-align:right;">
+    <div id="sync-estado" style="font-size:12px; color:#e8e2d5; font-family:Arial,sans-serif; font-weight:600; white-space:nowrap;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#c9a24b;margin-right:6px;"></span>Conectando…</div>
+    <div id="modo-badge" style="margin-top:4px; background:#fff; padding:3px 10px; border-radius:2px;"></div>
+  </div>
 </header>
 
 <nav>
@@ -176,9 +185,9 @@
     <button class="btn btn-mini" style="background:#f5d6e8; color:#1a1a1a; border-color:#c87da8;" onclick="verTodasPiezas('cabinas')">Cabina</button>
   </div>
 
-  <button class="btn btn-block" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="openCamionModal()">🚛 Registrar Camión Nuevo 🚛</button>
+  <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="openCamionModal()">🚛 Registrar Camión Nuevo 🚛</button>
   <div style="height: 10px"></div>
-  <button class="btn btn-block" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="addPiezaSuelta()">🔧 Agregar Pieza Suelta (sin camión) 🔧</button>
+  <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="addPiezaSuelta()">🔧 Agregar Pieza Suelta (sin camión) 🔧</button>
 
   <h3 style="margin-top:24px">Buscador de Piezas y Camiones</h3>
   <input type="text" id="filtro-camiones" placeholder="Buscar por folio, marca, modelo, motor, VIN, serie, CPL, N°Motor, terminación, año..." oninput="renderCamiones()">
@@ -374,6 +383,49 @@ const DEVICE_ID = (() => {
   return d;
 })();
 
+// ============================================================
+// PERMISOS — Editor (Raúl) vs Solo Ver (vendedores)
+// ============================================================
+const EDITOR_PIN = '0000';                            // PIN para activar modo Editor
+const EDITOR_KEY = 'tpm-editor-2026-k7x9m3';          // llave secreta que valida Firebase (reglas)
+const MODO_KEY = 'tpm_modo';                          // localStorage: 'editor' | 'ver'
+
+function esEditor() { return localStorage.getItem(MODO_KEY) === 'editor'; }
+
+function pedirPinEditor() {
+  const pin = prompt('Ingresa el PIN de editor:');
+  if (pin === null) return;
+  if (pin === EDITOR_PIN) {
+    localStorage.setItem(MODO_KEY, 'editor');
+    aplicarModo();
+    toast('Modo Editor activado', 'success');
+    refrescarVistaActual();
+  } else {
+    toast('PIN incorrecto', 'error');
+  }
+}
+
+function salirModoEditor() {
+  if (!confirm('¿Salir de modo Editor y pasar a Solo Ver en esta computadora?')) return;
+  localStorage.setItem(MODO_KEY, 'ver');
+  aplicarModo();
+  refrescarVistaActual();
+  toast('Ahora estás en Solo Ver', 'success');
+}
+
+// Muestra/oculta el body según el modo (clase CSS controla botones)
+function aplicarModo() {
+  document.body.classList.toggle('modo-ver', !esEditor());
+  const badge = document.getElementById('modo-badge');
+  if (badge) {
+    if (esEditor()) {
+      badge.innerHTML = `<span style="color:#2e7d46;font-weight:700;">✎ Editor</span> · <a href="#" onclick="salirModoEditor();return false;" style="color:#b03a2e;text-decoration:underline;font-size:11px;">salir</a>`;
+    } else {
+      badge.innerHTML = `<span style="color:#6b6459;font-weight:700;">👁 Solo Ver</span> · <a href="#" onclick="pedirPinEditor();return false;" style="color:#17140f;text-decoration:underline;font-size:11px;">soy editor</a>`;
+    }
+  }
+}
+
 function initFirebase() {
   try {
     fbApp = firebase.initializeApp(firebaseConfig);
@@ -414,12 +466,14 @@ function initFirebase() {
 
 function empujarAFirebase() {
   if (!fbRef) return;
-  const payload = { ...DATA, _origen: DEVICE_ID, _ts: Date.now() };
+  if (!esEditor()) return;   // Solo Ver nunca escribe en la nube
+  const payload = { ...DATA, _origen: DEVICE_ID, _ts: Date.now(), _key: EDITOR_KEY };
   fbRef.set(payload).then(() => setEstadoSync('ok', 'Sincronizado'))
-    .catch(() => setEstadoSync('offline', 'Cambios guardados local'));
+    .catch(() => setEstadoSync('offline', 'Sin permiso o sin conexión'));
 }
 
 function normalizarData(obj) {
+  // obj puede traer _key, _origen, _ts — se ignoran, no entran a DATA
   const d = {
     camiones: Array.isArray(obj.camiones) ? obj.camiones : [],
     piezas: Array.isArray(obj.piezas) ? obj.piezas : [],
@@ -818,10 +872,10 @@ function renderCamiones() {
             </div>
             <div style="display:flex; flex-direction:column; gap:5px; flex-shrink:0;">
               ${qrBtn}
-              <button class="btn btn-small btn-mini btn-success" onclick="venderPieza('${p.id}')">Vendí</button>
+              <button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>
               <button class="btn btn-small btn-mini btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
-              <button class="btn btn-small btn-mini" onclick="editarPieza('${p.id}')">Editar</button>
-              <button class="btn btn-small btn-mini btn-danger" onclick="eliminarPieza('${p.id}')">🗑</button>
+              <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
+              <button class="btn btn-small btn-mini btn-danger solo-editor" onclick="eliminarPieza('${p.id}')">🗑</button>
             </div>
           </div>
         </div>
@@ -866,18 +920,18 @@ function renderCamionCard(c) {
           ${listaPiezas}
         </div>
         <div style="display:flex; flex-direction:column; gap:5px; flex-shrink:0;">
-          <button class="btn btn-small btn-mini" onclick="editarCamion('${c.id}')">Editar</button>
+          <button class="btn btn-small btn-mini solo-editor" onclick="editarCamion('${c.id}')">Editar</button>
           ${esDesmantelado
-            ? `<button class="btn btn-small btn-mini" onclick="reactivarCamion('${c.id}')">Reactivar</button>
-               <button class="btn btn-small btn-mini btn-danger" onclick="eliminarCamionPermanente('${c.id}')">Borrar</button>`
-            : `<button class="btn btn-small btn-mini btn-danger" onclick="eliminarCamion('${c.id}')">Desmantelar</button>`}
+            ? `<button class="btn btn-small btn-mini solo-editor" onclick="reactivarCamion('${c.id}')">Reactivar</button>
+               <button class="btn btn-small btn-mini btn-danger solo-editor" onclick="eliminarCamionPermanente('${c.id}')">Borrar</button>`
+            : `<button class="btn btn-small btn-mini btn-danger solo-editor" onclick="eliminarCamion('${c.id}')">Desmantelar</button>`}
         </div>
       </div>
 
       ${c.notas ? `<div style="margin-top:8px; padding:9px 13px; background:#f7f3ea; border-left:3px solid #c9a24b; border-radius:2px; font-size:14px; color:#4a4a4a; white-space:pre-wrap;"><span style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#999; font-weight:700; font-family:Arial,sans-serif;">Notas:</span> ${escapeHtml(c.notas)}</div>` : ''}
 
       ${!esDesmantelado ? `<div style="display:flex; gap:8px; margin-top:12px;">
-        <button class="btn btn-small btn-mini btn-primary" onclick="openPiezaModal('${c.id}')">+ Agregar Pieza</button>
+        <button class="btn btn-small btn-mini btn-primary solo-editor" onclick="openPiezaModal('${c.id}')">+ Agregar Pieza</button>
         <button class="btn btn-small btn-mini" onclick="verPiezasCamion('${c.id}')">Ver Piezas</button>
       </div>` : `<div style="margin-top:12px;"><button class="btn btn-small btn-mini" onclick="verPiezasCamion('${c.id}')">Ver Piezas</button></div>`}
 
@@ -1647,7 +1701,7 @@ function verPiezasCamion(camionId) {
 
   let html = `
     <div class="info-bar"><strong>${c.marca} ${c.modelo} ${c.año || ''}</strong> · Motor ${c.motor}<br>${activas.length} pieza(s) disponibles · ${vendidas.length} vendida(s)</div>
-    <button class="btn btn-primary btn-block" onclick="openPiezaModal('${camionId}')">+ Agregar Pieza</button>
+    <button class="btn btn-primary btn-block solo-editor" onclick="openPiezaModal('${camionId}')">+ Agregar Pieza</button>
     <div style="height:14px"></div>
   `;
 
@@ -1684,12 +1738,12 @@ function renderPiezaItem(p) {
       </div>
       <div class="pieza-actions">
         ${p.vendida
-          ? `<button class="btn btn-small" onclick="reactivarPieza('${p.id}')">↶</button>`
-          : `<button class="btn btn-small btn-success" onclick="venderPieza('${p.id}')">Vendí</button>`}
+          ? `<button class="btn btn-small solo-editor" onclick="reactivarPieza('${p.id}')">↶</button>`
+          : `<button class="btn btn-small btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
         <button class="btn btn-small btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
         ${qrBtn}
-        <button class="btn btn-small" onclick="editarPieza('${p.id}')">Editar</button>
-        <button class="btn btn-small btn-danger" onclick="eliminarPieza('${p.id}')">🗑</button>
+        <button class="btn btn-small solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
+        <button class="btn btn-small btn-danger solo-editor" onclick="eliminarPieza('${p.id}')">🗑</button>
       </div>
     </div>
   `;
@@ -1771,11 +1825,11 @@ function renderPiezaItemConCamion(p) {
         </div>
         <div class="pieza-actions">
           ${p.vendida
-            ? `<button class="btn btn-small btn-mini" onclick="reactivarPieza('${p.id}')">↶</button>`
-            : `<button class="btn btn-small btn-mini btn-success" onclick="venderPieza('${p.id}')">Vendí</button>`}
+            ? `<button class="btn btn-small btn-mini solo-editor" onclick="reactivarPieza('${p.id}')">↶</button>`
+            : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
           <button class="btn btn-small btn-mini btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
           ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((f?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
-          <button class="btn btn-small btn-mini" onclick="editarPieza('${p.id}')">Editar</button>
+          <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
         </div>
       </div>
     </div>
@@ -2081,10 +2135,10 @@ function renderBusqueda() {
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
                   ${cuerpoPieza}
                   <div class="pieza-actions">
-                    <button class="btn btn-small btn-mini btn-success" onclick="venderPieza('${p.id}')">Vendí</button>
+                    <button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>
                     <button class="btn btn-small btn-mini btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
                     ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((fam?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
-                    <button class="btn btn-small btn-mini" onclick="editarPieza('${p.id}')">Editar</button>
+                    <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
                   </div>
                 </div>
                 ${p.fechaRegistro ? `<div style="font-size:10px; color:#ccc; margin-top:3px; font-family:ui-monospace,monospace;">${fechaCorta(p.fechaRegistro)}</div>` : ''}
@@ -2776,6 +2830,7 @@ function importJSONold(event) {
 // ============================================================
 // INIT
 // ============================================================
+aplicarModo();
 renderCamiones();
 initFirebase();
 </script>
