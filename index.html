@@ -171,6 +171,7 @@
   <button data-view="ventas">💵 Ventas</button>
   <button data-view="admin">📝 Administrar</button>
   <button data-view="exportar">⚙️ Exportar</button>
+  <button data-view="estatus">📋 Estatus Chasis</button>
 </nav>
 
 <main>
@@ -291,6 +292,11 @@
   </label>
   <div id="import-resultado" style="margin-top:12px;"></div>
   </div>
+</section>
+
+<!-- ═══ ESTATUS DE MERCANCÍA · CHASIS (solo lectura) ═══ -->
+<section class="view" id="view-estatus">
+  <div id="estatus-root"></div>
 </section>
 
 </main>
@@ -661,6 +667,7 @@ function showView(name) {
   if (name === 'admin') renderAdmin();
   if (name === 'ventas') renderVentas();
   if (name === 'exportar') poblarBotonesFamilia();
+  if (name === 'estatus' && window.estatusRender) window.estatusRender();
   window.scrollTo(0,0);
 }
 
@@ -3161,5 +3168,518 @@ aplicarModo();
 renderCamiones();
 initFirebase();
 </script>
+<script>window.ESTATUS_MODO='lectura';</script>
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     MÓDULO "ESTATUS DE MERCANCÍA · CHASIS" (Fase 1) — Tracto Partes Magaña
+     Bloque autónomo compartido. Se inserta IDÉNTICO en el HTML de Maura (editor)
+     y en el de Raúl / inventario (solo lectura).
+     El host define  window.ESTATUS_MODO = 'editor' | 'lectura'  antes de este bloque,
+     y coloca un  <div id="estatus-root"></div>  dentro de su pestaña/sección.
+     Datos: Firebase Realtime DB (inventario-julio-26) → nodo  estatus_mercancia.
+     Requiere que el host cargue firebase-app-compat.js y firebase-database-compat.js.
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<style>
+#estatus-root, #estatus-root *{box-sizing:border-box}
+#estatus-root{font-family:Arial,Helvetica,sans-serif;color:#17140f}
+#estatus-root .emx-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px;border-bottom:3px solid #b03a2e;padding-bottom:10px;margin-bottom:14px}
+#estatus-root .emx-title{font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:700;margin:0;flex:1;min-width:220px;color:#17140f}
+#estatus-root .emx-sub{font-size:12px;color:#6b6459;width:100%;margin-top:2px;font-family:Arial}
+#estatus-root .emx-badge{font-size:12px;font-weight:700;padding:4px 11px;border-radius:20px;white-space:nowrap}
+#estatus-root .emx-badge.ed{background:#eaf5ec;color:#2e7d46;border:1px solid #2e7d46}
+#estatus-root .emx-badge.lec{background:#f5eae8;color:#b03a2e;border:1px solid #b03a2e}
+#estatus-root .emx-sync{font-size:12px;color:#6b6459;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+#estatus-root .emx-dot{width:9px;height:9px;border-radius:50%;background:#999;display:inline-block}
+#estatus-root .emx-aviso{background:#f5eae8;border:1px solid #b03a2e;color:#b03a2e;font-size:13px;font-weight:700;padding:9px 12px;border-radius:8px;margin-bottom:12px}
+#estatus-root .emx-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+#estatus-root .emx-btn{font-family:Arial;font-size:15px;font-weight:700;padding:11px 16px;border-radius:8px;border:2px solid #17140f;background:#fff;color:#17140f;cursor:pointer}
+#estatus-root .emx-btn:hover{background:#faf7f1}
+#estatus-root .emx-btn.pri{background:#2e7d46;border-color:#2e7d46;color:#fff}
+#estatus-root .emx-btn.imp{background:#b03a2e;border-color:#b03a2e;color:#fff}
+#estatus-root .emx-btn.mini{padding:9px 12px;font-size:16px}
+#estatus-root .emx-rojo-wrap{display:inline-flex;gap:4px;align-items:center;padding-left:6px;margin-left:2px;border-left:2px solid #e0dccf}
+#estatus-root .emx-rojo-lbl{font-size:11px;color:#6b6459;font-weight:700}
+#estatus-root .emx-search{flex:1;min-width:170px;font-size:15px;padding:10px 12px;border:2px solid #d8d2c6;border-radius:8px;font-family:Arial}
+#estatus-root .emx-bita{display:none;margin-bottom:12px;border:1px solid #e0dccf;border-radius:8px;background:#fff;max-height:240px;overflow:auto}
+#estatus-root .emx-bita-item{padding:8px 12px;border-bottom:1px solid #f0ece3;font-family:Arial;font-size:13px}
+#estatus-root .emx-bita-t{color:#b03a2e;font-weight:700;font-size:11px;margin-right:8px}
+#estatus-root .emx-bita-vacia{padding:16px;text-align:center;color:#6b6459;font-family:Arial}
+#estatus-root .emx-wrap{overflow-x:auto;border:1px solid #e0dccf;border-radius:8px}
+#estatus-root table.emx-tabla{border-collapse:collapse;width:100%;min-width:900px;background:#fff;font-size:14px}
+#estatus-root .emx-tabla th{background:#17140f;color:#fff;font-family:Arial;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:9px 8px;text-align:left}
+#estatus-root .emx-tabla th.baja{text-align:center;width:52px}
+#estatus-root .emx-tabla td{border-bottom:1px solid #eee;padding:2px 4px;vertical-align:top}
+#estatus-root .emx-tabla tr:nth-child(even) td{background:#faf8f3}
+#estatus-root .emx-cell{min-height:34px;padding:7px 8px;font-family:Georgia,serif;font-size:14px;outline:none;border-radius:4px;white-space:pre-wrap;overflow-wrap:anywhere}
+#estatus-root .emx-cell[contenteditable="true"]:focus{background:#fff7e0;box-shadow:inset 0 0 0 2px #c9a24b}
+#estatus-root .emx-serie{font-family:'DejaVu Sans Mono',ui-monospace,Menlo,Consolas,'Courier New',monospace;font-size:13px;letter-spacing:.6px}
+#estatus-root .c-serie{width:175px}
+#estatus-root .c-info{width:150px}
+#estatus-root .emx-info{max-width:150px;font-family:Arial;font-size:13px}
+#estatus-root .emx-info-wrap{display:flex;gap:4px;align-items:flex-start}
+#estatus-root .emx-info-wrap .emx-cell{flex:1;min-width:0}
+#estatus-root .emx-nota-mk{font-size:13px;padding-top:7px}
+#estatus-root .emx-nota{background:#fff;border:1px dashed #c9a24b;color:#8a6d1f;font-family:Arial;font-size:12px;font-weight:700;padding:7px 9px;border-radius:6px;cursor:pointer;white-space:nowrap}
+#estatus-root .emx-nota:hover{background:#fffaf0}
+#estatus-root .emx-info-vacia{color:#cfc7b8;text-align:center;padding-top:7px}
+#estatus-root .c-fecha{width:150px}
+#estatus-root .c-prov{width:190px}
+#estatus-root .c-marca{width:150px}
+#estatus-root .c-anio{width:84px}
+#estatus-root .c-anio .emx-cell{white-space:nowrap;text-align:center}
+#estatus-root .c-cons{min-width:180px}
+#estatus-root .c-acc{white-space:nowrap}
+#estatus-root .emx-fecha-wrap,#estatus-root .emx-combo{display:flex;align-items:flex-start;gap:2px}
+#estatus-root .emx-fecha-wrap .emx-cell,#estatus-root .emx-combo .emx-cell{flex:1;min-width:0}
+#estatus-root .emx-fbtn{background:none;border:none;cursor:pointer;font-size:15px;padding:6px 4px;line-height:1}
+#estatus-root .emx-combo-btn{background:#f0ece3;border:1px solid #d8d2c6;border-radius:5px;cursor:pointer;font-size:11px;padding:7px 5px;color:#6b6459}
+#estatus-root .emx-combo-btn:hover{background:#e6e0d3}
+#estatus-root .rojo{color:#d11f1f;font-weight:700}
+#estatus-root .emx-vbadge{display:inline-block;background:#b03a2e;color:#fff;font-family:Arial;font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;margin-bottom:3px;letter-spacing:.5px}
+#estatus-root .emx-vend{background:#fff;border:2px solid #2e7d46;color:#2e7d46;font-family:Arial;font-size:12px;font-weight:700;padding:6px 8px;border-radius:6px;cursor:pointer;margin-right:4px}
+#estatus-root .emx-vend.on{background:#b03a2e;border-color:#b03a2e;color:#fff}
+#estatus-root .emx-tabla tr.vendido td{background:#f4eee9 !important}
+#estatus-root tr.vendido .emx-serie{text-decoration:line-through;opacity:.75}
+#estatus-root td.baja{text-align:center;width:52px}
+#estatus-root td.baja.click{cursor:pointer}
+#estatus-root .emx-x{display:inline-block;width:30px;height:30px;line-height:28px;text-align:center;border-radius:6px;font-weight:800;font-size:18px;color:#b03a2e}
+#estatus-root .emx-x.on{background:#f5eae8}
+#estatus-root td.baja.click:hover .emx-x{outline:2px dashed #c9a24b}
+#estatus-root select.emx-cons{font-family:Arial;font-size:13px;padding:6px;border:1px solid #d8d2c6;border-radius:6px;width:100%;max-width:100%;background:#fff}
+#estatus-root .emx-del{background:none;border:none;cursor:pointer;font-size:17px;color:#b03a2e;padding:6px}
+#estatus-root .emx-count{font-size:13px;color:#6b6459;margin-top:8px;font-weight:700;font-family:Arial}
+#estatus-root .emx-empty{padding:34px;text-align:center;color:#6b6459;font-family:Arial}
+#emx-menu{position:fixed;z-index:99999;display:none;background:#fff;border:1px solid #b9b2a4;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:280px;overflow:auto;font-family:Arial;font-size:13px;min-width:160px}
+#emx-menu .emx-menu-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid #f0ece3;white-space:normal;overflow-wrap:anywhere}
+#emx-menu .emx-menu-item:hover{background:#fff7e0}
+#emx-menu .emx-menu-vacio{padding:10px 12px;color:#6b6459}
+</style>
+<script>
+(function(){
+  "use strict";
+  if (window.__estatusCargado) return; window.__estatusCargado = true;
+
+  var ES_EDITOR = (window.ESTATUS_MODO === 'editor');
+  var FB_CONFIG = {
+    apiKey: "AIzaSyB8MRNvbAhk7tJa731DolvnnFr_1S9imLk",
+    authDomain: "inventario-julio-26.firebaseapp.com",
+    databaseURL: "https://inventario-julio-26-default-rtdb.firebaseio.com",
+    projectId: "inventario-julio-26",
+    storageBucket: "inventario-julio-26.firebasestorage.app",
+    messagingSenderId: "237695179240",
+    appId: "1:237695179240:web:57f16b77af33aa00cdec5d"
+  };
+  var LLAVE = 'tpm-estatus-2026-m4r8q2';
+  var NODO = 'estatus_mercancia';
+  var CACHE_KEY = 'estatus_chasis_cache_v1';
+  var BITA_KEY = 'estatus_bitacora_v1';
+  var AUTOR = ES_EDITOR ? 'Maura' : 'Ventas';
+  var MESES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGT','SEP','OCT','NOV','DIC'];
+  var MESES_ALT = {AGO:'AGT', SET:'SEP', MZO:'MAR'};   // marzo se teclea "MZO"; agosto "AGO"; sept "SET"
+  var CONSECUTIVOS = ['COMPLETO','CHECAR','INCOMPLETA','PENDIENTE MOV. FISCAL A TRAMASA','SIN CONSECUTIVO','FALTA FACT. A MAGAÑA','FALTA CONSECUTIVO Y FACT. A MAGAÑA'];
+  var ETIQ = {fecha:'fecha',factura:'factura',proveedor:'proveedor',marca:'marca',anio:'año',serie:'serie',consecutivo:'consecutivo',infoExtra:'info extra'};
+
+  var chasis = {};
+  var estatusRef = null;
+  var device = (function(){ var d=localStorage.getItem('estatus_device'); if(!d){d='e_'+Math.random().toString(36).slice(2,10);localStorage.setItem('estatus_device',d);} return d; })();
+  var bitacora = (function(){ try{ return JSON.parse(localStorage.getItem(BITA_KEY))||[]; }catch(e){ return []; } })();
+  var notasAbiertas = {};
+  var editando = false, pendienteRender = false, filtro = '', celdaEnfocada = null;
+  var syncEstado = 'sync', syncTxt = 'Conectando…';
+
+  // ---------- utilidades ----------
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function uid(){ return 'ch_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+  function fmtFecha(d){ return ('0'+d.getDate()).slice(-2)+'/'+MESES[d.getMonth()]+'./'+d.getFullYear(); }
+  function hoyFormato(){ return fmtFecha(new Date()); }
+  function parseFechaNum(txt){
+    txt=textoPlano(txt).trim().toUpperCase(); if(!txt) return 0;
+    var m=txt.match(/(\d{1,2})\D+([A-ZÁÉÍÓÚ]{3,})\D*?(\d{4})/); if(!m) return 0;
+    var dia=+m[1], mes=m[2].slice(0,3), anio=+m[3];
+    var idx=MESES.indexOf(mes); if(idx<0) idx=MESES.indexOf(MESES_ALT[mes]||mes);
+    if(idx<0) return anio*10000;
+    return anio*10000 + (idx+1)*100 + dia;
+  }
+  function etiqueta(c){ return {proveedor:'el proveedor', marca:'la marca', anio:'el año', consecutivo:'el consecutivo'}[c] || 'el dato'; }
+  function textoPlano(html){ var d=document.createElement('div'); d.innerHTML=(html==null?'':html); return (d.textContent||d.innerText||''); }
+  function val(o,campo){ return (o && o[campo]!=null) ? o[campo] : ''; }
+  function serieDe(id){ return textoPlano(chasis[id]&&chasis[id].serie).trim()||'(sin serie)'; }
+  function cargarCache(){ try{ var r=localStorage.getItem(CACHE_KEY); if(r) chasis=JSON.parse(r)||{}; }catch(e){} }
+  function guardarCache(){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify(chasis)); }catch(e){} }
+
+  function colorEsRojo(c){
+    if(!c) return false; c=c.toLowerCase();
+    if(c==='red') return true;
+    var m=c.match(/(\d+)\D+(\d+)\D+(\d+)/);
+    if(m){ return (+m[1])>140 && (+m[2])<100 && (+m[3])<100; }
+    if(c.charAt(0)==='#'){ var h=c.slice(1); if(h.length===3)h=h.replace(/./g,'$&$&'); var r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16); return r>140&&g<100&&b<100; }
+    return false;
+  }
+  function limpiarRico(html){
+    var tmp=document.createElement('div'); tmp.innerHTML=(html==null?'':html);
+    function esRojo(el){ if(el.classList&&el.classList.contains('rojo'))return true; var c=(el.getAttribute&&el.getAttribute('color'))||(el.style&&el.style.color)||''; return colorEsRojo(c); }
+    function walk(node){
+      var out='';
+      for(var i=0;i<node.childNodes.length;i++){
+        var n=node.childNodes[i];
+        if(n.nodeType===3){ out+=esc(n.nodeValue); }
+        else if(n.nodeType===1){
+          var tag=n.tagName.toLowerCase();
+          if(tag==='br'){ out+='<br>'; continue; }
+          var inner=walk(n);
+          if(tag==='div' && i>0) out+='<br>';
+          if(esRojo(n)) out+='<span class="rojo">'+inner+'</span>';
+          else out+=inner;
+        }
+      }
+      return out;
+    }
+    return walk(tmp).replace(/(<br>)+$/,'');
+  }
+
+  // ---------- bitácora (últimas acciones, local de este navegador) ----------
+  function bita(txt){
+    if(!ES_EDITOR) return;
+    bitacora.unshift({t:Date.now(), txt:txt});
+    bitacora=bitacora.slice(0,50);
+    try{ localStorage.setItem(BITA_KEY, JSON.stringify(bitacora)); }catch(e){}
+    var l=document.getElementById('emx-bita-lista'); if(l) l.innerHTML=bitaHTML();
+  }
+  function bitaHTML(){
+    if(!bitacora.length) return '<div class="emx-bita-vacia">Sin acciones todavía.</div>';
+    return bitacora.map(function(e){
+      var d=new Date(e.t);
+      var f=('0'+d.getDate()).slice(-2)+'/'+MESES[d.getMonth()]+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+      return '<div class="emx-bita-item"><span class="emx-bita-t">'+f+'</span>'+esc(e.txt)+'</div>';
+    }).join('');
+  }
+
+  // ---------- Firebase ----------
+  function initFB(){
+    try{
+      if(!window.firebase || !firebase.database){ setSync('offline','Sin librería de nube'); return; }
+      var app = null;
+      try { app = firebase.app('estatusApp'); } catch(e){ app = firebase.initializeApp(FB_CONFIG,'estatusApp'); }
+      estatusRef = app.database().ref(NODO);
+      estatusRef.on('value', function(snap){
+        var v = snap.val() || {};
+        if (v._origen === device) { setSync('ok','Guardado'); return; }
+        chasis = v.chasis || {};
+        guardarCache();
+        if (editando) { pendienteRender = true; } else { pintarFilas(); }
+        setSync('ok','Sincronizado');
+      }, function(err){ console.warn('estatus fb:', err); setSync('offline','Sin conexión — datos locales'); });
+      try{ app.database().ref('.info/connected').on('value', function(s){ setSync(s.val()?'ok':'offline', s.val()?'Sincronizado':'Sin conexión — datos locales'); }); }catch(e){}
+    }catch(e){ console.warn('estatus init:', e); setSync('offline','Sin nube — solo local'); }
+  }
+  function guardarNube(){
+    guardarCache();
+    if(!ES_EDITOR || !estatusRef) return;
+    setSync('sync','Guardando…');
+    estatusRef.set({ chasis: chasis, _origen: device, _ts: Date.now(), _key: LLAVE })
+      .then(function(){ setSync('ok','Guardado'); })
+      .catch(function(e){ console.warn(e); setSync('offline','Sin permiso o sin conexión'); });
+  }
+  function setSync(estado,txt){
+    syncEstado=estado; syncTxt=txt;
+    var el=document.getElementById('emx-sync'); if(!el) return;
+    var c={ok:'#2e7d46',offline:'#b03a2e',sync:'#c9a24b'}[estado]||'#999';
+    el.innerHTML='<span class="emx-dot" style="background:'+c+'"></span>'+esc(txt);
+  }
+
+  // ---------- edición ----------
+  function tocar(id){ chasis[id].actualizado=Date.now(); chasis[id].actualizadoPor=AUTOR; }
+  function setCampo(id,campo,valor){ if(!chasis[id]||chasis[id][campo]===valor)return; chasis[id][campo]=valor; tocar(id); bita('✎ '+(ETIQ[campo]||campo)+' — '+serieDe(id)); guardarNube(); }
+  function setCampoHTML(id,campo,html){ if(!chasis[id]||chasis[id][campo]===html)return; chasis[id][campo]=html; tocar(id); bita('✎ '+(ETIQ[campo]||campo)+' — '+serieDe(id)); guardarNube(); }
+  function toggleBaja(id,cual){ if(!chasis[id])return; chasis[id].baja=(chasis[id].baja===cual)?'':cual; tocar(id); bita('Baja='+(chasis[id].baja||'—')+' — '+serieDe(id)); guardarNube(); pintarFilas(); }
+  function toggleVendido(id){ if(!chasis[id])return; chasis[id].vendido=!chasis[id].vendido; tocar(id); bita((chasis[id].vendido?'💰 VENDIDO':'↩ quitó vendido')+' — '+serieDe(id)); guardarNube(); pintarFilas(); }
+  function proxOrden(){ var max=0,hay=false; Object.keys(chasis).forEach(function(id){ var o=chasis[id].orden; if(typeof o==='number'){hay=true; if(o>max)max=o;} }); return hay?max+1:(2000000000+Object.keys(chasis).length+1); }
+  function agregar(){
+    var id=uid();
+    chasis[id]={orden:proxOrden(),fecha:hoyFormato(),factura:'',proveedor:'',marca:'',anio:'',serie:'',consecutivo:'',baja:'',infoExtra:'',vendido:false,actualizado:Date.now(),actualizadoPor:AUTOR};
+    bita('➕ Agregó un chasis nuevo'); guardarNube(); pintarFilas();
+    setTimeout(function(){ var r=document.querySelector('#estatus-root tr[data-id="'+id+'"]'); if(r){ r.scrollIntoView({block:'center'}); var c=r.querySelector('.emx-cell.rich[contenteditable="true"]'); if(c)c.focus(); } },40);
+  }
+  function borrar(id){
+    if(!chasis[id])return;
+    var s=serieDe(id);
+    if(!confirm('¿Borrar este chasis?\n\nSerie: '+s)) return;
+    delete chasis[id]; bita('🗑 Borró chasis '+s); guardarNube(); pintarFilas();
+  }
+
+  // ---------- importar / exportar ----------
+  function importar(file){
+    var rd=new FileReader();
+    rd.onload=function(e){
+      try{
+        var wb=XLSX.read(e.target.result,{type:'binary'});
+        var ws=wb.Sheets['CHASIS']||wb.Sheets[wb.SheetNames[0]];
+        var filas=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+        var nuevos={}, n=0;
+        for(var i=2;i<filas.length;i++){
+          var f=filas[i]; if(!f) continue;
+          var g=function(idx){ var v=f[idx]; return (v==null?'':String(v)).trim(); };
+          var serie=g(5), fecha=g(0), factura=g(1);
+          if(!serie && !fecha && !factura) continue;
+          var baja = g(7)?'SI':(g(8)?'NO':'');
+          n++;
+          nuevos[uid()]={ orden:n, fecha:fecha, factura:esc(factura), proveedor:g(2), marca:g(3), anio:g(4),
+            serie:esc(serie), consecutivo:g(6), baja:baja, infoExtra:esc(g(9)), vendido:false,
+            actualizado:Date.now(), actualizadoPor:AUTOR };
+        }
+        if(n===0){ alert('No se encontraron chasis en la hoja CHASIS.'); return; }
+        if(!confirm('Se leyeron '+n+' chasis del Excel.\n\n¿REEMPLAZAR la tabla actual con estos '+n+' chasis?\n(Sobrescribe lo que haya ahora.)')) return;
+        chasis=nuevos; bita('📥 Importó '+n+' chasis del Excel'); guardarNube(); pintarFilas();
+        alert('✓ '+n+' chasis cargados.');
+      }catch(err){ console.error(err); alert('No se pudo leer el Excel: '+err.message); }
+    };
+    rd.readAsBinaryString(file);
+  }
+  function exportarExcel(){
+    var arr=listaOrdenada();
+    var aoa=[['FECHA','NO. FACTURA','PROVEEDOR/INTERMEDIARIO','MARCA','AÑO','SERIE','CONSECUTIVO','BAJA','INFO EXTRA']];
+    arr.forEach(function(o){ var vend=chasis[o.id]&&chasis[o.id].vendido; aoa.push([textoPlano(o.fecha),textoPlano(o.factura),o.proveedor,o.marca,o.anio,textoPlano(o.serie),o.consecutivo,o.baja,textoPlano(o.infoExtra)+(vend?' [VENDIDO]':'')]); });
+    var ws=XLSX.utils.aoa_to_sheet(aoa), wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'CHASIS');
+    XLSX.writeFile(wb,'Estatus_Chasis_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  }
+
+  // ---------- impresión (iframe oculto, no abre pestaña) ----------
+  function imprimir(){
+    var arr=listaOrdenada();
+    var fecha=new Date().toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'});
+    var filas=arr.map(function(o){
+      var vend=chasis[o.id]&&chasis[o.id].vendido;
+      var info=esc(textoPlano(o.infoExtra))+(vend?' <b style="color:#b03a2e">[VENDIDO]</b>':'');
+      return '<tr'+(vend?' style="opacity:.6"':'')+'><td>'+esc(textoPlano(o.fecha))+'</td><td>'+esc(textoPlano(o.factura))+'</td><td>'+esc(o.proveedor)+'</td><td>'+esc(o.marca)+'</td><td>'+esc(o.anio)+'</td><td>'+esc(textoPlano(o.serie))+'</td><td>'+esc(o.consecutivo)+'</td><td style="text-align:center">'+(o.baja==='SI'?'X':'')+'</td><td style="text-align:center">'+(o.baja==='NO'?'X':'')+'</td><td>'+info+'</td></tr>';
+    }).join('');
+    var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Estatus Chasis</title><style>'+
+      '@page{margin:1.4cm}body{font-family:Georgia,serif;color:#17140f}'+
+      '.hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #b03a2e;padding-bottom:8px;margin-bottom:14px}'+
+      'h1{font-size:22px;margin:0}.sub{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px}.meta{font-size:12px;color:#666;text-align:right}'+
+      'table{width:100%;border-collapse:collapse;font-size:11px;font-family:Arial,sans-serif}'+
+      'th{background:#17140f;color:#fff;text-align:left;padding:6px 7px;font-size:10px;text-transform:uppercase}'+
+      'td{padding:5px 7px;border-bottom:1px solid #ddd}tr:nth-child(even) td{background:#faf8f3}'+
+      '.foot{margin-top:14px;font-size:11px;color:#999;text-align:center}</style></head><body>'+
+      '<div class="hd"><div><h1>Estatus de Mercancía — Chasis</h1><div class="sub">Tracto Partes Magaña · Inventario de Patio</div></div>'+
+      '<div class="meta">'+fecha+'<br>'+arr.length+' chasis</div></div>'+
+      '<table><thead><tr><th>Fecha</th><th>No. Factura</th><th>Proveedor/Intermediario</th><th>Marca</th><th>Año</th><th>Serie</th><th>Consecutivo</th><th>Baja SÍ</th><th>Baja NO</th><th>Info extra</th></tr></thead><tbody>'+filas+'</tbody></table>'+
+      '<div class="foot">Tracto Partes Magaña S.A. de C.V. — Generado '+fecha+'</div></body></html>';
+    var f=document.getElementById('emx-print');
+    if(!f){ f=document.createElement('iframe'); f.id='emx-print'; f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden'; document.body.appendChild(f); }
+    var doc=f.contentWindow.document; doc.open(); doc.write(html); doc.close();
+    setTimeout(function(){ try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){ alert('No se pudo imprimir: '+e.message);} },300);
+  }
+
+  // ---------- datos derivados ----------
+  function listaOrdenada(){
+    var arr=Object.keys(chasis).map(function(id){ var o=chasis[id]||{}; return {
+      id:id, fecha:val(o,'fecha'), factura:val(o,'factura'), proveedor:val(o,'proveedor'), marca:val(o,'marca'),
+      anio:val(o,'anio'), serie:val(o,'serie'), consecutivo:val(o,'consecutivo'), baja:val(o,'baja'), infoExtra:val(o,'infoExtra') }; });
+    if(filtro){ var q=filtro.toLowerCase(); arr=arr.filter(function(o){
+      return (textoPlano(o.fecha)+' '+textoPlano(o.factura)+' '+o.proveedor+' '+o.marca+' '+o.anio+' '+textoPlano(o.serie)+' '+o.consecutivo+' '+textoPlano(o.infoExtra)).toLowerCase().indexOf(q)>=0; }); }
+    arr.sort(function(a,b){
+      var fa=parseFechaNum(a.fecha), fb=parseFechaNum(b.fecha);
+      if(fa!==fb) return fb-fa;
+      var oa=(typeof chasis[a.id].orden==='number')?chasis[a.id].orden:1e12;
+      var ob=(typeof chasis[b.id].orden==='number')?chasis[b.id].orden:1e12;
+      if(oa!==ob) return oa-ob;
+      return a.id<b.id?-1:(a.id>b.id?1:0);
+    });
+    return arr;
+  }
+  function distinct(campo){ var s={}; Object.keys(chasis).forEach(function(id){ var v=(chasis[id][campo]||'').toString().trim(); if(v) s[v]=1; }); return Object.keys(s).sort(); }
+
+  // ---------- menú desplegable (combo del proveedor) ----------
+  function abrirMenu(btn){
+    var campo=btn.dataset.combo, id=btn.dataset.id, menu=document.getElementById('emx-menu'); if(!menu) return;
+    var opts=distinct(campo);
+    menu.innerHTML = opts.length ? opts.map(function(o){return '<div class="emx-menu-item" data-val="'+esc(o)+'">'+esc(o)+'</div>';}).join('') : '<div class="emx-menu-vacio">Aún no hay opciones. Escribe directo en la celda.</div>';
+    menu.dataset.campo=campo; menu.dataset.id=id;
+    var td=btn.closest('td'), r=(td||btn).getBoundingClientRect();
+    menu.style.display='block'; menu.style.left=r.left+'px'; menu.style.top=(r.bottom+2)+'px'; menu.style.minWidth=Math.max(160,r.width)+'px';
+  }
+  function cerrarMenu(){ var m=document.getElementById('emx-menu'); if(m) m.style.display='none'; }
+
+  // ---------- celdas ----------
+  function celdaRich(id,campo,valHTML,extraCls,colCls){
+    var cls='emx-cell'+(extraCls?(' '+extraCls):''); var tdcls=colCls?(' class="'+colCls+'"'):'';
+    if(ES_EDITOR) return '<td'+tdcls+'><div class="'+cls+' rich" contenteditable="true" data-id="'+id+'" data-campo="'+campo+'">'+(valHTML||'')+'</div></td>';
+    return '<td'+tdcls+'><div class="'+cls+'">'+(valHTML||'')+'</div></td>';
+  }
+  function celdaSelect(id,campo,valor,colCls){
+    if(!ES_EDITOR) return '<td class="'+colCls+'"><div class="emx-cell">'+esc(valor)+'</div></td>';
+    var opts=distinct(campo), enLista=opts.indexOf(valor)>=0;
+    var html='<select class="emx-cons" data-id="'+id+'" data-campo="'+campo+'"><option value="">—</option>';
+    opts.forEach(function(o){ html+='<option value="'+esc(o)+'"'+(o===valor?' selected':'')+'>'+esc(o)+'</option>'; });
+    if(valor && !enLista) html+='<option value="'+esc(valor)+'" selected>'+esc(valor)+'</option>';
+    html+='<option value="__otro__">✏️ Otro (escribir)…</option></select>';
+    return '<td class="'+colCls+'">'+html+'</td>';
+  }
+  function celdaCombo(id,campo,valor,colCls){
+    if(!ES_EDITOR) return '<td class="'+colCls+'"><div class="emx-cell">'+esc(valor)+'</div></td>';
+    return '<td class="'+colCls+'"><div class="emx-combo"><div class="emx-cell emx-ce-plano" contenteditable="true" data-id="'+id+'" data-campo="'+campo+'">'+esc(valor)+'</div><button class="emx-combo-btn" data-combo="'+campo+'" data-id="'+id+'" title="Elegir de la lista">▼</button></div></td>';
+  }
+  function celdaFecha(id,valor,vendido){
+    var badge = vendido ? '<div class="emx-vbadge">✔ VENDIDO</div>' : '';
+    if(!ES_EDITOR) return '<td class="c-fecha">'+badge+'<div class="emx-cell">'+esc(valor)+'</div></td>';
+    return '<td class="c-fecha">'+badge+'<div class="emx-fecha-wrap"><div class="emx-cell emx-ce-plano" contenteditable="true" data-id="'+id+'" data-campo="fecha">'+esc(valor)+'</div><button class="emx-fbtn" data-fecha-id="'+id+'" title="Elegir fecha">📅</button></div></td>';
+  }
+  function celdaConsecutivo(id,valor){
+    if(!ES_EDITOR) return '<td class="c-cons"><div class="emx-cell">'+esc(valor)+'</div></td>';
+    var enLista=CONSECUTIVOS.indexOf(valor)>=0;
+    var html='<select class="emx-cons" data-id="'+id+'" data-campo="consecutivo"><option value="">— elegir —</option>';
+    CONSECUTIVOS.forEach(function(o){ html+='<option value="'+esc(o)+'"'+(o===valor?' selected':'')+'>'+esc(o)+'</option>'; });
+    if(valor && !enLista) html+='<option value="'+esc(valor)+'" selected>'+esc(valor)+' (escrito)</option>';
+    html+='<option value="__otro__">✏️ Otro (escribir)…</option></select>';
+    return '<td class="c-cons">'+html+'</td>';
+  }
+  function celdaBaja(id,valor,cual){
+    var on=(valor===cual), cls='baja'+(ES_EDITOR?' click':''), attr=ES_EDITOR?(' data-id="'+id+'" data-baja="'+cual+'"'):'';
+    return '<td class="'+cls+'"'+attr+'><span class="emx-x'+(on?' on':'')+'">'+(on?'X':'')+'</span></td>';
+  }
+  function celdaInfo(id,valHTML){
+    var tiene = textoPlano(valHTML).trim().length>0;
+    if(!ES_EDITOR){
+      if(tiene) return '<td class="c-info"><div class="emx-info-wrap"><span class="emx-nota-mk">📝</span><div class="emx-cell emx-info">'+(valHTML||'')+'</div></div></td>';
+      return '<td class="c-info"><div class="emx-info-vacia">—</div></td>';
+    }
+    if(tiene || notasAbiertas[id]){
+      return '<td class="c-info"><div class="emx-info-wrap">'+(tiene?'<span class="emx-nota-mk">📝</span>':'')+'<div class="emx-cell emx-info rich" contenteditable="true" data-id="'+id+'" data-campo="infoExtra">'+(valHTML||'')+'</div></div></td>';
+    }
+    return '<td class="c-info"><button class="emx-nota" data-nota="'+id+'" title="Agregar nota">📝 Nota</button></td>';
+  }
+  function fila(o){
+    var vend = !!(chasis[o.id] && chasis[o.id].vendido);
+    return '<tr data-id="'+o.id+'" class="'+(vend?'vendido':'')+'">'+
+      celdaFecha(o.id,textoPlano(o.fecha),vend)+
+      celdaRich(o.id,'factura',o.factura)+
+      celdaCombo(o.id,'proveedor',o.proveedor,'c-prov')+
+      celdaCombo(o.id,'marca',o.marca,'c-marca')+
+      celdaSelect(o.id,'anio',o.anio,'c-anio')+
+      celdaRich(o.id,'serie',o.serie,'emx-serie','c-serie')+
+      celdaConsecutivo(o.id,o.consecutivo)+
+      celdaBaja(o.id,o.baja,'SI')+celdaBaja(o.id,o.baja,'NO')+
+      celdaInfo(o.id,o.infoExtra)+
+      (ES_EDITOR?'<td class="c-acc"><button class="emx-vend'+(vend?' on':'')+'" data-vend="'+o.id+'">'+(vend?'↩ Quitar':'💰 Vendí')+'</button><button class="emx-del" data-del="'+o.id+'" title="Borrar">🗑</button></td>':'')+
+    '</tr>';
+  }
+
+  // ---------- render ----------
+  function mount(){
+    var root=document.getElementById('estatus-root'); if(!root) return;
+    var total=Object.keys(chasis).length;
+    var rojoUI = ES_EDITOR ? '<span class="emx-rojo-wrap"><span class="emx-rojo-lbl">Marca texto:</span><button class="emx-btn mini" id="emx-rojo" title="Pintar en rojo la selección">🔴</button><button class="emx-btn mini" id="emx-negro" title="Quitar el rojo">⬛</button></span>' : '';
+    var toolbar = ES_EDITOR
+      ? '<button class="emx-btn pri" id="emx-add">➕ Agregar chasis</button>'+
+        '<button class="emx-btn" id="emx-imp">📥 Importar Excel</button>'+
+        '<input type="file" id="emx-file" accept=".xlsx,.xls" style="display:none">'+
+        '<button class="emx-btn" id="emx-xls">⬇ Excel</button>'+
+        '<button class="emx-btn imp" id="emx-print-btn">🖨️ Imprimir</button>'+
+        '<button class="emx-btn" id="emx-bita-btn">🕐 Últimas acciones</button>'+ rojoUI +
+        '<input class="emx-search" id="emx-q" placeholder="Buscar serie, marca, factura, proveedor…" value="'+esc(filtro)+'">'
+      : '<button class="emx-btn" id="emx-xls">⬇ Excel</button>'+
+        '<button class="emx-btn imp" id="emx-print-btn">🖨️ Imprimir</button>'+
+        '<input class="emx-search" id="emx-q" placeholder="Buscar serie, marca, factura, proveedor…" value="'+esc(filtro)+'">';
+    var aviso = ES_EDITOR ? '' : '<div class="emx-aviso">👁 Solo lectura — esta tabla la edita administración (Maura). Aquí la ves en vivo y puedes imprimirla.</div>';
+    var bitaPanel = ES_EDITOR ? '<div class="emx-bita" id="emx-bita"><div id="emx-bita-lista"></div></div>' : '';
+    var menuEl = ES_EDITOR ? '<div id="emx-menu"></div>' : '';
+    var thAcc = ES_EDITOR ? '<th></th>' : '';
+    root.innerHTML =
+      '<div class="emx-head">'+
+        '<h2 class="emx-title">📋 Estatus de Mercancía — Chasis</h2>'+
+        '<span class="emx-badge '+(ES_EDITOR?'ed':'lec')+'">'+(ES_EDITOR?'✎ Administración (edita)':'👁 Ventas (solo ver)')+'</span>'+
+        '<span class="emx-sync" id="emx-sync"><span class="emx-dot"></span>Conectando…</span>'+
+        '<div class="emx-sub">Una sola tabla viva y compartida. Lo que Maura edita, ventas lo ve al instante. <b id="emx-total">'+total+'</b> chasis · orden por fecha (más reciente arriba).</div>'+
+      '</div>'+ aviso +
+      '<div class="emx-toolbar">'+toolbar+'</div>'+ bitaPanel +
+      '<input type="date" id="emx-fp" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px">'+ menuEl +
+      '<div class="emx-wrap"><table class="emx-tabla"><thead><tr>'+
+        '<th>Fecha</th><th>No. Factura</th><th>Proveedor / Intermediario</th><th>Marca</th><th>Año</th><th>Serie</th><th>Consecutivo</th>'+
+        '<th class="baja">Baja<br>SÍ</th><th class="baja">Baja<br>NO</th><th>Info extra</th>'+thAcc+
+      '</tr></thead><tbody id="emx-tbody"></tbody></table></div>'+
+      '<div class="emx-count" id="emx-count"></div>';
+    wireShell();
+    setSync(syncEstado,syncTxt);
+    pintarFilas();
+  }
+
+  function pintarFilas(){
+    var tbody=document.getElementById('emx-tbody'); if(!tbody){ mount(); return; }
+    var arr=listaOrdenada(), total=Object.keys(chasis).length, cols=ES_EDITOR?11:10;
+    tbody.innerHTML = arr.length ? arr.map(fila).join('')
+      : '<tr><td colspan="'+cols+'" class="emx-empty">'+(total?'Ningún chasis coincide con la búsqueda.':('Todavía no hay chasis.'+(ES_EDITOR?' Usa “➕ Agregar chasis” o “📥 Importar Excel”.':'')))+'</td></tr>';
+    var cnt=document.getElementById('emx-count'); if(cnt) cnt.textContent=arr.length+' chasis mostrados'+(filtro?' (filtrados de '+total+')':'');
+    var tot=document.getElementById('emx-total'); if(tot) tot.textContent=total;
+    wireFilas();
+  }
+
+  // ---------- eventos ----------
+  function wireShell(){
+    var q=document.getElementById('emx-q');
+    if(q){ q.oninput=function(){ filtro=q.value; pintarFilas(); }; }
+    var pb=document.getElementById('emx-print-btn'); if(pb) pb.onclick=imprimir;
+    var xb=document.getElementById('emx-xls'); if(xb) xb.onclick=exportarExcel;
+    var menu=document.getElementById('emx-menu');
+    if(menu){ menu.onmousedown=function(ev){ var it=ev.target.closest('.emx-menu-item'); if(!it)return; ev.preventDefault(); setCampo(menu.dataset.id,menu.dataset.campo,it.dataset.val); cerrarMenu(); pintarFilas(); }; }
+    if(!ES_EDITOR) return;
+    var add=document.getElementById('emx-add'); if(add) add.onclick=agregar;
+    var imp=document.getElementById('emx-imp'), file=document.getElementById('emx-file');
+    if(imp&&file){ imp.onclick=function(){file.click();}; file.onchange=function(){ if(file.files[0]) importar(file.files[0]); file.value=''; }; }
+    var bb=document.getElementById('emx-bita-btn');
+    if(bb) bb.onclick=function(){ var p=document.getElementById('emx-bita'); if(!p)return; if(p.style.display==='block'){p.style.display='none';} else { document.getElementById('emx-bita-lista').innerHTML=bitaHTML(); p.style.display='block'; } };
+    var rojo=document.getElementById('emx-rojo'), negro=document.getElementById('emx-negro');
+    if(rojo) rojo.addEventListener('mousedown',function(ev){ ev.preventDefault(); aplicarColor('#d11f1f'); });
+    if(negro) negro.addEventListener('mousedown',function(ev){ ev.preventDefault(); aplicarColor('#17140f'); });
+    var fp=document.getElementById('emx-fp');
+    if(fp) fp.onchange=function(){ var id=fp.dataset.target; if(!id||!fp.value)return; var p=fp.value.split('-'); setCampo(id,'fecha',fmtFecha(new Date(+p[0],+p[1]-1,+p[2]))); pintarFilas(); };
+  }
+  function aplicarColor(hex){
+    var cell=celdaEnfocada; if(!cell) return;
+    try{ document.execCommand('styleWithCSS',false,true); document.execCommand('foreColor',false,hex); }catch(e){}
+    setCampoHTML(cell.dataset.id, cell.dataset.campo, limpiarRico(cell.innerHTML));
+  }
+  function wireFilas(){
+    var root=document.getElementById('estatus-root'); if(!ES_EDITOR||!root) return;
+    root.querySelectorAll('.emx-cell.rich[contenteditable="true"]').forEach(function(c){
+      c.addEventListener('focus',function(){editando=true;celdaEnfocada=c;});
+      c.addEventListener('blur',function(){
+        editando=false; var html=limpiarRico(c.innerHTML); setCampoHTML(c.dataset.id,c.dataset.campo,html);
+        if(c.dataset.campo==='infoExtra' && !textoPlano(html).trim()){ delete notasAbiertas[c.dataset.id]; pintarFilas(); return; }
+        if(pendienteRender){pendienteRender=false;pintarFilas();}
+      });
+    });
+    root.querySelectorAll('.emx-cell.emx-ce-plano[contenteditable="true"]').forEach(function(c){
+      c.addEventListener('focus',function(){editando=true;});
+      c.addEventListener('blur',function(){ editando=false; setCampo(c.dataset.id,c.dataset.campo,c.textContent.trim()); if(pendienteRender){pendienteRender=false;pintarFilas();} });
+      c.addEventListener('keydown',function(ev){ if(ev.key==='Enter'&&c.dataset.campo==='fecha'){ev.preventDefault();c.blur();} });
+    });
+    root.querySelectorAll('select.emx-cons').forEach(function(sel){
+      var campo=sel.dataset.campo||'consecutivo';
+      sel.onchange=function(){
+        if(sel.value==='__otro__'){ var t=prompt('Escribe '+etiqueta(campo)+':',''); if(t==null){pintarFilas();return;} setCampo(sel.dataset.id,campo,t.trim()); pintarFilas(); }
+        else { setCampo(sel.dataset.id,campo,sel.value); if(campo!=='consecutivo') pintarFilas(); }
+      };
+    });
+    root.querySelectorAll('td.baja.click').forEach(function(td){ td.onclick=function(){ toggleBaja(td.dataset.id,td.dataset.baja); }; });
+    root.querySelectorAll('[data-vend]').forEach(function(b){ b.onclick=function(){ toggleVendido(b.dataset.vend); }; });
+    root.querySelectorAll('[data-del]').forEach(function(b){ b.onclick=function(){ borrar(b.dataset.del); }; });
+    root.querySelectorAll('.emx-fbtn').forEach(function(b){ b.onclick=function(){ var fp=document.getElementById('emx-fp'); fp.dataset.target=b.dataset.fechaId; if(fp.showPicker){try{fp.showPicker();}catch(e){fp.focus();}}else{fp.focus();fp.click();} }; });
+    root.querySelectorAll('.emx-combo-btn').forEach(function(b){ b.addEventListener('mousedown',function(ev){ ev.preventDefault(); abrirMenu(b); }); });
+    root.querySelectorAll('[data-nota]').forEach(function(b){ b.onclick=function(){ var id=b.dataset.nota; notasAbiertas[id]=1; pintarFilas(); setTimeout(function(){ var c=document.querySelector('#estatus-root tr[data-id="'+id+'"] .emx-info[contenteditable="true"]'); if(c)c.focus(); },30); }; });
+  }
+
+  window.estatusRender = function(){ if(document.getElementById('estatus-root')) mount(); };
+
+  function arranque(){
+    if(!window.__estatusMenuWired){ window.__estatusMenuWired=true; document.addEventListener('mousedown',function(ev){ var m=document.getElementById('emx-menu'); if(!m||m.style.display==='none')return; if(ev.target.closest('#emx-menu')||ev.target.closest('.emx-combo-btn'))return; cerrarMenu(); }); }
+    cargarCache();
+    if(document.getElementById('estatus-root')) mount();
+    initFB();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',arranque);
+  else arranque();
+})();
+</script>
+<!-- ═══════════════ FIN MÓDULO ESTATUS DE MERCANCÍA · CHASIS ═══════════════ -->
 </body>
 </html>
