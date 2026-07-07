@@ -179,6 +179,11 @@
   <button class="btn btn-mini solo-editor" style="margin-left:10px; background:#2e7d46; color:#fff; border-color:#2e7d46;" onclick="agregarFaltantesEstatus()">📥 Agregar los que faltan</button>
 </div>
 
+<div id="banner-huerfanos" style="display:none; background:#fdecea; border-bottom:2px solid #b03a2e; color:#7a1d13; padding:10px 16px; font-size:14px; font-weight:700; text-align:center;">
+  <span id="banner-huerfanos-txt"></span>
+  <button class="btn btn-mini" style="margin-left:10px; background:#b03a2e; color:#fff; border-color:#b03a2e;" onclick="verHuerfanosChasis()">🔎 Ver cuáles</button>
+</div>
+
 <main>
 
 <!-- INICIO + CAMIONES UNIFICADOS -->
@@ -631,8 +636,49 @@ function agregarFaltantesEstatus(){
   espejoChasisEstatus(_estatusChasisData);
   actualizarBannerFaltantes();
 }
+
+// ===== AVISO 🚨: chasis en el inventario que NO están en el Estatus maestro de Maura =====
+function _serieNorm(s){ return String(s==null?'':s).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function _seriesEstatusSet(){
+  const set={};
+  Object.keys(_estatusChasisData||{}).forEach(eid=>{
+    const s=_serieNorm(_txtPlano((_estatusChasisData[eid]||{}).serie));
+    if(s) set[s]=true;
+  });
+  return set;
+}
+function esHuerfanoChasis(p){
+  if(!p || p.familia!=='chasis' || p.vendida) return false;
+  if(!_estatusChasisData || Object.keys(_estatusChasisData).length===0) return false; // maestro no cargado → no alarmar
+  const set=_seriesEstatusSet();
+  const vin=_serieNorm(p.extras && p.extras.fichaVin);
+  if(vin) return !set[vin];                       // tiene serie → huérfano si esa serie no está en el maestro
+  const eid=p.extras && p.extras.estatusId;
+  if(eid) return !_estatusChasisData[eid];         // sin serie pero vino del puente → huérfano si borraron el maestro
+  return false;                                    // sin serie ni origen → no se puede determinar
+}
+function chasisHuerfanos(){ return DATA.piezas.filter(esHuerfanoChasis); }
+function _alertaHuerfano(p){
+  return esHuerfanoChasis(p) ? ' <span onclick="event.stopPropagation();verHuerfanosChasis()" title="Este chasis NO está en el Estatus de Maura — clic para revisar" style="cursor:pointer;">🚨</span>' : '';
+}
+function actualizarBannerHuerfanos(){
+  const h=chasisHuerfanos();
+  const b=document.getElementById('banner-huerfanos'), t=document.getElementById('banner-huerfanos-txt');
+  if(!b||!t) return;
+  if(h.length>0){ t.textContent='🚨 '+h.length+' chasis en tu inventario NO están en el Estatus de Maura (serie de más, o Maura la borró del maestro).'; b.style.display='block'; }
+  else { b.style.display='none'; }
+}
+function verHuerfanosChasis(){
+  const list=chasisHuerfanos();
+  const tEl=document.getElementById('modal-pieza-title'); if(tEl) tEl.textContent='🚨 Chasis que NO están en el Estatus de Maura';
+  let html='<div class="info-bar" style="background:#fdecea; color:#b03a2e; border-color:#b03a2e;"><strong>'+list.length+'</strong> chasis cuyo N° de serie no aparece en la base maestra de Maura (Estatus Chasis). Puede que Maura lo haya borrado, o que sobre aquí. Revisa cada uno y decide si lo editas o lo eliminas.</div>';
+  if(!list.length){ html+='<p style="text-align:center; color:#2e7d46; padding:20px; font-weight:700;">Todo cuadra ✔ — no hay chasis de más.</p>'; }
+  else { html+=list.map(p=>renderPiezaItemConCamion(p)).join(''); }
+  const body=document.getElementById('modal-pieza-body'); if(body) body.innerHTML=html;
+  openModal('modal-pieza');
+}
 function initEstatusPuente(){
-  try{ firebase.database().ref('estatus_mercancia/chasis').on('value', s=>{ _estatusChasisData=s.val()||{}; espejoChasisEstatus(_estatusChasisData); actualizarBannerFaltantes(); }); }
+  try{ firebase.database().ref('estatus_mercancia/chasis').on('value', s=>{ _estatusChasisData=s.val()||{}; espejoChasisEstatus(_estatusChasisData); actualizarBannerFaltantes(); actualizarBannerHuerfanos(); }); }
   catch(e){ console.warn('puente estatus->inventario:', e); }
 }
 
@@ -708,6 +754,7 @@ function refrescarVistaActual() {
   if (activa.id === 'view-camiones') renderCamiones();
   else if (activa.id === 'view-buscar') renderBusqueda();
   else if (activa.id === 'view-admin' && typeof renderAdmin === 'function') renderAdmin();
+  if (typeof actualizarBannerHuerfanos === 'function') actualizarBannerHuerfanos();
 }
 
 let DATA = cargar();
@@ -1084,7 +1131,7 @@ function renderCamiones() {
         <div class="card" style="background:#fff; border:3px solid #e67e22; border-radius:8px;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
             <div style="flex:1; min-width:0;">
-              <div style="font-size:15px; font-weight:800; color:#e67e22;">${f?.nombreSingular || 'Pieza'}</div>
+              <div style="font-size:15px; font-weight:800; color:#e67e22;">${f?.nombreSingular || 'Pieza'}${_alertaHuerfano(p)}</div>
               <div style="margin-top:6px;">${lineasDetalle}</div>
             </div>
             <div style="display:flex; flex-direction:column; gap:5px; flex-shrink:0;">
@@ -1982,7 +2029,7 @@ function renderPiezaItem(p) {
   return `
     <div class="pieza-item" style="${p.vendida ? 'opacity:0.55' : ''}">
       <div class="pieza-info">
-        <div class="pieza-name">${f?.nombreSingular || f?.nombre || p.familia}: ${p.modelo}${precio}</div>
+        <div class="pieza-name">${f?.nombreSingular || f?.nombre || p.familia}: ${p.modelo}${precio}${_alertaHuerfano(p)}</div>
         <div class="pieza-detail">${extras}${p.vendida ? ' · <strong style="color:#c0392b">VENDIDA</strong>' : ''}</div>
       </div>
       <div class="pieza-actions">
@@ -2067,7 +2114,7 @@ function renderPiezaItemConCamion(p) {
     <div class="pieza-item" style="display:block; ${p.vendida ? 'opacity:0.55' : ''} ${p.bajoPedido ? 'border-left:4px solid #c9a24b; background:#fdfaf0;' : ''}">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
         <div style="flex:1;">
-          <div style="font-size:18px; font-weight:900; color:#1a1a1a;">${escapeHtml(p.modelo || '')}${precio}${p.bajoPedido ? ' <span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : ''}</div>
+          <div style="font-size:18px; font-weight:900; color:#1a1a1a;">${escapeHtml(p.modelo || '')}${precio}${_alertaHuerfano(p)}${p.bajoPedido ? ' <span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : ''}</div>
           <div style="font-size:13px; color:#777; margin-top:2px;">${extras}${p.vendida ? ' · <strong style="color:#c0392b">VENDIDA</strong>' : ''}</div>
           ${p.notas ? `<div style="font-size:14px; color:#4a4a4a; background:#f7f3ea; border-left:3px solid #c9a24b; border-radius:2px; padding:7px 11px; margin-top:5px;">📝 ${escapeHtml(p.notas)}</div>` : ''}
           ${origen}
