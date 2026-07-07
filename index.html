@@ -169,10 +169,15 @@
   <button class="active" data-view="camiones">🏠 Inicio</button>
   <button data-view="buscar">🔧 Piezas</button>
   <button data-view="ventas">💵 Ventas</button>
+  <button data-view="estatus">📋 Estatus Chasis</button>
   <button data-view="admin">📝 Administrar</button>
   <button data-view="exportar">⚙️ Exportar</button>
-  <button data-view="estatus">📋 Estatus Chasis</button>
 </nav>
+
+<div id="banner-faltantes" style="display:none; background:#fff3cd; border-bottom:2px solid #E8B339; color:#7A4A0E; padding:10px 16px; font-size:14px; font-weight:700; text-align:center;">
+  <span id="banner-faltantes-txt"></span>
+  <button class="btn btn-mini solo-editor" style="margin-left:10px; background:#2e7d46; color:#fff; border-color:#2e7d46;" onclick="agregarFaltantesEstatus()">📥 Agregar los que faltan</button>
+</div>
 
 <main>
 
@@ -192,7 +197,10 @@
   <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="addPiezaSuelta()">🔧 Agregar Pieza Suelta (sin camión) 🔧</button>
 
   <h3 style="margin-top:24px">Buscador de Piezas y Camiones</h3>
-  <input type="text" id="filtro-camiones" placeholder="Buscar por folio, marca, modelo, motor, VIN, serie, CPL, N°Motor, terminación, año..." oninput="renderCamiones()">
+  <div style="display:flex; gap:8px; align-items:center; max-width:640px;">
+    <input type="text" id="filtro-camiones" placeholder="🔍 Buscar folio, marca, serie, VIN, motor..." oninput="renderCamiones()" style="flex:1; min-width:0;">
+    <button class="btn btn-mini" onclick="document.getElementById('filtro-camiones').value=''; renderCamiones();" title="Limpiar búsqueda" style="white-space:nowrap;">✕ Limpiar</button>
+  </div>
   <div id="aviso-busqueda" style="display:none; margin-top:6px; padding:6px 12px; background:#fff3cd; border-radius:5px; font-size:12px; color:#856404; font-weight:600;">
     🔍 Filtro activo: "<span id="aviso-busqueda-texto"></span>" · <a href="#" onclick="document.getElementById('filtro-camiones').value=''; renderCamiones(); return false;" style="color:#c0392b; text-decoration:underline;">✕ Limpiar</a>
   </div>
@@ -538,6 +546,96 @@ function aplicarModo() {
   }
 }
 
+// ============================================================
+// ESTATUS DE MERCANCÍA — puente: espeja chasis del nodo compartido al inventario
+// ============================================================
+const CONSECUTIVOS_TPM = ['COMPLETO','CHECAR','INCOMPLETA','PENDIENTE MOV. FISCAL A TRAMASA','SIN CONSECUTIVO','FALTA FACT. A MAGAÑA','FALTA CONSECUTIVO Y FACT. A MAGAÑA'];
+function optsConsecutivoTPM(sel){
+  let html='<option value="">— sin definir —</option>', enLista=false;
+  CONSECUTIVOS_TPM.forEach(o=>{ if(o===sel)enLista=true; html+='<option'+(o===sel?' selected':'')+'>'+o+'</option>'; });
+  if(sel && !enLista) html+='<option selected>'+escapeHtml(sel)+'</option>';
+  return html;
+}
+function bajaBtnStyle(active, tipo){
+  const color = tipo==='SI' ? '#2e7d46' : '#b03a2e';
+  const base='flex:1; padding:9px; border-radius:6px; font-weight:700; cursor:pointer; border:2px solid ';
+  return active ? (base+color+'; background:'+color+'; color:#fff;') : (base+'#ccc; background:#fff; color:#1a1a1a;');
+}
+function invSetBaja(prefix,val){
+  const h=document.getElementById(prefix+'-baja'); if(!h) return;
+  const nuevo=(h.value===val)?'':val; h.value=nuevo;
+  const si=document.getElementById(prefix+'-baja-si'), no=document.getElementById(prefix+'-baja-no');
+  if(si) si.style.cssText=bajaBtnStyle(nuevo==='SI','SI');
+  if(no) no.style.cssText=bajaBtnStyle(nuevo==='NO','NO');
+}
+function _txtPlano(html){ const d=document.createElement('div'); d.innerHTML=(html==null?'':html); return (d.textContent||d.innerText||'').trim(); }
+function dedupChasisEstatus(){
+  // Quita piezas de chasis duplicadas (mismo estatusId), deja una sola. Devuelve cuántas quitó.
+  const visto={}; const limpias=[]; let quitados=0;
+  DATA.piezas.forEach(p=>{
+    const eid = p && p.extras && p.extras.estatusId;
+    if(eid){ if(visto[eid]){ quitados++; return; } visto[eid]=true; }
+    limpias.push(p);
+  });
+  if(quitados>0) DATA.piezas=limpias;
+  return quitados;
+}
+function espejoChasisEstatus(data){
+  if(!esEditor()) return;                       // solo el editor crea piezas
+  if(!DATA.estatusChasisSync) DATA.estatusChasisSync={};
+  const quitados = dedupChasisEstatus();        // 1) limpia cualquier duplicado existente
+  // 2) set de estatusIds que YA tienen pieza (dedup robusto: no depende solo de estatusChasisSync)
+  const yaEn={};
+  DATA.piezas.forEach(p=>{ if(p&&p.extras&&p.extras.estatusId) yaEn[p.extras.estatusId]=true; });
+  let creados=0;
+  Object.keys(data||{}).forEach(eid=>{
+    if(yaEn[eid]){ DATA.estatusChasisSync[eid]=true; return; }   // ya existe la pieza → NO crear otra
+    const ch=data[eid]||{};
+    const marca=_txtPlano(ch.marca), anio=_txtPlano(ch.anio), serie=_txtPlano(ch.serie);
+    const extras={ estatusId:eid, origenEstatus:true };
+    if(marca) extras.fichaMarca=marca;
+    if(anio)  extras.fichaAño=anio;
+    if(serie) extras.fichaVin=serie;
+    if(ch.consecutivo) extras.consecutivo=ch.consecutivo;
+    if(ch.baja) extras.baja=ch.baja;
+    DATA.piezas.push({
+      id:'pza_est_'+eid, familia:'chasis', camionId:null,
+      camionFolio:'SUELTA', camionMarca:marca, camionModelo:'', camionAño:'',
+      motor:'', marca:marca, 'año':anio, modelo:'Chasis',
+      extras, precioSugerido:null, precioMax:null, notas:'',
+      vendida:false, fechaRegistro:Date.now()
+    });
+    yaEn[eid]=true; DATA.estatusChasisSync[eid]=true; creados++;
+  });
+  if(quitados>0 || creados>0){
+    guardar();
+    if(typeof refrescarVistaActual==='function') refrescarVistaActual();
+    if(quitados>0 && typeof toast==='function') toast('🧹 '+quitados+' chasis duplicados quitados','success');
+    if(creados>0 && typeof toast==='function') toast('🔗 '+creados+' chasis del Estatus agregados','success');
+  }
+}
+var _estatusChasisData = {};
+function contarFaltantesEstatus(){
+  const yaEn={}; DATA.piezas.forEach(p=>{ if(p&&p.extras&&p.extras.estatusId) yaEn[p.extras.estatusId]=true; });
+  return Object.keys(_estatusChasisData||{}).filter(eid=>!yaEn[eid]);
+}
+function actualizarBannerFaltantes(){
+  const faltan=contarFaltantesEstatus();
+  const b=document.getElementById('banner-faltantes'), t=document.getElementById('banner-faltantes-txt');
+  if(!b||!t) return;
+  if(faltan.length>0){ t.textContent='⚠️ '+faltan.length+' chasis que Maura compartió NO están en tu inventario.'; b.style.display='block'; }
+  else { b.style.display='none'; }
+}
+function agregarFaltantesEstatus(){
+  if(typeof esEditor==='function' && !esEditor()){ alert('Entra como Editor (arriba a la derecha: “soy editor”) para agregar los chasis que faltan.'); return; }
+  espejoChasisEstatus(_estatusChasisData);
+  actualizarBannerFaltantes();
+}
+function initEstatusPuente(){
+  try{ firebase.database().ref('estatus_mercancia/chasis').on('value', s=>{ _estatusChasisData=s.val()||{}; espejoChasisEstatus(_estatusChasisData); actualizarBannerFaltantes(); }); }
+  catch(e){ console.warn('puente estatus->inventario:', e); }
+}
+
 function initFirebase() {
   try {
     fbApp = firebase.initializeApp(firebaseConfig);
@@ -591,6 +689,7 @@ function normalizarData(obj) {
     piezas: Array.isArray(obj.piezas) ? obj.piezas : [],
     catalogos: obj.catalogos || JSON.parse(JSON.stringify(CATALOGOS_DEFAULT)),
     familiasOverride: obj.familiasOverride || JSON.parse(JSON.stringify(FAMILIAS_OVERRIDE_DEFAULT)),
+    estatusChasisSync: obj.estatusChasisSync || {},
     folioCounter: obj.folioCounter || 1
   };
   return d;
@@ -624,6 +723,7 @@ function cargar() {
     piezas: [],
     catalogos: JSON.parse(JSON.stringify(CATALOGOS_DEFAULT)),
     familiasOverride: JSON.parse(JSON.stringify(FAMILIAS_OVERRIDE_DEFAULT)),
+    estatusChasisSync: {},
     folioCounter: 1
   };
 }
@@ -1091,6 +1191,8 @@ function detalleDePiezas(piezas) {
       if (ex.fichaAño) filas.push(['Año', escapeHtml(ex.fichaAño)]);
       if (ex.fichaVin) filas.push(['VIN', escapeHtml(ex.fichaVin)]);
       if (ex.fichaNoMotor) filas.push(['N° Motor', escapeHtml(ex.fichaNoMotor)]);
+      if (ex.consecutivo) filas.push(['Consecutivo', escapeHtml(ex.consecutivo)]);
+      if (ex.baja) filas.push(['Baja federal', ex.baja==='SI' ? 'Sí tiene ✔' : (ex.baja==='NO' ? 'No tiene ✗' : escapeHtml(ex.baja))]);
       if (ex.fichaExtra) filas.push(['Extra', escapeHtml(ex.fichaExtra)]);
       if (p.notas) filas.push(['Notas', `<em style="color:#888;">${escapeHtml(p.notas)}</em>`]);
 
@@ -1552,6 +1654,25 @@ function seleccionarFamilia(famId) {
       </div>`;
   }
 
+  if (f.id === 'chasis') {
+    html += `
+      <div style="background:#faf8f3; border:1px solid #cec7b8; border-left:3px solid #c9a24b; border-radius:2px; padding:14px; margin-bottom:16px;">
+        <div style="font-weight:800; color:#1a1a1a; margin-bottom:10px; font-size:14px; text-transform:uppercase; letter-spacing:0.5px;">Estatus de papelería</div>
+        <div class="field">
+          <label>Consecutivo</label>
+          <select id="ficha-consecutivo">${optsConsecutivoTPM('')}</select>
+        </div>
+        <div class="field">
+          <label>¿Tiene baja federal?</label>
+          <input type="hidden" id="ficha-baja" value="">
+          <div style="display:flex; gap:8px;">
+            <button type="button" id="ficha-baja-si" style="${bajaBtnStyle(false,'SI')}" onclick="invSetBaja('ficha','SI')">SÍ tiene ✔</button>
+            <button type="button" id="ficha-baja-no" style="${bajaBtnStyle(false,'NO')}" onclick="invSetBaja('ficha','NO')">NO tiene ✗</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
   if (!camion) {
     const cat = getCatalogos();
     html += `<div class="field"><label>Motor</label><select id="pieza-motor-suelto"><option value="">—</option>${cat.motores.map(m => `<option>${m}</option>`).join('')}</select></div>`;
@@ -1746,6 +1867,12 @@ function guardarPieza() {
     if (fVin) baseExtras.fichaVin = fVin;
     if (fNoMotor) baseExtras.fichaNoMotor = fNoMotor;
     if (fExtra) baseExtras.fichaExtra = fExtra;
+  }
+  if (f.id === 'chasis') {
+    const fCons = document.getElementById('ficha-consecutivo')?.value.trim();
+    const fBaja = document.getElementById('ficha-baja')?.value.trim();
+    if (fCons) baseExtras.consecutivo = fCons; else delete baseExtras.consecutivo;
+    if (fBaja) baseExtras.baja = fBaja; else delete baseExtras.baja;
   }
 
   const precioRaw = document.getElementById('pieza-precio').value || '';
@@ -2140,6 +2267,21 @@ function editarPieza(id) {
       </div>`;
   }
 
+  if (f?.id === 'chasis') {
+    html += `
+      <div style="background:#faf8f3; border:1px solid #cec7b8; border-left:3px solid #c9a24b; border-radius:2px; padding:14px; margin:16px 0;">
+        <div style="font-weight:800; margin-bottom:10px; font-size:14px; text-transform:uppercase;">Estatus de papelería</div>
+        <div class="field"><label>Consecutivo</label><select id="edit-consecutivo">${optsConsecutivoTPM(ex.consecutivo || '')}</select></div>
+        <div class="field"><label>¿Tiene baja federal?</label>
+          <input type="hidden" id="edit-baja" value="${escapeHtml(ex.baja || '')}">
+          <div style="display:flex; gap:8px;">
+            <button type="button" id="edit-baja-si" style="${bajaBtnStyle(ex.baja==='SI','SI')}" onclick="invSetBaja('edit','SI')">SÍ tiene ✔</button>
+            <button type="button" id="edit-baja-no" style="${bajaBtnStyle(ex.baja==='NO','NO')}" onclick="invSetBaja('edit','NO')">NO tiene ✗</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
   html += `
     <div class="field">
       <label>Ubicación en el patio</label>
@@ -2205,6 +2347,8 @@ function guardarEdicionPieza(id) {
   if (document.getElementById('edit-fichaVin')) ex.fichaVin = document.getElementById('edit-fichaVin').value.trim();
   if (document.getElementById('edit-fichaNoMotor')) ex.fichaNoMotor = document.getElementById('edit-fichaNoMotor').value.trim();
   if (document.getElementById('edit-fichaExtra')) ex.fichaExtra = document.getElementById('edit-fichaExtra').value.trim();
+  if (document.getElementById('edit-consecutivo')) ex.consecutivo = document.getElementById('edit-consecutivo').value.trim();
+  if (document.getElementById('edit-baja')) ex.baja = document.getElementById('edit-baja').value.trim();
   if (document.getElementById('edit-drive-link')) {
     const dl = document.getElementById('edit-drive-link').value.trim();
     if (dl) ex.driveLink = dl; else delete ex.driveLink;
@@ -2673,10 +2817,10 @@ function exportExcelFamilia(famId) {
 // Columnas relevantes a mostrar por tipo de familia (para impresión limpia)
 function columnasImprimir(f) {
   const base = ['Modelo/Tipo'];
-  if (f.tieneInfoMotor) return [...base,'Serie','CPL','HP','Estado','Ubicación','Precio'];
-  if (f.tieneFichaTecnica) return [...base,'Marca','Modelo','Año','VIN','N° Motor','Ubicación','Precio'];
-  if (f.id === 'diferenciales' || f.id === 'mancuernas') return [...base,'Libras','Marca Eje','Suspensión','Paso','Ubicación','Precio'];
-  return [...base,'Motor','Serie / N° Parte','Estado','Ubicación','Precio'];
+  if (f.tieneInfoMotor) return [...base,'Serie','CPL','HP','Precio'];
+  if (f.tieneFichaTecnica) return [...base,'Marca','Modelo','Año','VIN','Precio'];
+  if (f.id === 'diferenciales' || f.id === 'mancuernas') return [...base,'Libras','Marca Eje','Suspensión','Paso','Precio'];
+  return [...base,'Motor','Serie / N° Parte','Precio'];
 }
 function valorColumna(p, col) {
   const ex = p.extras || {};
@@ -3167,6 +3311,7 @@ function importJSONold(event) {
 aplicarModo();
 renderCamiones();
 initFirebase();
+initEstatusPuente();
 </script>
 <script>window.ESTATUS_MODO='lectura';</script>
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -3198,7 +3343,16 @@ initFirebase();
 #estatus-root .emx-btn.mini{padding:9px 12px;font-size:16px}
 #estatus-root .emx-rojo-wrap{display:inline-flex;gap:4px;align-items:center;padding-left:6px;margin-left:2px;border-left:2px solid #e0dccf}
 #estatus-root .emx-rojo-lbl{font-size:11px;color:#6b6459;font-weight:700}
-#estatus-root .emx-search{flex:1;min-width:170px;font-size:15px;padding:10px 12px;border:2px solid #d8d2c6;border-radius:8px;font-family:Arial}
+#estatus-root .emx-search-box{display:inline-flex;align-items:center;gap:6px;border:2px solid #d8d2c6;border-radius:8px;padding:0 10px;background:#fff}
+#estatus-root .emx-search-box .emx-lupa{font-size:14px;opacity:.55}
+#estatus-root .emx-search{border:0;outline:none;padding:9px 2px;width:150px;max-width:42vw;font-size:14px;font-family:Arial;background:transparent}
+#estatus-root .emx-otros{position:relative;display:inline-block}
+#estatus-root .emx-otros-menu{position:absolute;top:100%;left:0;margin-top:5px;background:#fff;border:1px solid #b9b2a4;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:8px;display:none;flex-direction:column;gap:6px;z-index:9999;min-width:215px}
+#estatus-root .emx-otros-menu.abierto{display:flex}
+#estatus-root .emx-otros-menu .emx-btn{width:100%;text-align:left}
+#estatus-root .emx-limpiar{display:none;align-items:center}
+#estatus-root .emx-btn-limpiar{background:#b03a2e;color:#fff;border:2px solid #b03a2e;padding:9px 14px;border-radius:8px;font-weight:700;cursor:pointer;font-family:Arial;font-size:14px}
+#estatus-root .emx-fsel{font-family:Arial;font-size:13px;padding:8px 6px;border:2px solid #d8d2c6;border-radius:8px;background:#fff;cursor:pointer;font-weight:700;color:#17140f;width:82px;max-width:82px}
 #estatus-root .emx-bita{display:none;margin-bottom:12px;border:1px solid #e0dccf;border-radius:8px;background:#fff;max-height:240px;overflow:auto}
 #estatus-root .emx-bita-item{padding:8px 12px;border-bottom:1px solid #f0ece3;font-family:Arial;font-size:13px}
 #estatus-root .emx-bita-t{color:#b03a2e;font-weight:700;font-size:11px;margin-right:8px}
@@ -3252,6 +3406,12 @@ initFirebase();
 #emx-menu .emx-menu-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid #f0ece3;white-space:normal;overflow-wrap:anywhere}
 #emx-menu .emx-menu-item:hover{background:#fff7e0}
 #emx-menu .emx-menu-vacio{padding:10px 12px;color:#6b6459}
+/* Neutraliza estilos globales del host que se filtran a esta tabla (Maura pone position:sticky a todo th) */
+#estatus-root .emx-tabla th{position:static;top:auto;z-index:auto}
+#estatus-root .emx-tabla td{color:#17140f}
+/* Oculta la "portería"/barra de sección de Maura SOLO dentro del Estatus (en Raúl estas clases no existen) */
+body[data-seccion="estatus"] .barra-seccion-lateral,
+body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
 </style>
 <script>
 (function(){
@@ -3283,7 +3443,7 @@ initFirebase();
   var device = (function(){ var d=localStorage.getItem('estatus_device'); if(!d){d='e_'+Math.random().toString(36).slice(2,10);localStorage.setItem('estatus_device',d);} return d; })();
   var bitacora = (function(){ try{ return JSON.parse(localStorage.getItem(BITA_KEY))||[]; }catch(e){ return []; } })();
   var notasAbiertas = {};
-  var editando = false, pendienteRender = false, filtro = '', celdaEnfocada = null;
+  var editando = false, pendienteRender = false, filtro = '', filtroAnio = '', filtroMes = '', celdaEnfocada = null;
   var syncEstado = 'sync', syncTxt = 'Conectando…';
 
   // ---------- utilidades ----------
@@ -3477,6 +3637,8 @@ initFirebase();
       anio:val(o,'anio'), serie:val(o,'serie'), consecutivo:val(o,'consecutivo'), baja:val(o,'baja'), infoExtra:val(o,'infoExtra') }; });
     if(filtro){ var q=filtro.toLowerCase(); arr=arr.filter(function(o){
       return (textoPlano(o.fecha)+' '+textoPlano(o.factura)+' '+o.proveedor+' '+o.marca+' '+o.anio+' '+textoPlano(o.serie)+' '+o.consecutivo+' '+textoPlano(o.infoExtra)).toLowerCase().indexOf(q)>=0; }); }
+    if(filtroAnio){ arr=arr.filter(function(o){ var n=parseFechaNum(o.fecha); return n>0 && Math.floor(n/10000)===(+filtroAnio); }); }
+    if(filtroMes){ arr=arr.filter(function(o){ var n=parseFechaNum(o.fecha); return n>0 && (Math.floor(n/100)%100)===(+filtroMes); }); }
     arr.sort(function(a,b){
       var fa=parseFechaNum(a.fecha), fb=parseFechaNum(b.fecha);
       if(fa!==fb) return fb-fa;
@@ -3488,6 +3650,7 @@ initFirebase();
     return arr;
   }
   function distinct(campo){ var s={}; Object.keys(chasis).forEach(function(id){ var v=(chasis[id][campo]||'').toString().trim(); if(v) s[v]=1; }); return Object.keys(s).sort(); }
+  function aniosDisponibles(){ var s={}; Object.keys(chasis).forEach(function(id){ var n=parseFechaNum(chasis[id].fecha); if(n>0) s[Math.floor(n/10000)]=1; }); return Object.keys(s).map(Number).sort(function(a,b){return b-a;}); }
 
   // ---------- menú desplegable (combo del proveedor) ----------
   function abrirMenu(btn){
@@ -3569,17 +3732,26 @@ initFirebase();
     var root=document.getElementById('estatus-root'); if(!root) return;
     var total=Object.keys(chasis).length;
     var rojoUI = ES_EDITOR ? '<span class="emx-rojo-wrap"><span class="emx-rojo-lbl">Marca texto:</span><button class="emx-btn mini" id="emx-rojo" title="Pintar en rojo la selección">🔴</button><button class="emx-btn mini" id="emx-negro" title="Quitar el rojo">⬛</button></span>' : '';
-    var toolbar = ES_EDITOR
-      ? '<button class="emx-btn pri" id="emx-add">➕ Agregar chasis</button>'+
+    var searchBox = '<div class="emx-search-box"><span class="emx-lupa">🔍</span><input class="emx-search" id="emx-q" placeholder="Buscar serie…" value="'+esc(filtro)+'"></div>';
+    var aniosOpts = aniosDisponibles().map(function(a){ return '<option value="'+a+'"'+(String(a)===String(filtroAnio)?' selected':'')+'>'+a+'</option>'; }).join('');
+    var mesesOpts = MESES.map(function(m,i){ return '<option value="'+(i+1)+'"'+(String(i+1)===String(filtroMes)?' selected':'')+'>'+m+'</option>'; }).join('');
+    var mesBtn = '<select class="emx-fsel" id="emx-anio" title="Filtrar por año"><option value="">Año</option>'+aniosOpts+'</select>'+
+                 '<select class="emx-fsel" id="emx-mes" title="Filtrar por mes"><option value="">Mes</option>'+mesesOpts+'</select>';
+    var limpiar = '<span class="emx-limpiar" id="emx-limpiar"><button class="emx-btn-limpiar" id="emx-limpiar-btn">✕ Limpiar filtro</button></span>';
+    var otrosEditor = '<div class="emx-otros"><button class="emx-btn" id="emx-otros-btn">⚙️ Otros ▾</button><div class="emx-otros-menu" id="emx-otros-menu">'+
         '<button class="emx-btn" id="emx-imp">📥 Importar Excel</button>'+
         '<input type="file" id="emx-file" accept=".xlsx,.xls" style="display:none">'+
         '<button class="emx-btn" id="emx-xls">⬇ Excel</button>'+
         '<button class="emx-btn imp" id="emx-print-btn">🖨️ Imprimir</button>'+
-        '<button class="emx-btn" id="emx-bita-btn">🕐 Últimas acciones</button>'+ rojoUI +
-        '<input class="emx-search" id="emx-q" placeholder="Buscar serie, marca, factura, proveedor…" value="'+esc(filtro)+'">'
-      : '<button class="emx-btn" id="emx-xls">⬇ Excel</button>'+
+        '<button class="emx-btn" id="emx-bita-btn">🕐 Últimas acciones</button>'+
+      '</div></div>';
+    var otrosLectura = '<div class="emx-otros"><button class="emx-btn" id="emx-otros-btn">⚙️ Otros ▾</button><div class="emx-otros-menu" id="emx-otros-menu">'+
+        '<button class="emx-btn" id="emx-xls">⬇ Excel</button>'+
         '<button class="emx-btn imp" id="emx-print-btn">🖨️ Imprimir</button>'+
-        '<input class="emx-search" id="emx-q" placeholder="Buscar serie, marca, factura, proveedor…" value="'+esc(filtro)+'">';
+      '</div></div>';
+    var toolbar = ES_EDITOR
+      ? '<button class="emx-btn pri" id="emx-add">➕ Agregar chasis</button>'+ mesBtn + otrosEditor + rojoUI + searchBox + limpiar
+      : mesBtn + otrosLectura + searchBox + limpiar;
     var aviso = ES_EDITOR ? '' : '<div class="emx-aviso">👁 Solo lectura — esta tabla la edita administración (Maura). Aquí la ves en vivo y puedes imprimirla.</div>';
     var bitaPanel = ES_EDITOR ? '<div class="emx-bita" id="emx-bita"><div id="emx-bita-lista"></div></div>' : '';
     var menuEl = ES_EDITOR ? '<div id="emx-menu"></div>' : '';
@@ -3608,8 +3780,11 @@ initFirebase();
     var arr=listaOrdenada(), total=Object.keys(chasis).length, cols=ES_EDITOR?11:10;
     tbody.innerHTML = arr.length ? arr.map(fila).join('')
       : '<tr><td colspan="'+cols+'" class="emx-empty">'+(total?'Ningún chasis coincide con la búsqueda.':('Todavía no hay chasis.'+(ES_EDITOR?' Usa “➕ Agregar chasis” o “📥 Importar Excel”.':'')))+'</td></tr>';
-    var cnt=document.getElementById('emx-count'); if(cnt) cnt.textContent=arr.length+' chasis mostrados'+(filtro?' (filtrados de '+total+')':'');
+    var hayFiltro=!!(filtro||filtroAnio||filtroMes);
+    var etiF=(filtroAnio?(' · '+filtroAnio):'')+(filtroMes?(' · '+MESES[(+filtroMes)-1]):'');
+    var cnt=document.getElementById('emx-count'); if(cnt) cnt.textContent=arr.length+' chasis mostrados'+(hayFiltro?' (filtrados de '+total+')':'')+etiF;
     var tot=document.getElementById('emx-total'); if(tot) tot.textContent=total;
+    var lim=document.getElementById('emx-limpiar'); if(lim) lim.style.display=hayFiltro?'inline-flex':'none';
     wireFilas();
   }
 
@@ -3619,6 +3794,12 @@ initFirebase();
     if(q){ q.oninput=function(){ filtro=q.value; pintarFilas(); }; }
     var pb=document.getElementById('emx-print-btn'); if(pb) pb.onclick=imprimir;
     var xb=document.getElementById('emx-xls'); if(xb) xb.onclick=exportarExcel;
+    var otrosBtn=document.getElementById('emx-otros-btn'), otrosMenu=document.getElementById('emx-otros-menu');
+    if(otrosBtn&&otrosMenu){ otrosBtn.onclick=function(ev){ ev.stopPropagation(); otrosMenu.classList.toggle('abierto'); }; }
+    var selA=document.getElementById('emx-anio'); if(selA) selA.onchange=function(){ filtroAnio=selA.value; pintarFilas(); };
+    var selM=document.getElementById('emx-mes'); if(selM) selM.onchange=function(){ filtroMes=selM.value; pintarFilas(); };
+    var limBtn=document.getElementById('emx-limpiar-btn');
+    if(limBtn) limBtn.onclick=function(){ filtro=''; filtroAnio=''; filtroMes=''; var qq=document.getElementById('emx-q'); if(qq)qq.value=''; var sa=document.getElementById('emx-anio'); if(sa)sa.value=''; var sm=document.getElementById('emx-mes'); if(sm)sm.value=''; pintarFilas(); };
     var menu=document.getElementById('emx-menu');
     if(menu){ menu.onmousedown=function(ev){ var it=ev.target.closest('.emx-menu-item'); if(!it)return; ev.preventDefault(); setCampo(menu.dataset.id,menu.dataset.campo,it.dataset.val); cerrarMenu(); pintarFilas(); }; }
     if(!ES_EDITOR) return;
@@ -3671,7 +3852,19 @@ initFirebase();
   window.estatusRender = function(){ if(document.getElementById('estatus-root')) mount(); };
 
   function arranque(){
-    if(!window.__estatusMenuWired){ window.__estatusMenuWired=true; document.addEventListener('mousedown',function(ev){ var m=document.getElementById('emx-menu'); if(!m||m.style.display==='none')return; if(ev.target.closest('#emx-menu')||ev.target.closest('.emx-combo-btn'))return; cerrarMenu(); }); }
+    if(!window.__estatusMenuWired){ window.__estatusMenuWired=true;
+      document.addEventListener('mousedown',function(ev){
+        var om=document.getElementById('emx-otros-menu'); if(om&&om.classList.contains('abierto')&&!ev.target.closest('.emx-otros')) om.classList.remove('abierto');
+        var m=document.getElementById('emx-menu'); if(!m||m.style.display==='none')return; if(ev.target.closest('#emx-menu')||ev.target.closest('.emx-combo-btn'))return; cerrarMenu();
+      });
+      // Ctrl+B (o Cmd+B) → lupa: enfoca la búsqueda (útil para hallar por los últimos dígitos de la serie)
+      document.addEventListener('keydown',function(e){
+        if((e.ctrlKey||e.metaKey) && !e.shiftKey && !e.altKey && (e.key==='b'||e.key==='B')){
+          var q=document.getElementById('emx-q');
+          if(q && q.offsetParent!==null){ e.preventDefault(); q.focus(); q.select(); }
+        }
+      });
+    }
     cargarCache();
     if(document.getElementById('estatus-root')) mount();
     initFB();
