@@ -337,6 +337,12 @@
     <input type="file" accept=".json,.xlsx,.xls" style="display:none" onchange="importJSON(event)">
   </label>
 
+  <div style="height: 24px"></div>
+  <h3>☁️ Respaldos automáticos (en la nube)</h3>
+  <p style="color:#666; font-size:14px; margin-bottom: 10px;">Cada semana, si la app está abierta, se guarda <strong>solo</strong> un respaldo en la nube (sin descargar nada, sin carpetas). Aquí puedes ver y restaurar versiones anteriores.</p>
+  <button class="btn btn-block" onclick="verRespaldos()">☁️ Ver respaldos en la nube</button>
+  <div id="respaldos-lista" style="margin-top:12px;"></div>
+
   <div style="height: 30px"></div>
   <h3>📥 Importar Inventario Masivo</h3>
   <p style="color:#666; font-size:14px; margin-bottom: 10px;">Sube el Excel (.xlsx) o JSON con la plantilla. Las piezas se AGREGAN.</p>
@@ -1072,6 +1078,71 @@ function imprimirSalida(id, copias){
   '</body></html>';
   const w=window.open('','_blank'); if(!w){ alert('Permite las ventanas emergentes para imprimir.'); return; }
   w.document.write(html); w.document.close();
+}
+
+// ============================================================
+// RESPALDO AUTOMÁTICO EN LA NUBE (snapshot semanal en Firebase, sin descargas)
+// ============================================================
+function respaldoAutomatico(){
+  try {
+    if (!fbRef) return;                                                // sin Firebase iniciado (o preview), no respalda
+    if (typeof esEditor === 'function' && !esEditor()) return;         // solo el editor respalda
+    if (typeof firebase === 'undefined' || !firebase.database) return; // sin nube, no hay respaldo
+    if (!DATA || (!(DATA.piezas||[]).length && !(DATA.camiones||[]).length)) return; // no respaldar vacío
+    var ultimo = 0;
+    try { ultimo = parseInt(localStorage.getItem('tpm_ultimo_respaldo') || '0', 10) || 0; } catch(e){}
+    var UNA_SEMANA = 7*24*60*60*1000;
+    if (Date.now() - ultimo < UNA_SEMANA) return;                      // ya hay uno de esta semana
+    var ts = Date.now(), d = new Date();
+    var fecha = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    var snap = { _key: EDITOR_KEY, ts: ts, fecha: fecha, piezas: (DATA.piezas||[]).length, camiones: (DATA.camiones||[]).length, json: JSON.stringify(DATA) };
+    firebase.database().ref('respaldos_inventario/'+ts).set(snap).then(function(){
+      try { localStorage.setItem('tpm_ultimo_respaldo', String(ts)); } catch(e){}
+      // podar: dejar solo los últimos 10
+      firebase.database().ref('respaldos_inventario').once('value').then(function(s){
+        var all = s.val() || {};
+        var keys = Object.keys(all).sort(function(a,b){ return (all[b].ts||+b) - (all[a].ts||+a); });
+        keys.slice(10).forEach(function(k){ firebase.database().ref('respaldos_inventario/'+k).remove(); });
+      });
+      if (typeof toast === 'function') toast('☁️ Respaldo semanal guardado en la nube', 'success');
+    }).catch(function(err){ console.warn('respaldo auto:', err && err.message); });
+  } catch(e){ console.warn('respaldo auto:', e); }
+}
+function verRespaldos(){
+  if (typeof esEditor === 'function' && !esEditor()) { alert('Entra como Editor para ver/restaurar respaldos.'); return; }
+  var cont = document.getElementById('respaldos-lista'); if (!cont) return;
+  cont.innerHTML = '<div class="info-bar">Cargando respaldos de la nube…</div>';
+  firebase.database().ref('respaldos_inventario').once('value').then(function(s){
+    var all = s.val() || {};
+    var keys = Object.keys(all).sort(function(a,b){ return (all[b].ts||+b) - (all[a].ts||+a); });
+    if (!keys.length){ cont.innerHTML = '<div class="info-bar">Aún no hay respaldos. Se genera uno solo cuando la app esté abierta (una vez por semana).</div>'; return; }
+    cont.innerHTML = keys.map(function(k){
+      var r = all[k] || {};
+      var f = r.fecha || new Date(r.ts||+k).toISOString().slice(0,10);
+      var hora = new Date(r.ts||+k).toLocaleString('es-MX');
+      return '<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px;margin-bottom:8px;">'+
+        '<div><div style="font-weight:800;">📅 '+f+'</div><div style="font-size:12px;color:#888;">'+hora+' · '+(r.piezas!=null?r.piezas:'?')+' piezas · '+(r.camiones!=null?r.camiones:'?')+' camiones</div></div>'+
+        '<button class="btn btn-small btn-danger solo-editor" onclick="restaurarRespaldo(\''+k+'\')">Restaurar</button>'+
+      '</div>';
+    }).join('');
+  }).catch(function(err){ cont.innerHTML = '<div class="info-bar">No se pudo leer los respaldos: '+((err&&err.message)||err)+'</div>'; });
+}
+function restaurarRespaldo(k){
+  if (typeof esEditor === 'function' && !esEditor()) { alert('Entra como Editor.'); return; }
+  firebase.database().ref('respaldos_inventario/'+k).once('value').then(function(s){
+    var r = s.val(); if (!r || !r.json){ alert('Respaldo no encontrado o vacío.'); return; }
+    if (!confirm('⚠️ RESTAURAR el respaldo del '+(r.fecha||'')+'?\n\nEsto REEMPLAZA TODO el inventario actual con esa versión. Lo de hoy se perderá si no lo respaldas antes.')) return;
+    if (!confirm('Segunda confirmación 🔒\n\n¿Seguro que reemplazas todo el inventario con la copia del '+(r.fecha||'')+'?')) return;
+    try {
+      var restaurada = JSON.parse(r.json);
+      pushUndo('Restaurar respaldo de nube');
+      DATA = normalizarData(restaurada);
+      guardar();
+      refrescarVistaActual();
+      toast('✔ Respaldo restaurado ('+(r.fecha||'')+')', 'success');
+      alert('Inventario restaurado a la versión del '+(r.fecha||'')+'.');
+    } catch(e){ alert('No se pudo restaurar: '+e.message); }
+  });
 }
 
 function initFirebase() {
@@ -3929,6 +4000,7 @@ aplicarModo();
 renderCamiones();
 initFirebase();
 initEstatusPuente();
+setTimeout(respaldoAutomatico, 9000); // respaldo semanal automático a la nube (tras cargar datos)
 </script>
 <script>window.ESTATUS_MODO='lectura';</script>
 <!-- ═══════════════════════════════════════════════════════════════════════════
