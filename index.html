@@ -28,6 +28,8 @@
   nav button:hover { background: #faf8f3; }
   nav button.active { color: #17140f; border-bottom-color: #b03a2e; }
   nav button:active { opacity: 0.7; }
+  /* Administrar y Exportar: menos importantes → a la mitad de ancho */
+  nav button[data-view="admin"], nav button[data-view="exportar"] { flex: 0.5; font-size: 11px; padding: 16px 3px; letter-spacing: 0.3px; }
 
   /* MAIN */
   main { padding: 32px; max-width: 1400px; margin: 0 auto; }
@@ -1112,10 +1114,12 @@ function verRespaldos(){
   if (typeof esEditor === 'function' && !esEditor()) { alert('Entra como Editor para ver/restaurar respaldos.'); return; }
   var cont = document.getElementById('respaldos-lista'); if (!cont) return;
   cont.innerHTML = '<div class="info-bar">Cargando respaldos de la nube…</div>';
+  respaldoAutomatico(); // si toca (primera vez / pasó una semana), crea uno ahora mismo
+  setTimeout(function(){
   firebase.database().ref('respaldos_inventario').once('value').then(function(s){
     var all = s.val() || {};
     var keys = Object.keys(all).sort(function(a,b){ return (all[b].ts||+b) - (all[a].ts||+a); });
-    if (!keys.length){ cont.innerHTML = '<div class="info-bar">Aún no hay respaldos. Se genera uno solo cuando la app esté abierta (una vez por semana).</div>'; return; }
+    if (!keys.length){ cont.innerHTML = '<div class="info-bar">Aún no hay respaldos. Se genera uno solo cuando la app esté abierta (una vez por semana). Si acabas de entrar como Editor, espera unos segundos y vuelve a picar.</div>'; return; }
     cont.innerHTML = keys.map(function(k){
       var r = all[k] || {};
       var f = r.fecha || new Date(r.ts||+k).toISOString().slice(0,10);
@@ -1126,6 +1130,7 @@ function verRespaldos(){
       '</div>';
     }).join('');
   }).catch(function(err){ cont.innerHTML = '<div class="info-bar">No se pudo leer los respaldos: '+((err&&err.message)||err)+'</div>'; });
+  }, 1800);
 }
 function restaurarRespaldo(k){
   if (typeof esEditor === 'function' && !esEditor()) { alert('Entra como Editor.'); return; }
@@ -1133,6 +1138,7 @@ function restaurarRespaldo(k){
     var r = s.val(); if (!r || !r.json){ alert('Respaldo no encontrado o vacío.'); return; }
     if (!confirm('⚠️ RESTAURAR el respaldo del '+(r.fecha||'')+'?\n\nEsto REEMPLAZA TODO el inventario actual con esa versión. Lo de hoy se perderá si no lo respaldas antes.')) return;
     if (!confirm('Segunda confirmación 🔒\n\n¿Seguro que reemplazas todo el inventario con la copia del '+(r.fecha||'')+'?')) return;
+    if (!confirm('Última confirmación ⚠️🔒⚠️\n\nEsto reemplaza TODO y no es fácil de deshacer.\n\n¿100% seguro de restaurar la copia del '+(r.fecha||'')+'?')) return;
     try {
       var restaurada = JSON.parse(r.json);
       pushUndo('Restaurar respaldo de nube');
@@ -4000,7 +4006,8 @@ aplicarModo();
 renderCamiones();
 initFirebase();
 initEstatusPuente();
-setTimeout(respaldoAutomatico, 9000); // respaldo semanal automático a la nube (tras cargar datos)
+setTimeout(respaldoAutomatico, 9000);   // primer intento tras cargar datos
+setInterval(respaldoAutomatico, 60000); // reintenta cada minuto (por si no estabas en Editor al inicio)
 </script>
 <script>window.ESTATUS_MODO='lectura';</script>
 <!-- ═══════════════════════════════════════════════════════════════════════════
