@@ -165,10 +165,39 @@
   </div>
 </header>
 
+<!-- CANDADO DE ACCESO (contraseña compartida) -->
+<div id="lock-screen" style="position:fixed;inset:0;z-index:100000;background:#17140f;color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:Georgia,serif;">
+  <div style="font-size:28px;font-weight:800;letter-spacing:1px;margin-bottom:6px;">Tracto Partes Magaña</div>
+  <div style="font-size:13px;color:#c9a24b;text-transform:uppercase;letter-spacing:2px;margin-bottom:28px;font-family:Arial,sans-serif;">Inventario · Acceso privado</div>
+  <div style="width:100%;max-width:320px;">
+    <input type="password" id="lock-input" placeholder="Contraseña" style="width:100%;padding:14px;font-size:17px;border:none;border-radius:6px;font-family:Arial,sans-serif;text-align:center;" onkeydown="if(event.key==='Enter')desbloquearAcceso()">
+    <button onclick="desbloquearAcceso()" style="width:100%;margin-top:12px;padding:14px;font-size:16px;font-weight:700;background:#b03a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:Arial,sans-serif;">Entrar</button>
+    <div id="lock-msg" style="color:#e79; font-size:13px; margin-top:10px; min-height:16px; font-family:Arial,sans-serif;"></div>
+  </div>
+</div>
+<script>
+(function(){
+  var ACCESO_PIN='tractmag2026';          /* ← contraseña compartida (cámbiala cuando quieras) */
+  var ACCESO_KEY='tpm_acceso_ok';
+  window.desbloquearAcceso=function(){
+    var v=(document.getElementById('lock-input').value||'');
+    if(v===ACCESO_PIN){ try{localStorage.setItem(ACCESO_KEY,'1');}catch(e){} var ls=document.getElementById('lock-screen'); if(ls) ls.style.display='none'; }
+    else { var m=document.getElementById('lock-msg'); if(m) m.textContent='Contraseña incorrecta'; }
+  };
+  function chk(){
+    var ok=false; try{ ok=localStorage.getItem(ACCESO_KEY)==='1'; }catch(e){}
+    var ls=document.getElementById('lock-screen');
+    if(!ok && ls){ ls.style.display='flex'; var i=document.getElementById('lock-input'); if(i) setTimeout(function(){i.focus();},120); }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',chk); else chk();
+})();
+</script>
+
 <nav>
   <button class="active" data-view="camiones">🏠 Inicio</button>
   <button data-view="buscar">🔧 Piezas</button>
   <button data-view="ventas">💵 Ventas</button>
+  <button data-view="salidas">📤 Salidas</button>
   <button data-view="estatus">📋 Estatus Chasis</button>
   <button data-view="admin">📝 Administrar</button>
   <button data-view="exportar">⚙️ Exportar</button>
@@ -195,6 +224,7 @@
     <button class="btn btn-mini" style="background:#d4d4d4; color:#1a1a1a; border-color:#999;" onclick="verTodasPiezas('chasis')">Chasis</button>
     <button class="btn btn-mini" style="background:#cfe9e9; color:#1a1a1a; border-color:#6db8a0;" onclick="verTodasPiezas('mancuernas')">Mancuerna</button>
     <button class="btn btn-mini" style="background:#f5d6e8; color:#1a1a1a; border-color:#c87da8;" onclick="verTodasPiezas('cabinas')">Cabina</button>
+    <button class="btn btn-mini" style="background:#f0d8d0; color:#1a1a1a; border-color:#c89a8a;" onclick="verInyectoresEstados()">Inyectores</button>
   </div>
 
   <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="openCamionModal()">🚛 Registrar Camión Nuevo 🚛</button>
@@ -252,6 +282,17 @@
     <button class="btn btn-mini" style="margin-top:8px;" onclick="document.getElementById('ventas-desde').value='';document.getElementById('ventas-hasta').value='';renderVentas()">Limpiar filtro</button>
   </div>
   <div id="ventas-lista"></div>
+</section>
+
+<!-- SALIDAS A REPARACIÓN -->
+<section class="view" id="view-salidas">
+  <h2>📤 Salidas a Reparación</h2>
+  <div class="info-bar">Registra las piezas que mandas a un taller externo (Arturo, etc.), genera el <strong>folio</strong> e imprime la <strong>hoja de salida</strong> para firma. Marca los regresos y el sistema lleva el control solo.</div>
+  <div style="display:flex; gap:8px; align-items:center; margin:12px 0; flex-wrap:wrap;">
+    <button class="btn btn-primary solo-editor" onclick="nuevaSalida()">＋ Nueva salida</button>
+    <input id="salidas-buscar" oninput="renderSalidas()" placeholder="🔎 Buscar folio, empresa o pieza…" style="flex:1; min-width:180px;">
+  </div>
+  <div id="salidas-lista"></div>
 </section>
 
 <!-- ADMINISTRAR -->
@@ -336,6 +377,19 @@
   </div>
 </div>
 
+<!-- MODAL SALIDA -->
+<div class="modal-bg" id="modal-salida">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-salida-title">Nueva salida</div>
+      <button class="modal-close" onclick="closeModal('modal-salida')">×</button>
+    </div>
+    <div id="modal-salida-body"></div>
+  </div>
+</div>
+<datalist id="dl-empresas"></datalist>
+<datalist id="dl-lugares"></datalist>
+
 <!-- MODAL VENTA -->
 <div class="modal-bg" id="modal-venta">
   <div class="modal" style="max-width:420px;">
@@ -350,7 +404,7 @@
     </div>
     <div class="field">
       <label>Precio de venta (opcional)</label>
-      <input type="text" id="venta-precio" placeholder="$ ej. 25000">
+      <input type="text" class="precio-input" id="venta-precio" placeholder="$ ej. 25000">
     </div>
     <button class="btn btn-success btn-block" onclick="confirmarVenta()">✓ Confirmar Venta</button>
   </div>
@@ -682,6 +736,344 @@ function initEstatusPuente(){
   catch(e){ console.warn('puente estatus->inventario:', e); }
 }
 
+// ============================================================
+// SALIDAS DE MERCANCÍA (Fase A) — piezas enviadas a taller externo
+// ============================================================
+function getSalidas(){ if(!Array.isArray(DATA.salidas)) DATA.salidas=[]; return DATA.salidas; }
+
+function folioSugerido(){
+  const d=new Date();
+  const base=String(d.getDate()).padStart(2,'0')+String(d.getMonth()+1).padStart(2,'0')+String(d.getFullYear()).slice(-2);
+  const n=getSalidas().filter(s=>String(s.folio||'').startsWith(base+'-')).length+1;
+  return base+'-'+n;
+}
+function fechaHoyISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fechaBonita(iso){
+  if(!iso) return '';
+  const p=String(iso).split('-'); if(p.length!==3) return iso;
+  const meses=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return p[2].replace(/^0/,'')+'/'+(meses[parseInt(p[1],10)-1]||p[1])+'/'+p[0].slice(-2);
+}
+function salidaEstatus(s){
+  const items=(s&&s.items)||[];
+  if(!items.length) return {txt:'SIN PIEZAS', done:0, total:0, completa:false};
+  const done=items.filter(it=>it&&it.regreso).length;
+  return {txt: done>=items.length?'COMPLETA':'EN REPARACIÓN', done, total:items.length, completa:done>=items.length};
+}
+function _diasDesde(iso){
+  if(!iso) return null;
+  var p=String(iso).split('-'); if(p.length!==3) return null;
+  var d=new Date(parseInt(p[0],10), parseInt(p[1],10)-1, parseInt(p[2],10));
+  if(isNaN(d.getTime())) return null;
+  var hoy=new Date(); hoy.setHours(0,0,0,0);
+  return Math.max(0, Math.floor((hoy - d)/86400000));
+}
+function piezasAfuera(){
+  var out=[];
+  getSalidas().forEach(function(s){
+    (s.items||[]).forEach(function(it){
+      if(it && !it.regreso) out.push({empresa:s.empresa||'—', folio:s.folio||'', dias:_diasDesde(s.fecha), cant:it.cant||1, desc:it.desc||'', cod:it.cod||''});
+    });
+  });
+  return out;
+}
+function salidasSugeridas(campo){
+  const set={};
+  getSalidas().forEach(s=>{ const v=(s[campo]||'').trim(); if(v) set[v]=true; });
+  return Object.keys(set).sort();
+}
+function _inyLabel(p){
+  const t=(p.modelo||(p.extras&&p.extras.terminacion)||'Inyector');
+  const s=(p.extras&&(p.extras.serie||p.extras.fichaVin))||'';
+  const f=p.fechaVenta?(' · vendido '+new Date(p.fechaVenta).toLocaleDateString('es-MX')):'';
+  return String(t)+(s?(' · '+s):'')+f;
+}
+function inyectoresVendidos(){
+  return (DATA.piezas||[]).filter(p=>p&&p.familia==='inyectores'&&p.vendida)
+    .sort((a,b)=>(b.fechaVenta||0)-(a.fechaVenta||0))
+    .map(p=>({id:p.id, label:_inyLabel(p)}));
+}
+// Cores disponibles (inyectores estado 'core', no vendidos) — para ligarlos en la salida
+function coresParaReparar(){
+  return (DATA.piezas||[]).filter(p=>p&&esFamiliaReparacion(p.familia)&&!p.vendida&&(p.estado||'reconstruido')==='core')
+    .sort((a,b)=>(b.fechaRegistro||0)-(a.fechaRegistro||0))
+    .map(p=>{ const f=FAMILIAS.find(x=>x.id===p.familia); return {id:p.id, label:(((f&&f.nombreSingular)||'')+' '+(p.modelo||'')).trim()+' (core)'}; });
+}
+function _salidaSetOrigen(i,id){
+  if(!_salidaItems[i]) return;
+  if(!id){ _salidaItems[i].origenId=''; _salidaItems[i].origenTxt=''; return; }
+  const p=(DATA.piezas||[]).find(x=>x.id===id);
+  _salidaItems[i].origenId=id;
+  _salidaItems[i].origenTxt=p?_inyLabel(p):'';
+}
+
+function renderSalidas(){
+  const cont=document.getElementById('salidas-lista'); if(!cont) return;
+  const q=(document.getElementById('salidas-buscar')?.value||'').toLowerCase().trim();
+  let list=getSalidas().slice().sort((a,b)=>(b.fechaRegistro||0)-(a.fechaRegistro||0));
+  if(q) list=list.filter(s=>{
+    const txt=[s.folio,s.empresa,s.lugar].concat((s.items||[]).map(i=>(i.desc||'')+' '+(i.cod||''))).join(' ').toLowerCase();
+    return txt.includes(q);
+  });
+  const de=document.getElementById('dl-empresas'); if(de) de.innerHTML=salidasSugeridas('empresa').map(v=>'<option value="'+escapeHtml(v)+'">').join('');
+  const dl=document.getElementById('dl-lugares'); if(dl) dl.innerHTML=salidasSugeridas('lugar').map(v=>'<option value="'+escapeHtml(v)+'">').join('');
+  // Panel "pendiente de regresar" agrupado por persona/taller
+  const afuera=piezasAfuera();
+  let resumen='';
+  if(afuera.length){
+    const porEmp={};
+    afuera.forEach(x=>{ (porEmp[x.empresa]=porEmp[x.empresa]||[]).push(x); });
+    const totalPz=afuera.reduce((a,x)=>a+(x.cant||1),0);
+    resumen='<div style="background:#fff8ec;border:2px solid #E8B339;border-radius:8px;padding:12px;margin-bottom:16px;">'+
+      '<div style="font-weight:800;color:#7A4A0E;font-size:15px;margin-bottom:8px;">🔧 Pendiente de regresar — '+totalPz+' pieza(s) afuera en '+Object.keys(porEmp).length+' taller(es)</div>'+
+      Object.keys(porEmp).map(emp=>{
+        const items=porEmp[emp];
+        return '<div style="margin:6px 0;padding:8px 10px;background:#fff;border-radius:6px;">'+
+          '<div style="font-weight:700;color:#1a1a1a;">👤 '+escapeHtml(emp)+'</div>'+
+          items.map(x=>{
+            const al=(x.dias!=null&&x.dias>=15)?' <span style="color:#b03a2e;font-weight:700;">('+x.dias+' días ⚠️)</span>':(x.dias!=null?' <span style="color:#999;">('+x.dias+' días)</span>':'');
+            return '<div style="font-size:14px;color:#333;margin-top:3px;">• '+(x.cant||1)+' × '+escapeHtml(x.desc||'')+(x.cod?' <span style="color:#999">('+escapeHtml(x.cod)+')</span>':'')+' <span style="color:#bbb;">— folio '+escapeHtml(x.folio)+'</span>'+al+'</div>';
+          }).join('')+
+        '</div>';
+      }).join('')+
+    '</div>';
+  }
+  if(!list.length){ cont.innerHTML=resumen+'<p style="color:#888;text-align:center;padding:24px">'+(q?'Ninguna salida coincide con la búsqueda.':'Aún no hay salidas registradas. Pica «＋ Nueva salida».')+'</p>'; return; }
+  cont.innerHTML=resumen+list.map(s=>{
+    const st=salidaEstatus(s);
+    const badge=st.completa
+      ? '<span style="background:#2e7d46;color:#fff;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;">COMPLETA ✔</span>'
+      : '<span style="background:#E8B339;color:#5a3d00;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700;">EN REPARACIÓN · '+st.done+'/'+st.total+'</span>';
+    let dias=''; if(!st.completa){ const d=_diasDesde(s.fecha); if(d!=null) dias=' · <span style="color:#b06a2e;font-weight:700;">'+d+' días afuera</span>'; }
+    const piezas=(s.items||[]).map(i=>(i.cant||1)+' × '+escapeHtml(i.desc||'')+(i.cod?' <span style="color:#999">('+escapeHtml(i.cod)+')</span>':'')+(i.origenTxt?' <span style="color:#b06a2e">· core de '+escapeHtml(i.origenTxt)+'</span>':'')+(i.regreso?' <span style="color:#2e7d46" title="regresó">↩︎</span>':'')).join('<br>');
+    return '<div class="card" style="background:#fff;border:3px solid #b06a2e;border-radius:8px;">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">'+
+        '<div style="flex:1;min-width:0;">'+
+          '<div style="font-size:16px;font-weight:900;color:#1a1a1a;">📤 Folio '+escapeHtml(s.folio||'—')+' '+badge+'</div>'+
+          '<div style="font-size:13px;color:#666;margin-top:3px;">'+fechaBonita(s.fecha)+' · <strong>'+escapeHtml(s.empresa||'—')+'</strong>'+(s.lugar?' · '+escapeHtml(s.lugar):'')+dias+'</div>'+
+          '<div style="font-size:14px;color:#333;margin-top:7px;line-height:1.5;">'+piezas+'</div>'+
+          (s.costo?'<div style="font-size:12px;color:#999;margin-top:5px;">Costo reparación: '+escapeHtml(String(s.costo))+'</div>':'')+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0;">'+
+          '<button class="btn btn-small btn-mini" onclick="imprimirSalidaMenu(\''+s.id+'\')">🖨 Hoja</button>'+
+          '<button class="btn btn-small btn-mini solo-editor" onclick="marcarRegresosSalida(\''+s.id+'\')">↩︎ Regresos</button>'+
+          '<button class="btn btn-small btn-mini solo-editor" onclick="editarSalida(\''+s.id+'\')">Editar</button>'+
+          '<button class="btn btn-small btn-mini btn-danger solo-editor" onclick="borrarSalida(\''+s.id+'\')">🗑</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+let _salidaEditId=null;
+let _salidaItems=[];
+
+function nuevaSalida(){
+  if(typeof esEditor==='function' && !esEditor()){ alert('Entra como Editor (arriba a la derecha) para crear salidas.'); return; }
+  _salidaEditId=null;
+  _salidaItems=[{cant:1,desc:'',cod:'',regreso:false}];
+  abrirFormSalida({folio:folioSugerido(), fecha:fechaHoyISO(), empresa:'', lugar:'', costo:'', garantia:''});
+}
+// Fase B: desde Piezas, "A reparación" en un core → abre la hoja de salida pre-llenada con ese core
+function mandarCoreAReparacion(coreId){
+  if(typeof esEditor==='function' && !esEditor()){ alert('Entra como Editor para mandar a reparación.'); return; }
+  const p=(DATA.piezas||[]).find(x=>x.id===coreId); if(!p) return;
+  _salidaEditId=null;
+  const f=FAMILIAS.find(x=>x.id===p.familia);
+  const nom=(f&&(f.nombreSingular||f.nombre))||'Pieza';
+  const modelo=p.modelo||'';
+  _salidaItems=[{cant:1, desc:(nom+' '+modelo).trim().toUpperCase(), cod:modelo, regreso:false, origenId:coreId, origenTxt:(nom+' '+modelo).trim()+' (core)'}];
+  if(typeof closeModal==='function') closeModal('modal-pieza'); // evita modales encimados si venías del modal de Inyectores
+  abrirFormSalida({folio:folioSugerido(), fecha:fechaHoyISO(), empresa:'', lugar:'', costo:'', garantia:''});
+}
+function editarSalida(id){
+  if(typeof esEditor==='function' && !esEditor()){ alert('Entra como Editor para editar salidas.'); return; }
+  const s=getSalidas().find(x=>x.id===id); if(!s) return;
+  _salidaEditId=id;
+  _salidaItems=(s.items||[]).map(i=>({cant:i.cant||1,desc:i.desc||'',cod:i.cod||'',regreso:!!i.regreso,origenId:i.origenId||'',origenTxt:i.origenTxt||''}));
+  if(!_salidaItems.length) _salidaItems=[{cant:1,desc:'',cod:'',regreso:false}];
+  abrirFormSalida(s);
+}
+function abrirFormSalida(s){
+  document.getElementById('modal-salida-title').textContent=_salidaEditId?'Editar salida':'Nueva salida';
+  const body=document.getElementById('modal-salida-body');
+  body.innerHTML=
+    '<div class="field"><label>Folio</label><input type="text" id="sal-folio" value="'+escapeHtml(s.folio||'')+'"></div>'+
+    '<div class="field"><label>Fecha de salida</label><input type="date" id="sal-fecha" value="'+escapeHtml(s.fecha||'')+'"></div>'+
+    '<div class="field"><label>Empresa / Taller</label><input type="text" id="sal-empresa" list="dl-empresas" value="'+escapeHtml(s.empresa||'')+'" placeholder="Ej. Arturo Gandara"></div>'+
+    '<div class="field"><label>Lugar de reparación</label><input type="text" id="sal-lugar" list="dl-lugares" value="'+escapeHtml(s.lugar||'')+'" placeholder="Ej. Servicio Técnico Diesel"></div>'+
+    '<div class="field"><label>Costo reparación (opcional)</label><input type="text" id="sal-costo" value="'+escapeHtml(s.costo||'')+'" placeholder="$ o NA"></div>'+
+    '<div class="field"><label>Garantía (opcional)</label><input type="text" id="sal-garantia" value="'+escapeHtml(s.garantia||'')+'"></div>'+
+    '<label style="font-weight:700;display:block;margin:12px 0 6px;">Piezas que salen</label>'+
+    '<div id="sal-items"></div>'+
+    '<button class="btn btn-mini" style="margin-top:8px;" onclick="salidaAgregarItem()">＋ Agregar pieza</button>'+
+    '<div style="display:flex;gap:8px;margin-top:16px;">'+
+      '<button class="btn btn-primary" onclick="guardarSalida()">Guardar salida</button>'+
+      '<button class="btn" onclick="closeModal(\'modal-salida\')">Cancelar</button>'+
+    '</div>';
+  pintarItemsSalida();
+  openModal('modal-salida');
+}
+function pintarItemsSalida(){
+  const c=document.getElementById('sal-items'); if(!c) return;
+  const vend=coresParaReparar();
+  c.innerHTML=_salidaItems.map((it,i)=>{
+    let origen='';
+    if(vend.length || it.origenId){
+      origen='<div style="margin-top:8px;">'+
+        '<select style="margin:0;" onchange="_salidaSetOrigen('+i+',this.value)">'+
+          '<option value="">🔩 Core que se manda (opcional) — se moverá a "en reparación"</option>'+
+          vend.map(v=>'<option value="'+v.id+'" '+(it.origenId===v.id?'selected':'')+'>'+escapeHtml(v.label)+'</option>').join('')+
+        '</select></div>';
+    }
+    return '<div style="border:1px solid #e6e0d4;border-radius:6px;padding:10px;margin-bottom:10px;background:#fff;">'+
+      '<div style="display:flex;gap:8px;align-items:center;">'+
+        '<input type="number" min="1" style="width:70px;" value="'+(it.cant||1)+'" onchange="_salidaItems['+i+'].cant=this.value" title="Cantidad">'+
+        '<input type="text" style="flex:1;min-width:0;" value="'+escapeHtml(it.desc||'')+'" oninput="_salidaItems['+i+'].desc=this.value" placeholder="Descripción (ej. INYECTORES)">'+
+        '<input type="text" style="width:130px;" value="'+escapeHtml(it.cod||'')+'" oninput="_salidaItems['+i+'].cod=this.value" placeholder="Código">'+
+        '<button class="btn btn-mini btn-danger" onclick="salidaQuitarItem('+i+')" title="Quitar">✕</button>'+
+      '</div>'+origen+
+    '</div>';
+  }).join('');
+}
+function salidaAgregarItem(){ _salidaItems.push({cant:1,desc:'',cod:'',regreso:false}); pintarItemsSalida(); }
+function salidaQuitarItem(i){ _salidaItems.splice(i,1); if(!_salidaItems.length)_salidaItems.push({cant:1,desc:'',cod:'',regreso:false}); pintarItemsSalida(); }
+
+function guardarSalida(){
+  if(typeof esEditor==='function' && !esEditor()){ alert('Entra como Editor para guardar salidas.'); return; }
+  const folio=(document.getElementById('sal-folio').value||'').trim();
+  if(!folio){ alert('Ponle un folio a la salida.'); return; }
+  const items=_salidaItems.filter(it=>(it.desc||'').trim()||(it.cod||'').trim()).map(it=>({cant:parseInt(it.cant,10)||1,desc:(it.desc||'').trim(),cod:(it.cod||'').trim(),regreso:!!it.regreso,origenId:it.origenId||'',origenTxt:it.origenTxt||''}));
+  if(!items.length){ alert('Agrega al menos una pieza (descripción o código).'); return; }
+  const datos={
+    folio, fecha:document.getElementById('sal-fecha').value||'',
+    empresa:(document.getElementById('sal-empresa').value||'').trim(),
+    lugar:(document.getElementById('sal-lugar').value||'').trim(),
+    costo:(document.getElementById('sal-costo').value||'').trim(),
+    garantia:(document.getElementById('sal-garantia').value||'').trim(),
+    items
+  };
+  const arr=getSalidas();
+  let nuevaId=null;
+  if(_salidaEditId){
+    const s=arr.find(x=>x.id===_salidaEditId); if(s) Object.assign(s,datos);
+  } else {
+    nuevaId='sal_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    arr.push(Object.assign({id:nuevaId, fechaRegistro:Date.now()}, datos));
+  }
+  // Fase B: los cores ligados en esta salida pasan a "en reparación"
+  let movidos=0;
+  items.forEach(function(it){
+    if(it.origenId){
+      const core=DATA.piezas.find(x=>x.id===it.origenId);
+      if(core && esFamiliaReparacion(core.familia) && (core.estado||'reconstruido')==='core'){ core.estado='reparacion'; movidos++; }
+    }
+  });
+  guardar(); closeModal('modal-salida'); refrescarVistaActual();
+  toast(movidos>0 ? ('🔧 '+movidos+' core(s) enviados a reparación') : 'Salida guardada', 'success');
+  // Al crear una salida nueva, ofrecer imprimir la hoja de inmediato
+  if(nuevaId) imprimirSalidaMenu(nuevaId);
+}
+function borrarSalida(id){
+  if(typeof esEditor==='function' && !esEditor()){ alert('Entra como Editor para borrar.'); return; }
+  const s=getSalidas().find(x=>x.id===id); if(!s) return;
+  if(!confirm('¿Borrar la salida folio '+(s.folio||'')+'? Esto no se puede deshacer.')) return;
+  DATA.salidas=getSalidas().filter(x=>x.id!==id);
+  guardar(); renderSalidas(); toast('Salida borrada','success');
+}
+function marcarRegresosSalida(id){
+  if(typeof esEditor==='function' && !esEditor()){ alert('Entra como Editor para marcar regresos.'); return; }
+  const s=getSalidas().find(x=>x.id===id); if(!s) return;
+  document.getElementById('modal-salida-title').textContent='Regresos · Folio '+(s.folio||'');
+  const body=document.getElementById('modal-salida-body');
+  body.innerHTML=
+    '<p style="color:#666;font-size:14px;margin-bottom:10px;">Marca las piezas que ya <strong>regresaron</strong> del taller. Cuando todas regresen, la salida queda <strong>COMPLETA</strong>.</p>'+
+    '<div>'+(s.items||[]).map((it,i)=>
+      '<label style="display:flex;align-items:center;gap:10px;padding:9px;border:1px solid #ddd;border-radius:6px;margin-bottom:6px;cursor:pointer;">'+
+        '<input type="checkbox" '+(it.regreso?'checked':'')+' onchange="_toggleRegreso(\''+id+'\','+i+',this.checked)" style="width:20px;height:20px;">'+
+        '<span>'+(it.cant||1)+' × '+escapeHtml(it.desc||'')+(it.cod?' ('+escapeHtml(it.cod)+')':'')+'</span>'+
+      '</label>').join('')+'</div>'+
+    '<button class="btn btn-primary" style="margin-top:12px;" onclick="closeModal(\'modal-salida\');renderSalidas();">Listo</button>';
+  openModal('modal-salida');
+}
+function _toggleRegreso(id,i,val){
+  const s=getSalidas().find(x=>x.id===id); if(!s||!s.items||!s.items[i]) return;
+  s.items[i].regreso=val;
+  // Sincroniza el inyector ligado: regresó → reconstruido (en venta); si se desmarca → en reparación
+  const oid=s.items[i].origenId;
+  if(oid){
+    const core=DATA.piezas.find(x=>x.id===oid);
+    if(core && esFamiliaReparacion(core.familia)){
+      core.estado = val ? 'reconstruido' : 'reparacion';
+      if(val) core.vendida=false;
+    }
+  }
+  guardar();
+}
+
+function imprimirSalidaMenu(id){
+  const s=getSalidas().find(x=>x.id===id); if(!s) return;
+  document.getElementById('modal-salida-title').textContent='Imprimir hoja · Folio '+(s.folio||'');
+  document.getElementById('modal-salida-body').innerHTML=
+    '<p style="color:#666;font-size:14px;margin-bottom:14px;">¿Cuántas copias imprimo?</p>'+
+    '<div style="display:flex;gap:10px;">'+
+      '<button class="btn btn-primary" style="flex:1;" onclick="closeModal(\'modal-salida\');imprimirSalida(\''+id+'\',1)">🖨 1 copia</button>'+
+      '<button class="btn btn-primary" style="flex:1;" onclick="closeModal(\'modal-salida\');imprimirSalida(\''+id+'\',2)">🖨 2 copias<br><span style="font-size:11px;font-weight:400;">(misma hoja · córtala a la mitad)</span></button>'+
+    '</div>';
+  openModal('modal-salida');
+}
+function imprimirSalida(id, copias){
+  copias = (copias===2) ? 2 : 1;
+  const s=getSalidas().find(x=>x.id===id); if(!s) return;
+  const st=salidaEstatus(s);
+  const filas=(s.items||[]).map(it=>'<tr><td class="c">'+(it.cant||1)+'</td><td>'+escapeHtml(it.desc||'')+(it.origenTxt?'<div style="font-size:10px;color:#666">core de: '+escapeHtml(it.origenTxt)+'</div>':'')+'</td><td class="c">'+escapeHtml(it.cod||'')+'</td></tr>').join('');
+  const bloque=
+    '<div class="bloque">'+
+      '<div class="tit">SALIDA DE MERCANCÍA</div>'+
+      '<div class="folio">Folio: '+escapeHtml(s.folio||'—')+'</div>'+
+      '<div class="row"><b>Fecha:</b> '+(fechaBonita(s.fecha)||'________')+'</div>'+
+      '<div class="row"><b>Empresa:</b> '+escapeHtml(s.empresa||'________')+'</div>'+
+      '<div class="row"><b>Lugar de reparación:</b> '+escapeHtml(s.lugar||'________')+'</div>'+
+      '<table><thead><tr><th style="width:56px">Cant</th><th>Descripción / Pieza</th><th style="width:120px">Cód. Parte</th></tr></thead><tbody>'+filas+'</tbody></table>'+
+      '<div class="estatus">Regreso al almacén: '+st.done+' de '+st.total+' piezas regresaron &nbsp;—&nbsp; '+(st.completa?'COMPLETA':'EN REPARACIÓN')+'</div>'+
+      (s.garantia?'<div class="row" style="margin-top:4px"><b>Garantía:</b> '+escapeHtml(s.garantia)+'</div>':'')+
+      '<div class="firmas">'+
+        '<div><div class="linea">&nbsp;</div>Entregó</div>'+
+        '<div><div class="linea">&nbsp;</div>Recibió</div>'+
+        '<div><div class="linea">&nbsp;</div>Autorizó</div>'+
+      '</div>'+
+      '<div class="pie">TRACTOPARTES MAGAÑA S.A. DE C.V. — Documento de control interno</div>'+
+    '</div>';
+  const corte='<div class="corte">✂ - - - - - - - - - - -  corta aquí  - - - - - - - - - - -</div>';
+  const contenido = (copias===2) ? (bloque + corte + bloque) : bloque;
+  const half = (copias===2);
+  const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Salida '+escapeHtml(s.folio||'')+'</title>'+
+  '<style>'+
+    '@page{margin:'+(half?'0.9cm':'1.6cm')+';}'+
+    'body{font-family:Arial,Helvetica,sans-serif;color:#111;}'+
+    '.bloque{padding:0 2px;}'+
+    '.tit{text-align:center;font-size:'+(half?'18px':'22px')+';font-weight:800;letter-spacing:1px;margin-bottom:2px;}'+
+    '.folio{text-align:right;font-size:12px;font-weight:700;margin-bottom:'+(half?'8px':'14px')+';}'+
+    '.row{font-size:'+(half?'12px':'14px')+';margin:3px 0;}'+
+    '.row b{display:inline-block;width:170px;}'+
+    'table{width:100%;border-collapse:collapse;margin-top:'+(half?'8px':'14px')+';font-size:'+(half?'11px':'13px')+';}'+
+    'th{background:#17140f;color:#fff;text-align:left;padding:'+(half?'5px 8px':'8px 10px')+';text-transform:uppercase;font-size:10px;letter-spacing:.5px;}'+
+    'td{padding:'+(half?'5px 8px':'8px 10px')+';border-bottom:1px solid #ccc;}'+
+    'td.c{text-align:center;}'+
+    '.estatus{margin-top:'+(half?'8px':'16px')+';font-size:'+(half?'12px':'14px')+';font-weight:700;}'+
+    '.firmas{display:flex;justify-content:space-between;margin-top:'+(half?'30px':'64px')+';gap:20px;text-align:center;font-size:11px;}'+
+    '.firmas div{flex:1;}'+
+    '.linea{border-top:1px solid #111;margin-bottom:4px;}'+
+    '.pie{text-align:center;margin-top:'+(half?'16px':'34px')+';font-size:10px;color:#777;border-top:1px solid #ddd;padding-top:6px;}'+
+    '.corte{text-align:center;color:#999;font-size:11px;margin:10px 0;letter-spacing:1px;}'+
+  '</style></head><body>'+
+    contenido+
+    '<scr'+'ipt>window.onload=function(){window.print();}<\/scr'+'ipt>'+
+  '</body></html>';
+  const w=window.open('','_blank'); if(!w){ alert('Permite las ventanas emergentes para imprimir.'); return; }
+  w.document.write(html); w.document.close();
+}
+
 function initFirebase() {
   try {
     fbApp = firebase.initializeApp(firebaseConfig);
@@ -736,6 +1128,7 @@ function normalizarData(obj) {
     catalogos: obj.catalogos || JSON.parse(JSON.stringify(CATALOGOS_DEFAULT)),
     familiasOverride: obj.familiasOverride || JSON.parse(JSON.stringify(FAMILIAS_OVERRIDE_DEFAULT)),
     estatusChasisSync: obj.estatusChasisSync || {},
+    salidas: Array.isArray(obj.salidas) ? obj.salidas : [],
     folioCounter: obj.folioCounter || 1
   };
   return d;
@@ -750,11 +1143,20 @@ function setEstadoSync(estado, texto) {
 
 function refrescarVistaActual() {
   const activa = document.querySelector('.view.active');
-  if (!activa) { renderCamiones(); return; }
-  if (activa.id === 'view-camiones') renderCamiones();
-  else if (activa.id === 'view-buscar') renderBusqueda();
-  else if (activa.id === 'view-admin' && typeof renderAdmin === 'function') renderAdmin();
+  if (activa) {
+    if (activa.id === 'view-camiones') renderCamiones();
+    else if (activa.id === 'view-buscar') renderBusqueda();
+    else if (activa.id === 'view-admin' && typeof renderAdmin === 'function') renderAdmin();
+    else if (activa.id === 'view-salidas') renderSalidas();
+  } else { renderCamiones(); }
   if (typeof actualizarBannerHuerfanos === 'function') actualizarBannerHuerfanos();
+  refrescarModalPiezaSiAbierto();
+}
+// Si el modal de piezas (Ver todas / Inyectores / piezas de un camión) está abierto, lo re-renderiza para que coincida
+var _reabrirModalPieza = null;
+function refrescarModalPiezaSiAbierto(){
+  const m = document.getElementById('modal-pieza');
+  if (m && m.classList.contains('active') && typeof _reabrirModalPieza === 'function') _reabrirModalPieza();
 }
 
 let DATA = cargar();
@@ -771,6 +1173,7 @@ function cargar() {
     catalogos: JSON.parse(JSON.stringify(CATALOGOS_DEFAULT)),
     familiasOverride: JSON.parse(JSON.stringify(FAMILIAS_OVERRIDE_DEFAULT)),
     estatusChasisSync: {},
+    salidas: [],
     folioCounter: 1
   };
 }
@@ -814,6 +1217,7 @@ function showView(name) {
   if (name === 'admin') renderAdmin();
   if (name === 'ventas') renderVentas();
   if (name === 'exportar') poblarBotonesFamilia();
+  if (name === 'salidas') renderSalidas();
   if (name === 'estatus' && window.estatusRender) window.estatusRender();
   window.scrollTo(0,0);
 }
@@ -1017,6 +1421,28 @@ document.addEventListener('keydown', function(e) {
 });
 
 // ============================================================
+// ATAJO: Ctrl/Cmd + F (o + B) → ir a Inicio y enfocar el buscador de piezas
+// ============================================================
+function irABuscarInicio(){
+  if (typeof showView === 'function') showView('camiones');
+  setTimeout(function(){
+    var b = document.getElementById('filtro-camiones');
+    if (b) { b.focus(); if (b.select) b.select(); b.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  }, 60);
+}
+document.addEventListener('keydown', function(e){
+  if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+  var k = e.key;
+  if (k === 'f' || k === 'F') { e.preventDefault(); irABuscarInicio(); return; }
+  if (k === 'b' || k === 'B') {
+    // En la pestaña Estatus, Ctrl+B ya enfoca su buscador de series: ahí no interferimos
+    var eq = document.getElementById('emx-q');
+    if (eq && eq.offsetParent !== null) return;
+    e.preventDefault(); irABuscarInicio();
+  }
+});
+
+// ============================================================
 // MODAL HELPERS
 // ============================================================
 function openModal(id) { document.getElementById(id).classList.add('active'); }
@@ -1131,14 +1557,14 @@ function renderCamiones() {
         <div class="card" style="background:#fff; border:3px solid #e67e22; border-radius:8px;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
             <div style="flex:1; min-width:0;">
-              <div style="font-size:15px; font-weight:800; color:#e67e22;">${f?.nombreSingular || 'Pieza'}${_alertaHuerfano(p)}</div>
+              <div style="font-size:15px; font-weight:800; color:#e67e22;">${f?.nombreSingular || 'Pieza'}${_alertaHuerfano(p)}${estadoInyBadge(p)}</div>
               <div style="margin-top:6px;">${lineasDetalle}</div>
             </div>
             <div style="display:flex; flex-direction:column; gap:5px; flex-shrink:0;">
               ${qrBtn}
-              <button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>
-              <button class="btn btn-small btn-mini btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
-              <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
+              ${estadoInyBotones(p)}
+              ${(estadoIny(p) && estadoIny(p) !== 'reconstruido') ? '' : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
+                            <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
               <button class="btn btn-small btn-mini btn-danger solo-editor" onclick="eliminarPieza('${p.id}')">🗑</button>
             </div>
           </div>
@@ -1149,6 +1575,30 @@ function renderCamiones() {
       <h3 style="margin-top:24px; color:#e67e22;">Piezas Sueltas (sin camión)</h3>
       ${sueltasHTML}
     `;
+  }
+
+  // Buscar también en Salidas / En reparación cuando hay búsqueda activa
+  if (filtroSueltas && typeof getSalidas === 'function') {
+    const smatch = getSalidas().filter(s => {
+      const txt = [s.folio, s.empresa, s.lugar].concat((s.items||[]).map(i => (i.desc||'')+' '+(i.cod||'')+' '+(i.origenTxt||''))).join(' ').toLowerCase();
+      return txt.includes(filtroSueltas);
+    });
+    if (smatch.length) {
+      const rows = smatch.map(s => {
+        const st = salidaEstatus(s);
+        let dias = '';
+        if (!st.completa) { const d = _diasDesde(s.fecha); if (d != null) dias = ' · ' + d + ' días afuera'; }
+        const estTxt = st.completa ? 'COMPLETA ✔' : ('EN REPARACIÓN ' + st.done + '/' + st.total);
+        const piezas = (s.items||[]).map(i => (i.cant||1) + '× ' + escapeHtml(i.desc||'') + (i.cod ? ' (' + escapeHtml(i.cod) + ')' : '')).join(', ');
+        return '<div class="card" style="background:#fff;border:2px solid #b06a2e;border-radius:8px;">' +
+          '<div style="font-weight:800;color:#1a1a1a;">📤 Folio ' + escapeHtml(s.folio||'') + ' · ' + escapeHtml(s.empresa||'') + '</div>' +
+          '<div style="font-size:13px;color:#b06a2e;font-weight:700;margin-top:3px;">' + estTxt + '<span style="color:#888;font-weight:400;">' + dias + '</span></div>' +
+          '<div style="font-size:14px;color:#333;margin-top:4px;">' + piezas + '</div>' +
+          '<button class="btn btn-small btn-mini" style="margin-top:8px;" onclick="showView(\'salidas\')">Ver en Salidas →</button>' +
+        '</div>';
+      }).join('');
+      cont.innerHTML += '<h3 style="margin-top:24px; color:#b06a2e;">🔧 En reparación / Salidas (' + smatch.length + ')</h3>' + rows;
+    }
   }
 }
 
@@ -1536,6 +1986,7 @@ let _cofreMarcaSel = null;
 let _cofreModeloSel = null;
 
 function openPiezaModal(camionId) {
+  _reabrirModalPieza = null;
   _piezaCamionId = camionId;
   _piezaFamilia = null;
   _piezaModelo = null; _heredaMarca = null; _heredaModelo = null;
@@ -1988,6 +2439,7 @@ function guardarPieza() {
 // VER PIEZAS DE UN CAMIÓN
 // ============================================================
 function verPiezasCamion(camionId) {
+  _reabrirModalPieza = function(){ verPiezasCamion(camionId); };
   const c = DATA.camiones.find(x => x.id === camionId);
   if (!c) return;
   document.getElementById('modal-pieza-title').textContent = `Piezas del Folio ${c.folio}`;
@@ -2036,7 +2488,6 @@ function renderPiezaItem(p) {
         ${p.vendida
           ? `<button class="btn btn-small solo-editor" onclick="reactivarPieza('${p.id}')">↶</button>`
           : `<button class="btn btn-small btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
-        <button class="btn btn-small btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
         ${qrBtn}
         <button class="btn btn-small solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
         <button class="btn btn-small btn-danger solo-editor" onclick="eliminarPieza('${p.id}')">🗑</button>
@@ -2070,6 +2521,7 @@ function formatExtras(ex, modelo) {
 
 // Modal de "Ver todas las piezas de una familia" (botones rápidos del Inicio)
 function verTodasPiezas(famId) {
+  _reabrirModalPieza = function(){ verTodasPiezas(famId); };
   const f = FAMILIAS.find(x => x.id === famId);
   if (!f) return;
   const todas = DATA.piezas.filter(p => p.familia === famId);
@@ -2099,6 +2551,28 @@ function verTodasPiezas(famId) {
   openModal('modal-pieza');
 }
 
+// Botón rápido de Inicio: inyectores agrupados por estado (reparación / cores / venta)
+function verInyectoresEstados() {
+  _reabrirModalPieza = verInyectoresEstados;
+  const inys = DATA.piezas.filter(p => p.familia === 'inyectores');
+  const porFecha = (a,b) => (b.fechaRegistro||0) - (a.fechaRegistro||0);
+  const enRep   = inys.filter(p => !p.vendida && estadoIny(p) === 'reparacion').sort(porFecha);
+  const cores   = inys.filter(p => !p.vendida && estadoIny(p) === 'core').sort(porFecha);
+  const enVenta = inys.filter(p => !p.vendida && estadoIny(p) === 'reconstruido').sort(porFecha);
+  const vendidas = inys.filter(p => p.vendida);
+  document.getElementById('modal-pieza-title').textContent = 'Inyectores';
+  let html = `<div class="info-bar"><strong style="color:#2e7d46">${enVenta.length}</strong> en venta · <strong style="color:#c9a24b">${cores.length}</strong> core(s) · <strong style="color:#2980b9">${enRep.length}</strong> en reparación</div>`;
+  const seccion = (titulo, color, lista, vacio) =>
+    `<h3 style="margin-top:16px; color:${color};">${titulo} (${lista.length})</h3>` +
+    (lista.length ? lista.map(p => renderPiezaItemConCamion(p)).join('') : `<p style="color:#999; padding:6px 2px;">${vacio}</p>`);
+  html += seccion('🔧 En reparación (con Arturo)', '#2980b9', enRep, 'Ninguno en reparación.');
+  html += seccion('🔩 Cores (para reparar)', '#c9a24b', cores, 'Ningún core pendiente.');
+  html += seccion('✔ A la venta (reconstruidos)', '#2e7d46', enVenta, 'Ninguno a la venta.');
+  if (vendidas.length) html += `<h3 style="margin-top:16px; color:#999;">Vendidos (${vendidas.length})</h3>` + vendidas.slice(0,20).map(p => renderPiezaItemConCamion(p)).join('');
+  document.getElementById('modal-pieza-body').innerHTML = html;
+  openModal('modal-pieza');
+}
+
 // Item de pieza con info del camión origen (para los botones rápidos)
 function renderPiezaItemConCamion(p) {
   const f = FAMILIAS.find(x => x.id === p.familia);
@@ -2114,7 +2588,7 @@ function renderPiezaItemConCamion(p) {
     <div class="pieza-item" style="display:block; ${p.vendida ? 'opacity:0.55' : ''} ${p.bajoPedido ? 'border-left:4px solid #c9a24b; background:#fdfaf0;' : ''}">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
         <div style="flex:1;">
-          <div style="font-size:18px; font-weight:900; color:#1a1a1a;">${escapeHtml(p.modelo || '')}${precio}${_alertaHuerfano(p)}${p.bajoPedido ? ' <span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : ''}</div>
+          <div style="font-size:18px; font-weight:900; color:#1a1a1a;">${escapeHtml(p.modelo || '')}${precio}${_alertaHuerfano(p)}${estadoInyBadge(p)}${p.bajoPedido ? ' <span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : ''}</div>
           <div style="font-size:13px; color:#777; margin-top:2px;">${extras}${p.vendida ? ' · <strong style="color:#c0392b">VENDIDA</strong>' : ''}</div>
           ${p.notas ? `<div style="font-size:14px; color:#4a4a4a; background:#f7f3ea; border-left:3px solid #c9a24b; border-radius:2px; padding:7px 11px; margin-top:5px;">📝 ${escapeHtml(p.notas)}</div>` : ''}
           ${origen}
@@ -2122,9 +2596,10 @@ function renderPiezaItemConCamion(p) {
         <div class="pieza-actions">
           ${p.vendida
             ? `<button class="btn btn-small btn-mini solo-editor" onclick="reactivarPieza('${p.id}')">↶</button>`
-            : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
-          <button class="btn btn-small btn-mini btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
-          ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((f?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
+            : (estadoIny(p) && estadoIny(p) !== 'reconstruido'
+                ? estadoInyBotones(p)
+                : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`)}
+                    ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((f?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
           <button class="btn btn-small btn-mini solo-editor" onclick="toggleBajoPedido('${p.id}')" title="Sin existencia / bajo pedido">${p.bajoPedido ? '📦✓' : '📦'}</button>
           <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
         </div>
@@ -2157,6 +2632,21 @@ function confirmarVenta() {
   p.vendida = true;
   p.fechaVenta = fechaStr ? new Date(fechaStr + 'T12:00:00').getTime() : Date.now();
   if (precioVenta) p.precioVenta = parseFloat(precioVenta);
+  // Fase B: al vender un inyector reconstruido, ofrecer registrar el CORE que dejó el cliente
+  if (esFamiliaReparacion(p.familia) && (p.estado || 'reconstruido') === 'reconstruido') {
+    if (confirm('¿El cliente dejó su CORE (la pieza usada) a cambio?\n\nSi sí, lo agrego al inventario de cores.')) {
+      DATA.piezas.push({
+        id: 'core_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+        familia: p.familia, estado: 'core',
+        modelo: p.modelo || '', motor: p.motor || '', marca: p.marca || '', 'año': p['año'] || '',
+        camionId: null, camionFolio: 'CORE', camionMarca: '', camionModelo: '', camionAño: '',
+        extras: { esCore: true, coreOrigenId: p.id },
+        notas: 'Core recibido — venta de ' + (p.modelo || 'pieza') + (fechaStr ? ' (' + fechaStr + ')' : ''),
+        precioSugerido: null, precioMax: null, vendida: false, fechaRegistro: Date.now()
+      });
+      toast('🔩 Core agregado al inventario', 'success');
+    }
+  }
   guardar();
   playDing(); toast('Venta registrada', 'success');
   closeModal('modal-venta');
@@ -2175,6 +2665,53 @@ function reactivarPieza(id) {
   toast('Pieza reactivada');
   refrescarVistaActual();
 }
+
+// ============================================================
+// FASE B — CICLO DE CORES (inyectores, cabezas, transmisiones, turbos…)
+// estado: 'reconstruido' (en venta) → 'core' → 'reparacion' → 'reconstruido'
+// ============================================================
+var FAMILIAS_REPARACION = ['inyectores','cabezas','transmisiones','turbos']; // para agregar otra, súmala aquí
+function esFamiliaReparacion(fam){ return FAMILIAS_REPARACION.indexOf(fam) !== -1; }
+function estadoIny(p){ return (p && esFamiliaReparacion(p.familia)) ? (p.estado || 'reconstruido') : null; }
+function estadoInyBadge(p){
+  const e = estadoIny(p);
+  if (e === 'core') return ' <span class="badge" style="background:#c9a24b; color:#17140f;">🔩 CORE</span>';
+  if (e === 'reparacion') return ' <span class="badge" style="background:#2980b9; color:#fff;">🔧 EN REPARACIÓN</span>';
+  return ''; // reconstruido = en venta, sin badge (normal)
+}
+function estadoInyBotones(p){
+  const e = estadoIny(p);
+  if (e === 'core') return `<button class="btn btn-small btn-mini solo-editor" style="background:#2980b9; color:#fff; border-color:#2980b9;" onclick="mandarCoreAReparacion('${p.id}')">🔧 A reparación (hoja)</button>`;
+  if (e === 'reparacion') return `<button class="btn btn-small btn-mini solo-editor" style="background:#2e7d46; color:#fff; border-color:#2e7d46;" onclick="inySetEstado('${p.id}','reconstruido')">↩ Regresó (reconstruido)</button>`;
+  return '';
+}
+function inySetEstado(id, nuevo){
+  const p = DATA.piezas.find(x => x.id === id);
+  if (!p) return;
+  if (nuevo === 'reconstruido' && !confirm('¿El core ya regresó reconstruido y vuelve a estar EN VENTA?')) return;
+  pushUndo('Cambiar estado de inyector');
+  p.estado = nuevo;
+  if (nuevo === 'reconstruido') {
+    p.vendida = false; // vuelve al patio, en venta
+    // sincroniza: marca como regresado en su salida (si estaba ligado a una)
+    (DATA.salidas||[]).forEach(s => (s.items||[]).forEach(it => { if (it.origenId === id) it.regreso = true; }));
+  }
+  guardar();
+  toast(nuevo === 'reparacion' ? '🔧 Enviado a reparación' : (nuevo === 'reconstruido' ? '✔ Reconstruido — de vuelta en venta' : 'Estado actualizado'), 'success');
+  refrescarVistaActual();
+}
+// Cuántos inyectores hay en cada estado (para el resumen)
+function conteoInyectores(){
+  const inys = DATA.piezas.filter(p => p.familia === 'inyectores' && !p.vendida);
+  return {
+    reconstruido: inys.filter(p => estadoIny(p) === 'reconstruido').length,
+    core: inys.filter(p => estadoIny(p) === 'core').length,
+    reparacion: inys.filter(p => estadoIny(p) === 'reparacion').length
+  };
+}
+// Filtro por estado dentro de la familia Inyectores (toca el contador para ver solo esos)
+var _filtroEstadoIny = null;
+function filtrarEstadoIny(e){ _filtroEstadoIny = (_filtroEstadoIny === e) ? null : e; if (typeof renderBusqueda === 'function') renderBusqueda(); }
 
 // ============================================================
 // HISTORIAL DE VENTAS
@@ -2254,6 +2791,7 @@ function toggleBajoPedido(id) {
 }
 
 function editarPieza(id) {
+  _reabrirModalPieza = null;
   const p = DATA.piezas.find(x => x.id === id);
   if (!p) return;
   const f = FAMILIAS.find(x => x.id === p.familia);
@@ -2409,7 +2947,7 @@ function guardarEdicionPieza(id) {
   guardar();
   playDing(); toast('Pieza actualizada', 'success');
   closeModal('modal-pieza');
-  if (document.getElementById('view-camiones').classList.contains('active')) renderCamiones();
+  refrescarVistaActual();
 }
 
 function eliminarPieza(id) {
@@ -2420,6 +2958,7 @@ function eliminarPieza(id) {
   guardar();
   toast('Pieza eliminada');
   if (p && p.camionId && document.getElementById('modal-pieza').classList.contains('active')) verPiezasCamion(p.camionId);
+  else refrescarModalPiezaSiAbierto();
   if (document.getElementById('view-buscar').classList.contains('active')) renderBusqueda();
 }
 
@@ -2523,13 +3062,13 @@ function renderBusqueda() {
             ${flecha}
             <div>
               <div class="card-title">${f?.nombre || g.familia}</div>
-              <div class="card-meta">${g.piezas.length} pieza(s)${modoAcordeon && !abierto ? ' · <span style="color:#c0392b; font-weight:700;">toca para ver</span>' : ''}</div>
+              <div class="card-meta">${g.piezas.length} pieza(s)${esFamiliaReparacion(g.familia) ? (function(){ const r=g.piezas.filter(x=>estadoIny(x)==='reconstruido').length, co=g.piezas.filter(x=>estadoIny(x)==='core').length, re=g.piezas.filter(x=>estadoIny(x)==='reparacion').length; return ` · <span onclick="event.stopPropagation();filtrarEstadoIny('reconstruido')" style="cursor:pointer;color:#2e7d46;font-weight:700;text-decoration:${_filtroEstadoIny==='reconstruido'?'underline':'none'}">${r} en venta</span> · <span onclick="event.stopPropagation();filtrarEstadoIny('core')" style="cursor:pointer;color:#c9a24b;font-weight:700;text-decoration:${_filtroEstadoIny==='core'?'underline':'none'}">${co} core(s)</span> · <span onclick="event.stopPropagation();filtrarEstadoIny('reparacion')" style="cursor:pointer;color:#2980b9;font-weight:700;text-decoration:${_filtroEstadoIny==='reparacion'?'underline':'none'}">${re} en reparación</span> <span style="color:#999;font-weight:400;font-size:11px;">👆 toca para filtrar</span>`; })() : ''}${modoAcordeon && !abierto ? ' · <span style="color:#c0392b; font-weight:700;">toca para ver</span>' : ''}</div>
             </div>
           </div>
           <span class="badge badge-count">${g.piezas.length}</span>
         </div>
         ${abierto ? `<div class="piezas-list" style="padding:14px;">
-          ${g.piezas.sort((a,b) => (b.fechaRegistro||0) - (a.fechaRegistro||0)).map(p => {
+          ${(esFamiliaReparacion(g.familia) && _filtroEstadoIny ? g.piezas.filter(p => estadoIny(p) === _filtroEstadoIny) : g.piezas).sort((a,b) => (b.fechaRegistro||0) - (a.fechaRegistro||0)).map(p => {
             const camion = DATA.camiones.find(c => c.id === p.camionId);
             const extras = formatExtras(p.extras, p.modelo);
             const precio = precioBadge(p) ? " " + precioBadge(p) : "";
@@ -2547,7 +3086,7 @@ function renderBusqueda() {
             } else {
               cuerpoPieza = `
                 <div style="flex:1;">
-                  <div style="font-size:20px; font-weight:900; color:#1a1a1a; letter-spacing:-0.3px;">${escapeHtml(p.modelo || '')} ${precio}</div>
+                  <div style="font-size:20px; font-weight:900; color:#1a1a1a; letter-spacing:-0.3px;">${escapeHtml(p.modelo || '')} ${precio}${estadoInyBadge(p)}</div>
                   <div style="font-size:13px; color:#777; margin-top:3px;">
                     ${p.motor ? `Motor ${escapeHtml(p.motor)}` : ''}${extras ? (p.motor ? ' · ' : '') + extras : ''}
                   </div>
@@ -2562,11 +3101,12 @@ function renderBusqueda() {
                   ${cuerpoPieza}
                   <div class="pieza-actions">
                     ${p.bajoPedido ? '<span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : ''}
-                    <button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>
-                    <button class="btn btn-small btn-mini btn-whatsapp" onclick="compartirPieza('${p.id}')">↗</button>
-                    ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((fam?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
+                    ${estadoInyBotones(p)}
+                    ${(estadoIny(p) && estadoIny(p) !== 'reconstruido') ? '' : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
+                                        ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((fam?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
                     <button class="btn btn-small btn-mini solo-editor" onclick="toggleBajoPedido('${p.id}')" title="Sin existencia / bajo pedido">${p.bajoPedido ? '📦✓' : '📦'}</button>
                     <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
+                    <button class="btn btn-small btn-mini btn-danger solo-editor" onclick="eliminarPieza('${p.id}')">🗑</button>
                   </div>
                 </div>
                 ${p.fechaRegistro ? `<div style="font-size:10px; color:#ccc; margin-top:3px; font-family:ui-monospace,monospace;">${fechaCorta(p.fechaRegistro)}</div>` : ''}
@@ -2583,6 +3123,7 @@ function setFiltro(id) {
   _filtroFamilia = id;
   _filtroSinPrecio = false;
   _filtroBajoPedido = false;
+  _filtroEstadoIny = null;
   _acordeonesAbiertos.clear();
   renderBusqueda();
 }
