@@ -11,6 +11,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { font-family: Georgia, 'Times New Roman', serif; background: #f2efe9; color: #1a1a1a; font-size: 16px; line-height: 1.5; }
@@ -125,6 +127,10 @@
   body.modo-ver .solo-editor { display: none !important; }
   body.modo-ver nav button[data-view="admin"] { display: none !important; }
   #modo-badge { font-family: Arial, sans-serif; font-size: 12px; }
+  .btn-hdr { font-family: Arial, sans-serif; font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.12); color: #f2ede2; cursor: pointer; white-space: nowrap; }
+  .btn-hdr:hover { background: rgba(255,255,255,.24); }
+  .btn-hdr.deshacer { border-color: rgba(224,122,95,.9); color: #ffd9cf; }
+  .btn-hdr.dormidas { border-color: rgba(140,175,210,.95); color: #dbe9f6; background: rgba(120,160,200,.20); }
   .info-bar strong { color: #1a1a1a; }
 
   /* RESPONSIVE TWEAKS */
@@ -156,14 +162,22 @@
 </head>
 <body>
 
-<header style="display:flex; justify-content:space-between; align-items:center;">
+<header style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
   <div>
     <h1>Inventario de Patio</h1>
     <div class="sub">Tracto Partes Magaña · S.A. de C.V.</div>
   </div>
-  <div style="text-align:right;">
-    <div id="sync-estado" style="font-size:12px; color:#e8e2d5; font-family:Arial,sans-serif; font-weight:600; white-space:nowrap;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#c9a24b;margin-right:6px;"></span>Conectando…</div>
-    <div id="modo-badge" style="margin-top:4px; background:#fff; padding:3px 10px; border-radius:2px;"></div>
+  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:flex-end;">
+    <div style="display:flex; gap:6px; align-items:center;">
+      <button class="btn-hdr dormidas" id="btn-dormidas" onclick="verDormidas()" title="Piezas que llevan mucho sin venderse" style="display:none;">🐌 Dormidas</button>
+      <button class="btn-hdr" onclick="renderCamiones(); openModal('modal-ultimos')" title="Últimos registros creados">📋 Últimos</button>
+      <button class="btn-hdr solo-editor" onclick="renderHistorialAcciones(); openModal('modal-historial')" title="Historial de acciones de esta sesión">🕐 Historial</button>
+      <button class="btn-hdr deshacer solo-editor" onclick="deshacerUltima()" title="Deshacer última acción">↩︎ Deshacer</button>
+    </div>
+    <div style="text-align:right;">
+      <div id="sync-estado" style="font-size:12px; color:#e8e2d5; font-family:Arial,sans-serif; font-weight:600; white-space:nowrap;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#c9a24b;margin-right:6px;"></span>Conectando…</div>
+      <div id="modo-badge" style="margin-top:4px; background:#fff; padding:3px 10px; border-radius:2px;"></div>
+    </div>
   </div>
 </header>
 
@@ -198,9 +212,9 @@
 <nav>
   <button class="active" data-view="camiones">🏠 Inicio</button>
   <button data-view="buscar">🔧 Piezas</button>
+  <button data-view="estatus">🔗 Maura</button>
   <button data-view="ventas">💵 Ventas</button>
   <button data-view="salidas">📤 Salidas</button>
-  <button data-view="estatus">📋 Estatus Chasis</button>
   <button data-view="admin">📝 Administrar</button>
   <button data-view="exportar">⚙️ Exportar</button>
 </nav>
@@ -243,21 +257,6 @@
   </div>
   <div id="contador-camiones" style="margin-top:6px; font-size:12px; color:#888; font-weight:600;"></div>
 
-  <details id="ultimos-registros" style="margin-top:10px; background:#fff; border:1px solid #e0e0d8; border-radius:6px; padding:0;">
-    <summary style="cursor:pointer; padding:10px 14px; font-size:13px; font-weight:700; color:#555;">📋 Últimos registros creados</summary>
-    <div id="ultimos-registros-lista" style="padding:8px 14px 12px; max-height:300px; overflow-y:auto;"></div>
-  </details>
-
-  <div class="solo-editor" style="margin-top:10px;">
-    <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-      <button class="btn btn-mini btn-danger" onclick="deshacerUltima()">↩︎ Deshacer última acción</button>
-    </div>
-    <details style="background:#fff; border:1px solid #e0e0d8; border-radius:6px; padding:0;">
-      <summary style="cursor:pointer; padding:10px 14px; font-size:13px; font-weight:700; color:#555;">🕐 Historial de acciones (esta sesión)</summary>
-      <div id="historial-acciones-lista" style="padding:8px 14px 12px; max-height:260px; overflow-y:auto;"></div>
-    </details>
-  </div>
-
   <div style="height: 12px"></div>
   <div id="lista-camiones"></div>
 </section>
@@ -292,7 +291,7 @@
   <div class="info-bar">Registra las piezas que mandas a un taller externo (Arturo, etc.), genera el <strong>folio</strong> e imprime la <strong>hoja de salida</strong> para firma. Marca los regresos y el sistema lleva el control solo.</div>
   <div style="display:flex; gap:8px; align-items:center; margin:12px 0; flex-wrap:wrap;">
     <button class="btn btn-primary solo-editor" onclick="nuevaSalida()">＋ Nueva salida</button>
-    <input id="salidas-buscar" oninput="renderSalidas()" placeholder="🔎 Buscar folio, empresa o pieza…" style="flex:1; min-width:180px;">
+    <input id="salidas-buscar" oninput="renderSalidas()" placeholder="🔎 Buscar folio, empresa o pieza…" style="flex:none; width:250px; max-width:62vw; font-size:14px; padding:9px 12px; border:2px solid #d8d2c6; border-radius:8px; background:#fff; font-family:Arial,Helvetica,sans-serif;">
   </div>
   <div id="salidas-lista"></div>
 </section>
@@ -356,9 +355,58 @@
   </div>
 </section>
 
-<!-- ═══ ESTATUS DE MERCANCÍA · CHASIS (solo lectura) ═══ -->
+<!-- ═══ MAURA: Estatus de Chasis + Ventas de Maura (solo lectura) ═══ -->
+<style>
+  #view-estatus .mtabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; border-bottom:2px solid #e0dccf; padding-bottom:0; }
+  #view-estatus .mtab { font-family:Arial,Helvetica,sans-serif; font-size:15px; font-weight:700; padding:12px 18px; border:none; background:none; color:#6b6459; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; }
+  #view-estatus .mtab.active { color:#b03a2e; border-bottom-color:#b03a2e; }
+  #view-estatus .mtab-panel { display:none; }
+  #view-estatus .mtab-panel.active { display:block; }
+  /* Ventas de Maura */
+  #maura-ventas-root { font-family:Arial,Helvetica,sans-serif; color:#17140f; }
+  #maura-ventas-root .mv-login { max-width:380px; margin:24px auto; background:#fff; border:1px solid #e0dccf; border-radius:12px; padding:24px; text-align:center; }
+  #maura-ventas-root .mv-login h3 { font-family:Georgia,serif; font-size:20px; margin-bottom:6px; }
+  #maura-ventas-root .mv-login p { font-size:13px; color:#6b6459; margin-bottom:16px; }
+  #maura-ventas-root .mv-login input { width:100%; font-size:16px; padding:12px; border:2px solid #d8d2c6; border-radius:8px; margin-bottom:10px; font-family:Arial; }
+  #maura-ventas-root .mv-login button { width:100%; font-size:16px; font-weight:700; padding:13px; border-radius:8px; border:none; background:#2e7d46; color:#fff; cursor:pointer; }
+  #maura-ventas-root .mv-msg { font-size:13px; color:#b03a2e; min-height:18px; margin-top:8px; font-weight:700; }
+  #maura-ventas-root .mv-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+  #maura-ventas-root .mv-chip { font-size:13px; font-weight:700; padding:8px 13px; border-radius:20px; border:2px solid #d8d2c6; background:#fff; color:#6b6459; cursor:pointer; }
+  #maura-ventas-root .mv-chip.on { background:#17140f; border-color:#17140f; color:#fff; }
+  #maura-ventas-root .mv-search { flex:none; width:150px; max-width:44vw; font-size:13px; padding:8px 10px; border:2px solid #d8d2c6; border-radius:8px; font-family:Arial; }
+  #maura-ventas-root .mv-fam-btn { border-color:#c9a24b; color:#8a6d1f; }
+  #maura-ventas-root .mv-fam-btn.on { background:#c9a24b; border-color:#c9a24b; color:#fff; }
+  #maura-ventas-root .mv-info { font-size:13px; color:#6b6459; margin-bottom:10px; font-weight:700; }
+  #maura-ventas-root .mv-logout { font-size:12px; color:#6b6459; background:none; border:none; text-decoration:underline; cursor:pointer; }
+  #maura-ventas-root .mv-wrap { overflow-x:auto; border:1px solid #e0dccf; border-radius:8px; }
+  #maura-ventas-root table.mv-tabla { border-collapse:collapse; width:100%; min-width:720px; background:#fff; font-size:14px; }
+  #maura-ventas-root .mv-tabla th { background:#17140f; color:#fff; font-size:11px; text-transform:uppercase; letter-spacing:.4px; padding:10px 10px; text-align:left; }
+  #maura-ventas-root .mv-tabla td { border-bottom:1px solid #eee; padding:9px 10px; vertical-align:top; }
+  #maura-ventas-root .mv-tabla tr.mv-g0 td { background:#ffffff; }
+  #maura-ventas-root .mv-tabla tr.mv-g1 td { background:#f1ebdd; }
+  #maura-ventas-root .mv-prod { margin-top:6px; }
+  #maura-ventas-root .mv-prod summary { cursor:pointer; font-size:12px; color:#2e6da4; font-weight:700; display:inline-block; }
+  #maura-ventas-root .mv-prod ul { margin:7px 0 3px 4px; padding-left:16px; font-size:13px; font-weight:400; }
+  #maura-ventas-root .mv-prod li { margin:3px 0; }
+  #maura-ventas-root .mv-fam { display:inline-block; background:#eef2e8; color:#4a6b2e; font-size:11px; font-weight:800; padding:2px 8px; border-radius:5px; white-space:nowrap; }
+  #maura-ventas-root .mv-fam-click { cursor:pointer; border:1px solid #b9d0a3; }
+  #maura-ventas-root .mv-fam-click:hover { background:#dcebce; }
+  #maura-ventas-root .mv-pieza { font-weight:700; }
+  #maura-ventas-root .mv-efe { font-weight:800; white-space:nowrap; }
+  #maura-ventas-root .mv-cred { display:block; font-size:11px; color:#b03a2e; font-weight:700; }
+  #maura-ventas-root .mv-empty { padding:40px; text-align:center; color:#6b6459; }
+</style>
 <section class="view" id="view-estatus">
-  <div id="estatus-root"></div>
+  <div class="mtabs">
+    <button class="mtab active" data-mtab="chasis" onclick="showMauraTab('chasis')">📋 Estatus de Chasis</button>
+    <button class="mtab" data-mtab="ventas" onclick="showMauraTab('ventas')">💵 Ventas de Maura</button>
+  </div>
+  <div class="mtab-panel active" id="mtab-chasis">
+    <div id="estatus-root"></div>
+  </div>
+  <div class="mtab-panel" id="mtab-ventas">
+    <div id="maura-ventas-root"></div>
+  </div>
 </section>
 
 </main>
@@ -415,6 +463,50 @@
       <input type="text" class="precio-input" id="venta-precio" placeholder="$ ej. 25000">
     </div>
     <button class="btn btn-success btn-block" onclick="confirmarVenta()">✓ Confirmar Venta</button>
+  </div>
+</div>
+
+<!-- MODAL ÚLTIMOS REGISTROS -->
+<div class="modal-bg" id="modal-ultimos">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📋 Últimos registros creados</div>
+      <button class="modal-close" onclick="closeModal('modal-ultimos')">×</button>
+    </div>
+    <div id="ultimos-registros-lista" style="max-height:62vh; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- MODAL HISTORIAL -->
+<div class="modal-bg" id="modal-historial">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🕐 Historial de acciones (esta sesión)</div>
+      <button class="modal-close" onclick="closeModal('modal-historial')">×</button>
+    </div>
+    <div id="historial-acciones-lista" style="max-height:62vh; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- MODAL ATAJO: MI INVENTARIO POR FAMILIA (desde Ventas de Maura) -->
+<div class="modal-bg" id="modal-invfam">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-invfam-title">Mi inventario</div>
+      <button class="modal-close" onclick="closeModal('modal-invfam')">×</button>
+    </div>
+    <div id="modal-invfam-body"></div>
+  </div>
+</div>
+
+<!-- MODAL INVENTARIO DORMIDO -->
+<div class="modal-bg" id="modal-dormidas">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🐌 Inventario dormido</div>
+      <button class="modal-close" onclick="closeModal('modal-dormidas')">×</button>
+    </div>
+    <div id="modal-dormidas-body" style="max-height:62vh; overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -1050,7 +1142,6 @@ function imprimirSalida(id, copias){
         '<div><div class="linea">&nbsp;</div>Recibió</div>'+
         '<div><div class="linea">&nbsp;</div>Autorizó</div>'+
       '</div>'+
-      '<div class="pie">TRACTOPARTES MAGAÑA S.A. DE C.V. — Documento de control interno</div>'+
     '</div>';
   const corte='<div class="corte">✂ - - - - - - - - - - -  corta aquí  - - - - - - - - - - -</div>';
   const contenido = (copias===2) ? (bloque + corte + bloque) : bloque;
@@ -1295,7 +1386,7 @@ function showView(name) {
   if (name === 'ventas') renderVentas();
   if (name === 'exportar') poblarBotonesFamilia();
   if (name === 'salidas') renderSalidas();
-  if (name === 'estatus' && window.estatusRender) window.estatusRender();
+  if (name === 'estatus') { var _mv = document.querySelector('#view-estatus .mtab.active'); if (typeof showMauraTab === 'function') showMauraTab(_mv ? _mv.dataset.mtab : 'chasis'); else if (window.estatusRender) window.estatusRender(); }
   window.scrollTo(0,0);
 }
 
@@ -1595,6 +1686,7 @@ function renderCamiones() {
   const totalDesm = DATA.camiones.filter(c => c.desmantelado).length;
   const totalPiezas = DATA.piezas.filter(p => !p.vendida).length;
   document.getElementById('contador-camiones').innerHTML = `${totalActivos} camión(es) activo(s)${totalDesm ? ` · ${totalDesm} desmantelado(s)` : ''} · ${totalPiezas} pieza(s) en patio`;
+  if (typeof actualizarBannerDormidas === 'function') actualizarBannerDormidas();
 
   // Últimos registros creados (camiones + piezas mezclados, los 20 más recientes)
   const registros = [];
@@ -3066,6 +3158,104 @@ function eliminarPieza(id) {
   if (p && p.camionId && document.getElementById('modal-pieza').classList.contains('active')) verPiezasCamion(p.camionId);
   else refrescarModalPiezaSiAbierto();
   if (document.getElementById('view-buscar').classList.contains('active')) renderBusqueda();
+}
+
+// ── Atajo desde "Ventas de Maura": ver MIS piezas de una familia y borrarlas rápido ──
+let _invFamActual = null;
+let _invFamBusca = '';
+function abrirInventarioFamilia(famId, piezaMaura) {
+  _invFamActual = famId;
+  _invFamBusca = piezaMaura || '';
+  renderInvFam();
+  openModal('modal-invfam');
+}
+function renderInvFam() {
+  const famId = _invFamActual;
+  const f = FAMILIAS.find(x => x.id === famId);
+  const fam = f ? (f.nombre || f.nombreSingular) : (famId || 'inventario');
+  const titEl = document.getElementById('modal-invfam-title');
+  if (titEl) titEl.textContent = 'Mis ' + fam + ' en inventario';
+  const body = document.getElementById('modal-invfam-body');
+  if (!body) return;
+  const piezas = DATA.piezas.filter(p => p.familia === famId && !p.vendida);
+  const editor = (typeof esEditor === 'function') ? esEditor() : true;
+  let h = '';
+  if (_invFamBusca) h += '<div style="font-size:13px; background:#f7f3ea; border-left:3px solid #c9a24b; padding:8px 11px; border-radius:4px; margin-bottom:10px;">Maura vendió: <b>' + escapeHtml(_invFamBusca) + '</b><br><span style="color:#6b6459;">Revisa si todavía la tienes abajo y bórrala si ya salió.</span></div>';
+  if (!piezas.length) {
+    h += '<p style="padding:14px 4px; color:#6b6459;">No tienes <b>' + escapeHtml(fam) + '</b> en tu inventario. Nada que dar de baja aquí. ✅</p>';
+    body.innerHTML = h; return;
+  }
+  h += '<input id="invfam-busca" placeholder="🔍 Filtrar por modelo o nota…" oninput="filtrarInvFam()" style="width:100%; padding:9px 12px; border:2px solid #d8d2c6; border-radius:8px; margin-bottom:10px; font-size:14px;">';
+  h += '<div id="invfam-lista">';
+  piezas.forEach(p => {
+    const modelo = p.modelo || '(sin modelo)';
+    const extra = [p.notas, p.camionFolio ? ('camión ' + p.camionFolio) : ''].filter(Boolean).join(' · ');
+    const txt = (modelo + ' ' + (p.notas || '')).toLowerCase();
+    h += '<div class="invfam-item" data-txt="' + jsAttr(txt) + '" style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid #eee;">' +
+           '<div style="min-width:0;"><b>' + escapeHtml(modelo) + '</b>' + (extra ? '<div style="color:#888; font-size:13px;">' + escapeHtml(extra) + '</div>' : '') + '</div>' +
+           (editor ? '<button class="btn btn-small btn-danger" style="white-space:nowrap;" onclick="borrarInvFam(\'' + p.id + '\')">🗑 Borrar</button>' : '') +
+         '</div>';
+  });
+  h += '</div>';
+  body.innerHTML = h;
+}
+function filtrarInvFam() {
+  const q = (document.getElementById('invfam-busca') ? document.getElementById('invfam-busca').value : '').toLowerCase();
+  document.querySelectorAll('#invfam-lista .invfam-item').forEach(el => {
+    el.style.display = (el.dataset.txt || '').indexOf(q) >= 0 ? '' : 'none';
+  });
+}
+function borrarInvFam(id) {
+  eliminarPieza(id);   // pide confirmación, guarda y sincroniza
+  renderInvFam();      // refresca la lista del atajo
+}
+window.abrirInventarioFamilia = abrirInventarioFamilia;
+
+// ── Inventario dormido: piezas que llevan mucho tiempo sin venderse ──
+var MESES_DORMIDA = 6;   // umbral: 6 meses sin venderse
+function piezasDormidas() {
+  var ahora = Date.now();
+  var umbral = MESES_DORMIDA * 30 * 24 * 60 * 60 * 1000;
+  return (DATA.piezas || []).filter(function(p) {
+    if (p.vendida) return false;
+    if (!p.fechaRegistro) return false;
+    return (ahora - p.fechaRegistro) >= umbral;
+  }).sort(function(a, b) { return (a.fechaRegistro || 0) - (b.fechaRegistro || 0); }); // más vieja primero
+}
+function mesesDesde(ts) { return ts ? Math.floor((Date.now() - ts) / (30 * 24 * 60 * 60 * 1000)) : 0; }
+function actualizarBannerDormidas() {
+  var btn = document.getElementById('btn-dormidas');
+  if (!btn) return;
+  var n = piezasDormidas().length;
+  if (!n) { btn.style.display = 'none'; return; }
+  btn.textContent = '🐌 Dormidas (' + n + ')';
+  btn.style.display = '';
+}
+function verDormidas() {
+  var d = piezasDormidas();
+  var body = document.getElementById('modal-dormidas-body');
+  if (!body) return;
+  var editor = (typeof esEditor === 'function') ? esEditor() : true;
+  if (!d.length) {
+    body.innerHTML = '<p style="padding:14px 4px;color:#6b6459;">No hay piezas dormidas. Todo se está moviendo. ✅</p>';
+    actualizarBannerDormidas();
+    openModal('modal-dormidas'); return;
+  }
+  var h = '<p style="font-size:13px;color:#6b6459;margin-bottom:10px;">De la más vieja a la más nueva. Considera rematarla o bajarle el precio.</p>';
+  d.forEach(function(p) {
+    var f = FAMILIAS.find(function(x) { return x.id === p.familia; });
+    var fam = f ? (f.nombreSingular || f.nombre) : p.familia;
+    var m = mesesDesde(p.fechaRegistro);
+    var rojo = m >= 12;
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #eee;">' +
+           '<div style="min-width:0;"><b>' + escapeHtml(fam) + (p.modelo ? ': ' + escapeHtml(p.modelo) : '') + '</b>' +
+             '<div style="font-size:13px;' + (rojo ? 'color:#b03a2e;font-weight:700;' : 'color:#888;') + '">🐌 lleva ' + m + ' meses' + (rojo ? ' — ¡mucho!' : '') + (p.camionFolio ? ' · camión ' + escapeHtml(p.camionFolio) : '') + '</div></div>' +
+             (editor ? '<button class="btn btn-small btn-danger" style="white-space:nowrap;" onclick="eliminarPieza(\'' + p.id + '\'); verDormidas();">🗑 Borrar</button>' : '') +
+         '</div>';
+  });
+  body.innerHTML = h;
+  actualizarBannerDormidas();
+  openModal('modal-dormidas');
 }
 
 // ============================================================
@@ -4570,5 +4760,243 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
 })();
 </script>
 <!-- ═══════════════ FIN MÓDULO ESTATUS DE MERCANCÍA · CHASIS ═══════════════ -->
+
+<!-- ═══════════════ MÓDULO VENTAS DE MAURA (solo lectura) ═══════════════ -->
+<script>
+(function(){
+  // Config de Maura (mismo proyecto que su programa) — SEGUNDO app Firebase, independiente.
+  var MAURA_CONFIG = {
+    apiKey: "AIzaSyAzr0B8M-8PeJwK0XAaHDapyLPzsvmTThY",
+    authDomain: "ai-maura-06-26.firebaseapp.com",
+    projectId: "ai-maura-06-26",
+    storageBucket: "ai-maura-06-26.firebasestorage.app"
+  };
+  // Familias de Maura (por LETRA) que Raúl TAMBIÉN maneja → sólo estas se muestran.
+  // r = orden (igual que la sección Piezas de Raúl); n = nombre bonito; id = familia de Raúl (para el atajo).
+  // Se EXCLUYEN a propósito: J Balancines, P Caja Chica, X Kilo, R Marchas, T Mov Fiscal.
+  var MAURA_FAM = {
+    W:{r:0,n:'Árbol de Levas',id:'arboles'}, A:{r:1,n:'Motor',id:'motores'}, B:{r:2,n:'Transmisión',id:'transmisiones'}, E:{r:3,n:'Turbo',id:'turbos'},
+    C:{r:5,n:'Diferencial',id:'diferenciales'}, G:{r:6,n:'Mancuerna',id:'mancuernas'}, M:{r:7,n:'Cabina',id:'cabinas'}, N:{r:8,n:'Cofre',id:'cofres'},
+    O:{r:9,n:'Puerta',id:'puertas'}, L:{r:10,n:'Quinta Rueda',id:'quintaRueda'}, S:{r:11,n:'Fanclutch',id:'fanclutches'}, F:{r:12,n:'Radiador',id:'radiadores'},
+    H:{r:13,n:'Cabeza de Motor',id:'cabezas'}, I:{r:14,n:'Cigüeñal',id:'ciguenales'}, K:{r:15,n:'Campana de Motor',id:'campanas'},
+    Q:{r:16,n:'Chasis',id:'chasis'}, D:{r:19,n:'Inyector',id:'inyectores'}, U:{r:20,n:'Otro',id:'otros'}
+  };
+
+  var mApp=null, mAuth=null, mDb=null, mUnsub=null;
+  var mAuthListo=false, mCargando=false, mError='';
+  var mVentas=[];        // ya parseadas y filtradas a familias de Raúl
+  var mUltimaVis=[];     // último set visible (para el atajo de inventario)
+  var mFiltro='30';      // '7' | '30' | '90' | 'todo'
+  var mOrden='fecha';    // 'fecha' | 'familia'
+  var mBusca='';
+
+  function num(x){ x=parseFloat(x); return isNaN(x)?0:x; }
+  function dinero(n){ n=Math.round(num(n)); return '$'+Math.abs(n).toLocaleString('en-US'); }
+  function norm(s){ return (''+(s||'')).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  function efectivo(o){
+    if(o.efectivoAbonado!=null && o.efectivoAbonado!=='') return num(o.efectivoAbonado);
+    if(o.efectivo!=null && o.efectivo!=='') return num(o.efectivo);
+    if(o.abonado!=null && o.abonado!=='') return num(o.abonado);
+    return num(o.monto);
+  }
+  // Registros que Raúl NUNCA debe ver: abonos de deuda/préstamo de empleados,
+  // MOV FISCAL (comercializadora, Jorge, etc.), nómina y caja-chica (Banorte).
+  function esOculto(o){
+    var t = (norm(o.nota)+' '+norm(o.descripcion)+' '+norm(o.etiquetaV)).replace(/[.\-]/g,' ');
+    return t.indexOf('DEUDA')>=0 || t.indexOf('PRESTAMO')>=0 || t.indexOf('MOV FIS')>=0 || t.indexOf('NOMINA')>=0 || t.indexOf('CAJA CHICA')>=0;
+  }
+  function fechaCorta(iso){
+    if(!iso) return '—'; var p=(''+iso).split('-'); if(p.length<3) return iso;
+    return p[2].slice(0,2)+'/'+p[1]+'/'+p[0].slice(2);
+  }
+  function cutoffISO(dias){
+    var d=new Date(); d.setDate(d.getDate()-dias);
+    return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+  }
+  function esc(s){ return (''+(s==null?'':s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function root(){ return document.getElementById('maura-ventas-root'); }
+
+  function ensureMaura(){
+    if(mApp) return true;
+    if(typeof firebase==='undefined' || !firebase.firestore || !firebase.auth){ mError='No cargaron los componentes de Maura. Revisa tu internet.'; return false; }
+    try{
+      mApp = firebase.initializeApp(MAURA_CONFIG, 'maura');
+      mAuth = mApp.auth();
+      mDb = mApp.firestore();
+      if(firebase.auth.Auth && firebase.auth.Auth.Persistence) mAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function(){});
+      mAuth.onAuthStateChanged(function(u){
+        mAuthListo=true;
+        if(u){ mSubscribe(); } else { mUnsubscribe(); mVentas=[]; }
+        render();
+      });
+    }catch(e){ console.warn('Maura init', e); mError='No se pudo conectar con Maura.'; return false; }
+    return true;
+  }
+
+  function mSubscribe(){
+    if(!mDb || mUnsub) return;
+    mCargando=true; mError=''; render();
+    mUnsub = mDb.collection('maura_ingresos').onSnapshot(function(snap){
+      var arr=[];
+      snap.forEach(function(doc){
+        var o; try{ o=JSON.parse(doc.data().json); }catch(e){ return; }
+        var k=((o.etiquetaK||'')+'').toUpperCase().trim();
+        if(!k && o.etiquetaV){ k=((o.etiquetaV+'').trim()[0]||'').toUpperCase(); }
+        var fam=MAURA_FAM[k];
+        if(!fam) return;                       // sólo familias que Raúl también tiene
+        if(esOculto(o)) return;                // fuera: deuda/préstamo, mov fiscal, nómina, caja-chica
+        // Pieza/concepto: quitamos lo que va después de "·" (nombre del vendedor/empleado)
+        var pieza=((o.nota||o.descripcion||'')+'').trim();
+        var bi=pieza.indexOf('·'); if(bi>=0) pieza=pieza.slice(0,bi).trim();
+        // Piezas varias
+        var prods=[];
+        if(Array.isArray(o.productos)){
+          o.productos.forEach(function(p){
+            prods.push({ cant:(p.cantidad!=null?p.cantidad:(p.cant!=null?p.cant:'')), desc:((p.descripcion||p.desc||p.nombre||'')+'').trim() });
+          });
+        }
+        arr.push({
+          fecha:(o.fecha||''), fam:fam.n, rank:fam.r, famId:fam.id,
+          pieza:pieza, cliente:((o.cliente||'')+'').trim(),
+          efe:efectivo(o), pend:num(o.pendiente), productos:prods, ts:num(o.id)||0
+        });
+      });
+      mVentas=arr; mCargando=false; mError=''; render();
+    }, function(err){
+      mCargando=false; mError='No se pudieron leer las ventas ('+(err&&err.code||'error')+').'; render();
+    });
+  }
+  function mUnsubscribe(){ if(mUnsub){ try{mUnsub();}catch(e){} mUnsub=null; } }
+
+  function visibles(){
+    var cut = mFiltro==='todo' ? '' : cutoffISO(parseInt(mFiltro,10));
+    var q = mBusca.toLowerCase().trim();
+    var lista = mVentas.filter(function(v){
+      if(cut){ if(!v.fecha || v.fecha < cut) return false; }
+      if(q){ var hay=(v.fam+' '+v.pieza+' '+v.cliente).toLowerCase(); if(hay.indexOf(q)<0) return false; }
+      return true;
+    });
+    if(mOrden==='familia'){
+      // Se MANTIENE el día (fecha) y DENTRO de cada día se ordena por familia
+      lista.sort(function(a,b){ return (b.fecha||'').localeCompare(a.fecha||'') || (a.rank-b.rank) || (b.ts-a.ts); });
+    } else {
+      lista.sort(function(a,b){ return (b.fecha||'').localeCompare(a.fecha||'') || (b.ts-a.ts); });
+    }
+    return lista;
+  }
+
+  function filasHTML(vis){
+    mUltimaVis = vis;   // para el atajo "ver mi inventario"
+    var html=''; var prev=null; var ci=0;
+    vis.forEach(function(v, i){
+      var key = v.fecha;   // el fondo cambia al cambiar de DÍA (en ambos modos)
+      if(prev!==null && key!==prev) ci=1-ci;
+      prev=key;
+      var prod='';
+      if(v.productos && v.productos.length){
+        prod='<details class="mv-prod"><summary>🔧 Ver '+v.productos.length+' piezas</summary><ul>';
+        v.productos.forEach(function(p){ prod+='<li><b>'+esc(p.cant)+'×</b> '+esc(p.desc||'—')+'</li>'; });
+        prod+='</ul></details>';
+      }
+      var famCell = v.famId
+        ? '<span class="mv-fam mv-fam-click" onclick="mauraVerInventario('+i+')" title="Ver si todavía la tienes en tu inventario y borrarla">'+esc(v.fam)+' 🔎</span>'
+        : '<span class="mv-fam">'+esc(v.fam)+'</span>';
+      html+='<tr class="mv-g'+ci+'">'+
+        '<td style="white-space:nowrap">'+esc(fechaCorta(v.fecha))+'</td>'+
+        '<td>'+famCell+'</td>'+
+        '<td class="mv-pieza">'+esc(v.pieza||'—')+prod+'</td>'+
+        '<td>'+esc(v.cliente||'—')+'</td>'+
+        '<td class="mv-efe">'+dinero(v.efe)+(v.pend>0?'<span class="mv-cred">crédito · debe '+dinero(v.pend)+'</span>':'')+'</td>'+
+      '</tr>';
+    });
+    return html;
+  }
+  function infoHTML(vis){
+    return vis.length+' venta'+(vis.length===1?'':'s')+' &nbsp;·&nbsp; <button class="mv-logout" onclick="mauraLogout()">cerrar sesión</button>';
+  }
+
+  function render(){
+    var r=root(); if(!r) return;
+    if(!mApp && mError){ r.innerHTML='<div class="mv-empty">'+esc(mError)+'</div>'; return; }
+    if(!mAuthListo){ r.innerHTML='<div class="mv-empty">Cargando…</div>'; return; }
+    if(!mAuth || !mAuth.currentUser){
+      r.innerHTML =
+        '<div class="mv-login">'+
+          '<h3>💵 Ventas de Maura</h3>'+
+          '<p>Entra una sola vez con tu cuenta. Después ya no te la vuelve a pedir en este aparato.</p>'+
+          '<input id="mv-email" type="email" autocomplete="username" placeholder="Correo" value="raultractopartes@gmail.com">'+
+          '<input id="mv-pass" type="password" autocomplete="current-password" placeholder="Contraseña">'+
+          '<button onclick="mauraLogin()">Entrar</button>'+
+          '<div class="mv-msg" id="mv-login-msg">'+esc(mError||'')+'</div>'+
+        '</div>';
+      var pe=document.getElementById('mv-pass');
+      if(pe) pe.addEventListener('keydown',function(e){ if(e.key==='Enter') mauraLogin(); });
+      return;
+    }
+    if(mCargando){ r.innerHTML='<div class="mv-empty">Cargando ventas de Maura…</div>'; return; }
+    if(mError){ r.innerHTML='<div class="mv-empty">'+esc(mError)+'</div>'; return; }
+
+    var vis=visibles();
+    var chips=[['7','Últimos 7 días'],['30','Últimos 30 días'],['90','Últimos 3 meses'],['todo','Todo']];
+    var html='<div class="mv-bar">';
+    chips.forEach(function(c){ html+='<button class="mv-chip'+(mFiltro===c[0]?' on':'')+'" onclick="mauraFiltro(\''+c[0]+'\')">'+c[1]+'</button>'; });
+    html+='<button class="mv-chip mv-fam-btn'+(mOrden==='familia'?' on':'')+'" onclick="mauraOrden()" title="Ordenar en el mismo orden que tu sección de Piezas">📂 Por familias</button>';
+    html+='<input class="mv-search" id="mv-q" placeholder="🔍 Buscar…" value="'+esc(mBusca)+'">';
+    html+='</div>';
+    html+='<div class="mv-info">'+infoHTML(vis)+'</div>';
+    html+='<div class="mv-wrap"'+(vis.length?'':' style="display:none"')+'><table class="mv-tabla"><thead><tr>'+
+          '<th>Fecha</th><th>Familia</th><th>Pieza / Concepto</th><th>Cliente</th><th>Efectivo</th>'+
+          '</tr></thead><tbody>'+filasHTML(vis)+'</tbody></table></div>';
+    html+='<div class="mv-empty" '+(vis.length?'style="display:none"':'')+'>No hay ventas de Maura en este periodo (de las familias que tú manejas).</div>';
+    r.innerHTML=html;
+
+    var q=document.getElementById('mv-q');
+    if(q){ q.addEventListener('input',function(){ mBusca=q.value; actualizarTabla(); }); }
+  }
+
+  // Redibuja sólo tabla/conteo (sin recrear la barra) para no perder el foco del buscador
+  function actualizarTabla(){
+    var r=root(); if(!r) return;
+    var vis=visibles();
+    var info=r.querySelector('.mv-info'); if(info) info.innerHTML=infoHTML(vis);
+    var wrap=r.querySelector('.mv-wrap'); var empty=r.querySelector('.mv-empty');
+    if(wrap){ var tb=wrap.querySelector('tbody'); if(tb) tb.innerHTML=filasHTML(vis); wrap.style.display=vis.length?'':'none'; }
+    if(empty) empty.style.display=vis.length?'none':'';
+  }
+
+  // ---- API pública (para onclick / showView) ----
+  window.showMauraTab = function(which){
+    document.querySelectorAll('#view-estatus .mtab').forEach(function(b){ b.classList.toggle('active', b.dataset.mtab===which); });
+    var pc=document.getElementById('mtab-chasis'), pv=document.getElementById('mtab-ventas');
+    if(pc) pc.classList.toggle('active', which==='chasis');
+    if(pv) pv.classList.toggle('active', which==='ventas');
+    if(which==='chasis'){ if(window.estatusRender) window.estatusRender(); }
+    else { if(!ensureMaura()){ render(); } else { render(); if(mAuth && mAuth.currentUser && !mUnsub) mSubscribe(); } }
+  };
+  window.mauraLogin = function(){
+    var em=document.getElementById('mv-email'), pa=document.getElementById('mv-pass'), msg=document.getElementById('mv-login-msg');
+    if(!em||!pa) return;
+    if(!ensureMaura()){ if(msg) msg.textContent=mError; return; }
+    if(msg) msg.textContent='Entrando…';
+    mAuth.signInWithEmailAndPassword((em.value||'').trim(), pa.value||'').then(function(){
+      mError='';
+    }).catch(function(e){
+      var m='No se pudo entrar.';
+      if(e&&e.code){ if(e.code.indexOf('wrong-password')>=0||e.code.indexOf('invalid-cred')>=0) m='Contraseña incorrecta.'; else if(e.code.indexOf('user-not-found')>=0) m='Esa cuenta no existe.'; else if(e.code.indexOf('network')>=0) m='Sin internet.'; else m='No se pudo entrar ('+e.code+').'; }
+      if(msg) msg.textContent=m;
+    });
+  };
+  window.mauraLogout = function(){
+    if(mAuth){ mUnsubscribe(); mVentas=[]; mAuth.signOut().catch(function(){}); }
+  };
+  window.mauraFiltro = function(f){ mFiltro=f; render(); };
+  window.mauraOrden = function(){ mOrden = (mOrden==='familia') ? 'fecha' : 'familia'; render(); };
+  window.mauraVerInventario = function(i){
+    var v = mUltimaVis[i];
+    if(v && typeof window.abrirInventarioFamilia === 'function') window.abrirInventarioFamilia(v.famId, v.pieza);
+  };
+})();
+</script>
+<!-- ═══════════════ FIN MÓDULO VENTAS DE MAURA ═══════════════ -->
 </body>
 </html>
