@@ -1403,19 +1403,40 @@ function precioBadge(p) {
 }
 
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
-    if (e.target.type === 'submit' || e.target.type === 'button') return;
+  const t = e.target;
+  if (!t || (t.tagName !== 'INPUT' && t.tagName !== 'SELECT' && t.tagName !== 'TEXTAREA')) return;
+  if (t.type === 'submit' || t.type === 'button') return;
+  // Alcance: si hay un modal abierto, solo sus campos
+  const modalActivo = document.querySelector('.modal-bg.active') || document.querySelector('.modal.active');
+  const scope = modalActivo || document;
+  const inputs = Array.from(scope.querySelectorAll('input, select, textarea')).filter(el => {
+    return !el.disabled && !el.readOnly && el.offsetParent !== null && el.type !== 'hidden';
+  });
+  const idx = inputs.indexOf(t);
+
+  if (e.key === 'Enter') {
+    if (t.tagName === 'TEXTAREA') return; // en textarea, Enter = salto de línea
     e.preventDefault();
-    // Si hay un modal activo, buscar inputs solo dentro de él
-    const modalActivo = document.querySelector('.modal.active');
-    const scope = modalActivo || document;
-    const inputs = Array.from(scope.querySelectorAll('input, select, textarea')).filter(el => {
-      return !el.disabled && !el.readOnly && el.offsetParent !== null && el.type !== 'hidden';
-    });
-    const idx = inputs.indexOf(e.target);
     if (idx !== -1 && idx < inputs.length - 1) {
       inputs[idx + 1].focus();
       if (inputs[idx + 1].select) inputs[idx + 1].select();
+    } else {
+      // Último campo → GUARDAR (busca el botón Guardar / principal del formulario)
+      const btn = Array.from(scope.querySelectorAll('button')).find(b => /guardar/i.test(b.textContent || '')) || scope.querySelector('.btn-primary');
+      if (btn) btn.click();
+    }
+    return;
+  }
+
+  // Flechas ↑ / ↓ para moverse entre campos — solo en inputs de TEXTO
+  // (no number/date/select/textarea, que las usan para su función nativa)
+  const esTexto = t.tagName === 'INPUT' && ['text','email','tel','search','password',''].indexOf(t.type) !== -1;
+  if (esTexto && (e.key === 'ArrowDown' || e.key === 'ArrowUp') && idx !== -1) {
+    const nuevo = (e.key === 'ArrowDown') ? idx + 1 : idx - 1;
+    if (nuevo >= 0 && nuevo < inputs.length) {
+      e.preventDefault();
+      inputs[nuevo].focus();
+      if (inputs[nuevo].select) inputs[nuevo].select();
     }
   }
 });
@@ -2716,6 +2737,14 @@ function filtrarEstadoIny(e){ _filtroEstadoIny = (_filtroEstadoIny === e) ? null
 // ============================================================
 // HISTORIAL DE VENTAS
 // ============================================================
+// Dinero con coma de miles fija (no depende del navegador): 35000 → "$35,000" · 1234.5 → "$1,234.50"
+function fmtDinero(n){
+  n = Number(n) || 0;
+  var neg = n < 0; n = Math.abs(n);
+  var partes = n.toFixed(2).split('.');
+  var enteros = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return (neg ? '-' : '') + '$' + enteros + (partes[1] === '00' ? '' : '.' + partes[1]);
+}
 function renderVentas() {
   const vendidas = DATA.piezas.filter(p => p.vendida);
   const desde = document.getElementById('ventas-desde')?.value;
@@ -2736,7 +2765,7 @@ function renderVentas() {
   const ventasHoy = vendidas.filter(p => p.fechaVenta && p.fechaVenta >= hoy.getTime()).length;
   document.getElementById('ventas-stats').innerHTML = `
     <div class="stat"><div class="stat-num">${totalPiezas}</div><div class="stat-label">Piezas vendidas${(desde||hasta)?' (filtro)':''}</div></div>
-    <div class="stat"><div class="stat-num">$${totalDinero.toLocaleString()}</div><div class="stat-label">Total vendido</div></div>
+    <div class="stat"><div class="stat-num">${fmtDinero(totalDinero)}</div><div class="stat-label">Total vendido</div></div>
     <div class="stat"><div class="stat-num">${ventasHoy}</div><div class="stat-label">Vendidas hoy</div></div>`;
 
   const cont = document.getElementById('ventas-lista');
@@ -2756,7 +2785,7 @@ function renderVentas() {
       <div class="card" style="padding:0; overflow:hidden; margin-bottom:14px;">
         <div class="card-header" style="background:#17140f; color:#fff; padding:12px 16px; margin:0;">
           <div class="card-title" style="color:#fff; font-size:16px;">${fechaTxt}</div>
-          <span style="font-family:'Courier New',monospace; font-weight:700;">$${totalDia.toLocaleString()} · ${piezas.length} pza(s)</span>
+          <span style="font-family:'Courier New',monospace; font-weight:700;">${fmtDinero(totalDia)} · ${piezas.length} pza(s)</span>
         </div>
         <div style="padding:8px 16px;">
           ${piezas.map(p => {
@@ -2769,7 +2798,7 @@ function renderVentas() {
                   <span style="font-size:12px; color:#999;"> ${p.motor?'· '+escapeHtml(p.motor):''}</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:10px;">
-                  <span style="font-family:'Courier New',monospace; font-weight:700; color:#2e7d46;">${precio?'$'+precio.toLocaleString():'—'}</span>
+                  <span style="font-family:'Courier New',monospace; font-weight:700; color:#2e7d46;">${precio?fmtDinero(precio):'—'}</span>
                   <button class="btn btn-mini solo-editor" onclick="reactivarPieza('${p.id}')" title="Regresar al patio">↶</button>
                 </div>
               </div>`;
