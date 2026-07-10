@@ -246,6 +246,8 @@
   <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="openCamionModal()">🚛 Registrar Camión Nuevo 🚛</button>
   <div style="height: 10px"></div>
   <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="addPiezaSuelta()">🔧 Agregar Pieza Suelta (sin camión) 🔧</button>
+  <div style="height: 10px"></div>
+  <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #2e7d46; color:#2e7d46; font-weight:800;" onclick="abrirCompraMercancia()">🛒 Compra de Mercancía 🛒</button>
 
   <h3 style="margin-top:24px">Buscador de Piezas y Camiones</h3>
   <div style="display:flex; gap:8px; align-items:center; max-width:640px;">
@@ -496,6 +498,17 @@
       <button class="modal-close" onclick="closeModal('modal-invfam')">×</button>
     </div>
     <div id="modal-invfam-body"></div>
+  </div>
+</div>
+
+<!-- MODAL COMPRAS DE MERCANCÍA -->
+<div class="modal-bg" id="modal-compras">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🛒 Compras de mercancía</div>
+      <button class="modal-close" onclick="closeModal('modal-compras')">×</button>
+    </div>
+    <div id="modal-compras-body" style="max-height:64vh; overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -2146,6 +2159,7 @@ function eliminarCamionPermanente(id) {
 let _piezaCamionId = null;
 let _piezaFamilia = null;
 let _piezaModelo = null;
+let _modoCompra = false;   // true cuando se está registrando una COMPRA de mercancía
 let _heredaMarca = null;
 let _heredaModelo = null;
 
@@ -2177,6 +2191,7 @@ let _cofreModeloSel = null;
 
 function openPiezaModal(camionId) {
   _reabrirModalPieza = null;
+  _modoCompra = false;
   _piezaCamionId = camionId;
   _piezaFamilia = null;
   _piezaModelo = null; _heredaMarca = null; _heredaModelo = null;
@@ -2195,8 +2210,19 @@ function addPiezaSuelta() {
   openPiezaModal(null);
 }
 
+// COMPRA DE MERCANCÍA: mismo formulario de pieza, pero pide "precio de compra"
+// (lo que nos costó) y lleva la relación costo↔venta.
+function abrirCompraMercancia() {
+  openPiezaModal(null);        // resetea todo (deja _modoCompra en false) y muestra familias
+  _modoCompra = true;          // ahora sí, modo compra
+  document.getElementById('modal-pieza-title').textContent = '🛒 Compra de Mercancía';
+  buildPiezaSelectFamilia();   // re-render para que salga el botón "Ver compras"
+}
+
 function buildPiezaSelectFamilia() {
   document.getElementById('modal-pieza-body').innerHTML = `
+    ${_modoCompra ? `<div class="info-bar" style="background:#eef7ee;border-color:#2e7d46;color:#1f5631;">🛒 <b>Compra de mercancía.</b> Escoge la familia, llena los datos y anota <b>cuánto nos costó</b>.</div>
+    <button class="btn btn-block" style="background:#fff;border:2px solid #2e7d46;color:#2e7d46;font-weight:700;margin-bottom:10px;" onclick="verCompras()">📋 Ver lista de compras</button>` : ''}
     <div class="info-bar">Selecciona el tipo de pieza:</div>
     <div class="btn-grid btn-grid-large" id="fam-grid">
       ${FAMILIAS.map(f => `<button class="btn" onclick="seleccionarFamilia('${f.id}')">${f.nombreSingular || f.nombre}</button>`).join('')}
@@ -2397,11 +2423,16 @@ function seleccionarFamilia(famId) {
         <input type="text" inputmode="text" class="precio-input" id="pieza-precio" placeholder="$ ej. 2000-3000">
       </div>
     </div>
+    ${_modoCompra ? `
+    <div class="field" style="background:#eef7ee; border:2px solid #2e7d46; border-radius:8px; padding:10px 12px; margin-bottom:12px;">
+      <label style="color:#1f5631; font-weight:800;">💰 Precio de COMPRA — lo que nos costó *</label>
+      <input type="text" inputmode="text" class="precio-input" id="pieza-precio-compra" placeholder="$ ej. 1500">
+    </div>` : ''}
     <div class="field">
       <label>Notas (opcional)</label>
       <textarea id="pieza-notas" rows="2"></textarea>
     </div>
-    <button class="btn btn-success btn-block" onclick="guardarPieza()">✓ Agregar Pieza</button>
+    <button class="btn btn-success btn-block" onclick="guardarPieza()">${_modoCompra ? '✓ Registrar compra' : '✓ Agregar Pieza'}</button>
   `;
 
   document.getElementById('modal-pieza-body').innerHTML = html;
@@ -2567,6 +2598,13 @@ function guardarPieza() {
   const { min: precio, max: precioMax } = parsearPrecioRange(precioRaw);
   const notas = document.getElementById('pieza-notas').value.trim();
 
+  // Compra de mercancía: precio que nos costó (obligatorio en este modo)
+  let precioCompra = null;
+  if (_modoCompra) {
+    precioCompra = parsearPrecioRange(document.getElementById('pieza-precio-compra')?.value || '').min || null;
+    if (!precioCompra) { toast('Escribe cuánto nos costó (precio de compra)', 'error'); return; }
+  }
+
   // Link Drive (con QR)
   const driveLink = document.getElementById('pieza-drive-link')?.value.trim();
   if (driveLink) baseExtras.driveLink = driveLink;
@@ -2614,12 +2652,16 @@ function guardarPieza() {
       precioMax: precioMax,
       notas,
       vendida: false,
-      fechaRegistro: Date.now()
+      fechaRegistro: Date.now(),
+      ...(_modoCompra ? { esCompra: true, precioCompra: precioCompra, fechaCompra: Date.now() } : {})
     });
   }
 
   guardar();
-  playDing(); toast(`✓ ${cantidad} pieza${cantidad > 1 ? 's' : ''} agregada${cantidad > 1 ? 's' : ''}`, 'success');
+  playDing();
+  if (_modoCompra) toast(`🛒 ${cantidad} compra${cantidad > 1 ? 's' : ''} registrada${cantidad > 1 ? 's' : ''}`, 'success');
+  else toast(`✓ ${cantidad} pieza${cantidad > 1 ? 's' : ''} agregada${cantidad > 1 ? 's' : ''}`, 'success');
+  _modoCompra = false;
   closeModal('modal-pieza');
   if (document.getElementById('view-camiones').classList.contains('active')) renderCamiones();
   if (document.getElementById('view-camiones').classList.contains('active')) renderCamiones();
@@ -3210,6 +3252,49 @@ function borrarInvFam(id) {
   renderInvFam();      // refresca la lista del atajo
 }
 window.abrirInventarioFamilia = abrirInventarioFamilia;
+
+// ── Compras de mercancía: reporte costo↔venta, filtrable ──
+function verCompras() {
+  var compras = (DATA.piezas || []).filter(function(p) { return p.esCompra || p.precioCompra; })
+    .sort(function(a, b) { return (b.fechaCompra || b.fechaRegistro || 0) - (a.fechaCompra || a.fechaRegistro || 0); });
+  window._comprasCache = compras;
+  var body = document.getElementById('modal-compras-body');
+  if (!body) return;
+  body.innerHTML =
+    '<input id="compras-buscar" oninput="renderComprasLista(this.value)" placeholder="🔍 Buscar por modelo o familia…" style="width:100%;padding:9px 12px;border:2px solid #d8d2c6;border-radius:8px;margin-bottom:10px;font-size:14px;font-family:Arial,Helvetica,sans-serif;">' +
+    '<div id="compras-info" style="font-size:13px;color:#6b6459;font-weight:700;margin-bottom:8px;"></div>' +
+    '<div id="compras-lista"></div>';
+  renderComprasLista('');
+  openModal('modal-compras');
+}
+function renderComprasLista(q) {
+  var compras = window._comprasCache || [];
+  q = (q || '').toLowerCase().trim();
+  var vis = compras.filter(function(p) {
+    if (!q) return true;
+    var f = FAMILIAS.find(function(x) { return x.id === p.familia; });
+    return (((f ? (f.nombreSingular || f.nombre) : '') + ' ' + (p.modelo || '') + ' ' + (p.notas || '')).toLowerCase()).indexOf(q) >= 0;
+  });
+  var total = vis.reduce(function(s, p) { return s + (Number(p.precioCompra) || 0); }, 0);
+  var info = document.getElementById('compras-info');
+  if (info) info.textContent = vis.length + ' compra' + (vis.length === 1 ? '' : 's') + ' · Invertido: $' + Math.round(total).toLocaleString('en-US');
+  var lista = document.getElementById('compras-lista');
+  if (!lista) return;
+  if (!vis.length) { lista.innerHTML = '<p style="padding:14px 4px;color:#6b6459;">Aún no hay compras registradas. Usa 🛒 Compra de Mercancía.</p>'; return; }
+  lista.innerHTML = vis.map(function(p) {
+    var f = FAMILIAS.find(function(x) { return x.id === p.familia; });
+    var fam = f ? (f.nombreSingular || f.nombre) : p.familia;
+    var compra = Number(p.precioCompra) || 0;
+    var venta = Number(p.precioVenta) || Number(p.precioSugerido) || 0;  // precio real si ya se vendió
+    var gan = (compra && venta) ? (venta - compra) : null;
+    return '<div style="padding:10px 4px;border-bottom:1px solid #eee;">' +
+      '<div style="font-weight:700;">' + escapeHtml(fam) + (p.modelo ? ': ' + escapeHtml(p.modelo) : '') + (p.vendida ? ' <span style="color:#c0392b;font-size:11px;font-weight:700;">VENDIDA</span>' : '') + '</div>' +
+      '<div style="font-size:13px;color:#555;margin-top:3px;">💰 Compra: <b>$' + compra.toLocaleString('en-US') + '</b>' +
+        (venta ? ' &nbsp;·&nbsp; 🏷 Venta: <b>$' + venta.toLocaleString('en-US') + '</b>' : ' &nbsp;·&nbsp; 🏷 Venta: <span style="color:#aaa;">sin precio</span>') +
+        (gan !== null ? ' &nbsp;·&nbsp; <span style="color:' + (gan >= 0 ? '#2e7d46' : '#c0392b') + ';font-weight:700;">' + (gan >= 0 ? 'Ganancia' : 'Pérdida') + ': $' + Math.abs(gan).toLocaleString('en-US') + '</span>' : '') +
+      '</div></div>';
+  }).join('');
+}
 
 // ── Inventario dormido: piezas que llevan mucho tiempo sin venderse ──
 var MESES_DORMIDA = 6;   // umbral: 6 meses sin venderse
