@@ -181,33 +181,17 @@
   </div>
 </header>
 
-<!-- CANDADO DE ACCESO (contraseña compartida) -->
-<div id="lock-screen" style="position:fixed;inset:0;z-index:100000;background:#17140f;color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:Georgia,serif;">
+<!-- CANDADO DE ACCESO (login real — Firebase Auth, base inventario-julio-26) -->
+<div id="lock-screen" style="position:fixed;inset:0;z-index:100000;background:#17140f;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:Georgia,serif;">
   <div style="font-size:28px;font-weight:800;letter-spacing:1px;margin-bottom:6px;">Tracto Partes Magaña</div>
   <div style="font-size:13px;color:#c9a24b;text-transform:uppercase;letter-spacing:2px;margin-bottom:28px;font-family:Arial,sans-serif;">Inventario · Acceso privado</div>
   <div style="width:100%;max-width:320px;">
-    <input type="password" id="lock-input" placeholder="Contraseña" style="width:100%;padding:14px;font-size:17px;border:none;border-radius:6px;font-family:Arial,sans-serif;text-align:center;" onkeydown="if(event.key==='Enter')desbloquearAcceso()">
+    <input type="email" id="lock-email" placeholder="Correo" autocomplete="username" value="raultractopartes@gmail.com" style="width:100%;padding:13px;font-size:16px;border:none;border-radius:6px;font-family:Arial,sans-serif;text-align:center;margin-bottom:10px;">
+    <input type="password" id="lock-input" placeholder="Contraseña" autocomplete="current-password" style="width:100%;padding:14px;font-size:17px;border:none;border-radius:6px;font-family:Arial,sans-serif;text-align:center;" onkeydown="if(event.key==='Enter')desbloquearAcceso()">
     <button onclick="desbloquearAcceso()" style="width:100%;margin-top:12px;padding:14px;font-size:16px;font-weight:700;background:#b03a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:Arial,sans-serif;">Entrar</button>
     <div id="lock-msg" style="color:#e79; font-size:13px; margin-top:10px; min-height:16px; font-family:Arial,sans-serif;"></div>
   </div>
 </div>
-<script>
-(function(){
-  var ACCESO_PIN='tractmag2026';          /* ← contraseña compartida (cámbiala cuando quieras) */
-  var ACCESO_KEY='tpm_acceso_ok';
-  window.desbloquearAcceso=function(){
-    var v=(document.getElementById('lock-input').value||'');
-    if(v===ACCESO_PIN){ try{localStorage.setItem(ACCESO_KEY,'1');}catch(e){} var ls=document.getElementById('lock-screen'); if(ls) ls.style.display='none'; }
-    else { var m=document.getElementById('lock-msg'); if(m) m.textContent='Contraseña incorrecta'; }
-  };
-  function chk(){
-    var ok=false; try{ ok=localStorage.getItem(ACCESO_KEY)==='1'; }catch(e){}
-    var ls=document.getElementById('lock-screen');
-    if(!ok && ls){ ls.style.display='flex'; var i=document.getElementById('lock-input'); if(i) setTimeout(function(){i.focus();},120); }
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',chk); else chk();
-})();
-</script>
 
 <nav>
   <button class="active" data-view="camiones">🏠 Inicio</button>
@@ -1257,7 +1241,7 @@ function restaurarRespaldo(k){
 
 function initFirebase() {
   try {
-    fbApp = firebase.initializeApp(firebaseConfig);
+    fbApp = firebase.apps && firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
     fbRef = firebase.database().ref(FB_PATH);
 
     // Escucha cambios de otros dispositivos en tiempo real
@@ -4277,9 +4261,49 @@ function importJSONold(event) {
 // ============================================================
 // INIT
 // ============================================================
+// ── Candado de acceso: LOGIN REAL (Firebase Auth, base inventario-julio-26) ──
+// La app default se inicia YA (para el estatus compartido, que sigue abierto),
+// pero la conexión al inventario (initFirebase) espera a que haya sesión.
+var _authGateListo = false;
+function initAuthGate(){
+  var ls = document.getElementById('lock-screen'); if(ls) ls.style.display='flex';
+  if(typeof firebase === 'undefined' || !firebase.auth){
+    var m=document.getElementById('lock-msg'); if(m) m.textContent='Sin conexión — revisa tu internet.';
+    return;
+  }
+  try { if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig); } catch(e){}
+  var auth = firebase.auth();
+  try { auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e){}
+  auth.onAuthStateChanged(function(user){
+    var ls = document.getElementById('lock-screen');
+    if(user){
+      if(ls) ls.style.display='none';
+      if(!_authGateListo){ _authGateListo = true; try { initFirebase(); } catch(e){ console.warn('initFirebase:', e); } }
+    } else {
+      if(ls){ ls.style.display='flex'; var p=document.getElementById('lock-input'); if(p) setTimeout(function(){ p.focus(); }, 120); }
+    }
+  });
+}
+window.desbloquearAcceso = function(){
+  var emEl=document.getElementById('lock-email'), pwEl=document.getElementById('lock-input'), msg=document.getElementById('lock-msg');
+  var em=(emEl && emEl.value || '').trim(), pw=(pwEl && pwEl.value || '');
+  if(!em || !pw){ if(msg) msg.textContent='Escribe correo y contraseña'; return; }
+  if(msg) msg.textContent='Entrando…';
+  firebase.auth().signInWithEmailAndPassword(em, pw).then(function(){
+    if(msg) msg.textContent='';
+    // De paso, deja lista la pestaña de Ventas de Maura (mismo correo/contraseña).
+    if(typeof window.mauraLoginCon === 'function'){ try { window.mauraLoginCon(em, pw); } catch(e){} }
+  }).catch(function(e){
+    var c=(e && e.code) || '';
+    if(msg) msg.textContent = (c.indexOf('wrong-password')>=0 || c.indexOf('invalid-cred')>=0 || c.indexOf('user-not-found')>=0)
+      ? 'Correo o contraseña incorrectos'
+      : (c.indexOf('network')>=0 ? 'Sin internet — revisa tu conexión' : 'No se pudo entrar');
+  });
+};
+
 aplicarModo();
 renderCamiones();
-initFirebase();
+initAuthGate();       // ← login primero; initFirebase() se llama al entrar
 initEstatusPuente();
 setTimeout(respaldoAutomatico, 9000);   // primer intento tras cargar datos
 setInterval(respaldoAutomatico, 60000); // reintenta cada minuto (por si no estabas en Editor al inicio)
@@ -5079,6 +5103,11 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
   window.mauraVerInventario = function(i){
     var v = mUltimaVis[i];
     if(v && typeof window.abrirInventarioFamilia === 'function') window.abrirInventarioFamilia(v.famId, v.pieza);
+  };
+  // Login del portón de entrada → deja autenticada también la pestaña de Ventas de Maura
+  // (mismo correo/contraseña; la cuenta existe en los dos proyectos Firebase).
+  window.mauraLoginCon = function(em, pw){
+    try { if(ensureMaura() && mAuth){ mAuth.signInWithEmailAndPassword(em, pw).catch(function(){}); } } catch(e){}
   };
 })();
 </script>
