@@ -2407,6 +2407,10 @@ function seleccionarFamilia(famId) {
         <input type="text" inputmode="text" class="precio-input" id="pieza-precio" placeholder="$ ej. 2000-3000">
       </div>
     </div>
+    <div class="field">
+      <label>🔖 Folio interno (4 dígitos, opcional)</label>
+      <input type="text" inputmode="numeric" maxlength="6" id="pieza-folio" placeholder="Ej. 0123">
+    </div>
     ${_modoCompra ? `
     <div class="field" style="background:#eef7ee; border:2px solid #2e7d46; border-radius:8px; padding:10px 12px; margin-bottom:12px;">
       <label style="color:#1f5631; font-weight:800;">💰 Precio de COMPRA — lo que nos costó *</label>
@@ -2624,7 +2628,13 @@ function guardarPieza() {
     };
   }
 
+  // Folio interno (opcional, lo pone Raúl). Si son varias piezas y el folio es
+  // numérico, se numeran en secuencia (0123, 0124, …) para que no se repitan.
+  const folioBaseRaw = (document.getElementById('pieza-folio')?.value || '').trim();
+  const folioEsNum = /^\d+$/.test(folioBaseRaw);
   for (let i = 0; i < cantidad; i++) {
+    let folioI = '';
+    if (folioBaseRaw) folioI = folioEsNum ? String(parseInt(folioBaseRaw, 10) + i).padStart(4, '0') : (i === 0 ? folioBaseRaw : '');
     DATA.piezas.push({
       id: 'pza_' + Date.now() + '_' + Math.random().toString(36).slice(2,7) + '_' + i,
       familia: _piezaFamilia,
@@ -2637,6 +2647,7 @@ function guardarPieza() {
       notas,
       vendida: false,
       fechaRegistro: Date.now(),
+      ...(folioI ? { folioInterno: folioI } : {}),
       ...(_modoCompra ? { esCompra: true, precioCompra: precioCompra, fechaCompra: Date.now() } : {})
     });
   }
