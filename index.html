@@ -3030,6 +3030,10 @@ function editarPieza(id) {
       <label>Modelo / Identificación</label>
       <input type="text" id="edit-modelo" value="${escapeHtml(p.modelo || '')}">
     </div>
+    <div class="field">
+      <label>🔖 Folio interno (4 dígitos)</label>
+      <input type="text" id="edit-folio" inputmode="numeric" maxlength="6" value="${escapeHtml(p.folioInterno || '')}" placeholder="Ej. 0123">
+    </div>
   `;
 
   if (f?.tipo === 'libre' || f?.id === 'arboles' || f?.id === 'ciguenales') {
@@ -3130,6 +3134,10 @@ function guardarEdicionPieza(id) {
   const f = FAMILIAS.find(x => x.id === p.familia);
 
   p.modelo = document.getElementById('edit-modelo')?.value.trim() || p.modelo;
+  // Folio interno (lo pone Raúl a mano). Si son solo números, se rellena a 4 dígitos.
+  const folioRaw = (document.getElementById('edit-folio')?.value || '').trim();
+  if (folioRaw) p.folioInterno = /^\d+$/.test(folioRaw) ? folioRaw.padStart(4, '0') : folioRaw;
+  else delete p.folioInterno;
   const precioRaw = document.getElementById('edit-precio')?.value || '';
   const { min: precioMin, max: precioMax } = parsearPrecioRange(precioRaw);
   p.precioSugerido = precioMin;
@@ -3474,7 +3482,7 @@ function renderBusqueda() {
                     <button class="btn btn-small btn-mini btn-danger solo-editor" onclick="eliminarPieza('${p.id}')">🗑</button>
                   </div>
                 </div>
-                ${p.fechaRegistro ? `<div style="font-size:10px; color:#ccc; margin-top:3px; font-family:ui-monospace,monospace;">${fechaCorta(p.fechaRegistro)}</div>` : ''}
+                ${(p.fechaRegistro || p.folioInterno) ? `<div style="font-size:10px; margin-top:3px; font-family:ui-monospace,monospace;">${p.fechaRegistro ? `<span style="color:#ccc;">${fechaCorta(p.fechaRegistro)}</span>` : ''}${p.folioInterno ? `<span style="color:#17140f; font-weight:700; margin-left:10px;">Folio ${escapeHtml(p.folioInterno)}</span>` : ''}</div>` : ''}
               </div>
             `;
           }).join('')}
