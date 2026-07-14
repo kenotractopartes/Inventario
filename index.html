@@ -1679,7 +1679,7 @@ function textoBuscablePieza(p) {
   const ex = p.extras || {};
   const f = FAMILIAS.find(x => x.id === p.familia);
   return [
-    p.modelo, p.motor, p.marca, p.año, p.camionFolio, p.camionMarca, p.camionModelo,
+    p.modelo, p.motor, p.marca, p.año, p.folioInterno, p.camionFolio, p.camionMarca, p.camionModelo,
     f?.nombre, f?.nombreSingular,
     ex.terminacion, ex.serie, ex.cpl, ex.hp, ex.libras, ex.condicion, ex.ubicacion,
     ex.fichaVin, ex.fichaNoMotor, ex.fichaMarca, ex.fichaModelo, ex.fichaAño, ex.fichaExtra,
