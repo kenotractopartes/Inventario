@@ -243,6 +243,9 @@
   </div>
   <div id="contador-camiones" style="margin-top:6px; font-size:12px; color:#888; font-weight:600;"></div>
 
+  <!-- Cajita de Productos Apartados (solo aparece si hay 1 o más) -->
+  <div id="caja-apartados"></div>
+
   <div style="height: 12px"></div>
   <div id="lista-camiones"></div>
 </section>
@@ -449,6 +452,37 @@
       <input type="text" class="precio-input" id="venta-precio" placeholder="$ ej. 25000">
     </div>
     <button class="btn btn-success btn-block" onclick="confirmarVenta()">✓ Confirmar Venta</button>
+  </div>
+</div>
+
+<!-- MODAL APARTAR PIEZA -->
+<div class="modal-bg" id="modal-apartar">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <div class="modal-title">🔖 Apartar pieza</div>
+      <button class="modal-close" onclick="closeModal('modal-apartar')">×</button>
+    </div>
+    <p style="font-size:15px; color:#17140f; font-weight:700; margin-bottom:14px;" id="apartar-desc"></p>
+    <div class="field">
+      <label>Cliente <span style="color:#c0392b">*</span></label>
+      <input type="text" id="apartar-cliente" placeholder="Nombre de quien aparta">
+    </div>
+    <div class="field">
+      <label>Celular</label>
+      <input type="tel" id="apartar-celular" placeholder="ej. 81 1234 5678">
+    </div>
+    <div style="display:flex; gap:10px;">
+      <div class="field" style="flex:1;">
+        <label>Precio acordado</label>
+        <input type="text" class="precio-input" id="apartar-precio" placeholder="$ ej. 25000" oninput="_recalcRestanteApartado()">
+      </div>
+      <div class="field" style="flex:1;">
+        <label>Anticipo que dejó</label>
+        <input type="text" class="precio-input" id="apartar-anticipo" placeholder="$ ej. 5000" oninput="_recalcRestanteApartado()">
+      </div>
+    </div>
+    <div id="apartar-restante" style="font-size:13px; font-weight:700; margin:-2px 0 14px;"></div>
+    <button class="btn btn-block" style="background:#7e57c2; color:#fff; border-color:#7e57c2;" onclick="confirmarApartado()">🔖 Apartar para este cliente</button>
   </div>
 </div>
 
@@ -1656,6 +1690,8 @@ function textoBuscablePieza(p) {
 }
 
 function renderCamiones() {
+  // Cajita de "Productos Apartados" (arriba del inicio, si hay 1 o más)
+  if (typeof renderApartados === 'function') renderApartados();
   // Lista de camiones (filtrar también por estado)
   const filtro = (document.getElementById('filtro-camiones')?.value || '').toLowerCase().trim();
   const camionesFiltrados = DATA.camiones.filter(c => {
@@ -1744,13 +1780,14 @@ function renderCamiones() {
         <div class="card" style="background:#fff; border:3px solid #e67e22; border-radius:8px;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
             <div style="flex:1; min-width:0;">
-              <div style="font-size:15px; font-weight:800; color:#e67e22;">${f?.nombreSingular || 'Pieza'}${_alertaHuerfano(p)}${estadoInyBadge(p)}</div>
+              <div style="font-size:15px; font-weight:800; color:#e67e22;">${f?.nombreSingular || 'Pieza'}${_alertaHuerfano(p)}${estadoInyBadge(p)}${badgeApartada(p)}</div>
               <div style="margin-top:6px;">${lineasDetalle}</div>
             </div>
             <div style="display:flex; flex-direction:column; gap:5px; flex-shrink:0;">
               ${qrBtn}
               ${estadoInyBotones(p)}
               ${(estadoIny(p) && estadoIny(p) !== 'reconstruido') ? '' : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
+              ${botonApartar(p)}
                             <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
               <button class="btn btn-small btn-mini btn-danger solo-editor" onclick="eliminarPieza('${p.id}')">🗑</button>
             </div>
@@ -2708,13 +2745,14 @@ function renderPiezaItem(p) {
   return `
     <div class="pieza-item" style="${p.vendida ? 'opacity:0.55' : ''}">
       <div class="pieza-info">
-        <div class="pieza-name">${f?.nombreSingular || f?.nombre || p.familia}: ${p.modelo}${precio}${_alertaHuerfano(p)}</div>
+        <div class="pieza-name">${f?.nombreSingular || f?.nombre || p.familia}: ${p.modelo}${precio}${_alertaHuerfano(p)}${badgeApartada(p)}</div>
         <div class="pieza-detail">${extras}${p.vendida ? ' · <strong style="color:#c0392b">VENDIDA</strong>' : ''}</div>
       </div>
       <div class="pieza-actions">
         ${p.vendida
           ? `<button class="btn btn-small solo-editor" onclick="reactivarPieza('${p.id}')">↶</button>`
           : `<button class="btn btn-small btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
+        ${botonApartar(p)}
         ${qrBtn}
         <button class="btn btn-small solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
         <button class="btn btn-small btn-danger solo-editor" onclick="eliminarPieza('${p.id}')">🗑</button>
@@ -2815,7 +2853,7 @@ function renderPiezaItemConCamion(p) {
     <div class="pieza-item" style="display:block; ${p.vendida ? 'opacity:0.55' : ''} ${p.bajoPedido ? 'border-left:4px solid #c9a24b; background:#fdfaf0;' : ''}">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
         <div style="flex:1;">
-          <div style="font-size:18px; font-weight:900; color:#1a1a1a;">${escapeHtml(p.modelo || '')}${precio}${_alertaHuerfano(p)}${estadoInyBadge(p)}${p.bajoPedido ? ' <span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : ''}</div>
+          <div style="font-size:18px; font-weight:900; color:#1a1a1a;">${escapeHtml(p.modelo || '')}${precio}${_alertaHuerfano(p)}${estadoInyBadge(p)}${badgeApartada(p)}${p.bajoPedido ? ' <span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : ''}</div>
           <div style="font-size:13px; color:#777; margin-top:2px;">${extras}${p.vendida ? ' · <strong style="color:#c0392b">VENDIDA</strong>' : ''}</div>
           ${p.notas ? `<div style="font-size:14px; color:#4a4a4a; background:#f7f3ea; border-left:3px solid #c9a24b; border-radius:2px; padding:7px 11px; margin-top:5px;">📝 ${escapeHtml(p.notas)}</div>` : ''}
           ${origen}
@@ -2826,6 +2864,7 @@ function renderPiezaItemConCamion(p) {
             : (estadoIny(p) && estadoIny(p) !== 'reconstruido'
                 ? estadoInyBotones(p)
                 : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`)}
+          ${botonApartar(p)}
                     ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((f?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
           <button class="btn btn-small btn-mini solo-editor" onclick="toggleBajoPedido('${p.id}')" title="Sin existencia / bajo pedido">${p.bajoPedido ? '📦✓' : '📦'}</button>
           <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
@@ -2844,7 +2883,8 @@ function venderPieza(id) {
   const hoy = new Date().toISOString().slice(0,10);
   document.getElementById('venta-desc').textContent = `${f?.nombreSingular || 'Pieza'}: ${p.modelo || ''}`;
   document.getElementById('venta-fecha').value = hoy;
-  const precio = p.precioSugerido || '';
+  // Si estaba apartada, precargar el precio acordado con el cliente.
+  const precio = (p.apartada && p.apartadoInfo && p.apartadoInfo.precio) ? p.apartadoInfo.precio : (p.precioSugerido || '');
   document.getElementById('venta-precio').value = precio;
   document.getElementById('modal-venta').classList.add('active');
 }
@@ -2859,6 +2899,8 @@ function confirmarVenta() {
   p.vendida = true;
   p.fechaVenta = fechaStr ? new Date(fechaStr + 'T12:00:00').getTime() : Date.now();
   if (precioVenta) p.precioVenta = parseFloat(precioVenta);
+  // Si venía apartada, ya se concretó la venta → limpiar el apartado.
+  if (p.apartada) { delete p.apartada; delete p.apartadoInfo; }
   // Fase B: al vender un inyector reconstruido, ofrecer registrar el CORE que dejó el cliente
   if (esFamiliaReparacion(p.familia) && (p.estado || 'reconstruido') === 'reconstruido') {
     if (confirm('¿El cliente dejó su CORE (la pieza usada) a cambio?\n\nSi sí, lo agrego al inventario de cores.')) {
@@ -2939,6 +2981,135 @@ function conteoInyectores(){
 // Filtro por estado dentro de la familia Inyectores (toca el contador para ver solo esos)
 var _filtroEstadoIny = null;
 function filtrarEstadoIny(e){ _filtroEstadoIny = (_filtroEstadoIny === e) ? null : e; if (typeof renderBusqueda === 'function') renderBusqueda(); }
+
+// ============================================================
+// APARTAR PIEZAS (reservar para un cliente) — jul 2026
+// ------------------------------------------------------------
+// Una pieza apartada SIGUE en el patio (NO se marca vendida), pero se
+// le pone la etiqueta "🔖 APARTADA · cliente" para que nadie la venda
+// por error. Se guarda: p.apartada=true y p.apartadoInfo={cliente,
+// celular, precio, anticipo, fecha}. Al VENDER se limpia el apartado;
+// al LIBERAR regresa al patio normal. Datos pedidos por Eugenio.
+// ============================================================
+function _numApartar(v){ return parseFloat(String(v == null ? '' : v).replace(/[,$\s]/g,'')) || 0; }
+
+// Etiqueta morada que se pega junto al nombre de la pieza.
+function badgeApartada(p){
+  if(!p || !p.apartada) return '';
+  const cli = (p.apartadoInfo && p.apartadoInfo.cliente) ? p.apartadoInfo.cliente : 'cliente';
+  return ` <span class="badge" style="background:#7e57c2; color:#fff;">🔖 APARTADA · ${escapeHtml(cli)}</span>`;
+}
+
+// Botón de apartado para cada pieza: en patio → "Apartar";
+// ya apartada → "Liberar"; vendida → nada.
+function botonApartar(p){
+  if(!p || p.vendida) return '';
+  if(p.apartada){
+    return `<button class="btn btn-small btn-mini solo-editor" style="background:#7e57c2;color:#fff;border-color:#7e57c2;" onclick="liberarApartado('${p.id}')" title="Cancelar apartado y regresar al patio">Liberar</button>`;
+  }
+  return `<button class="btn btn-small btn-mini solo-editor" style="background:#7e57c2;color:#fff;border-color:#7e57c2;" onclick="apartarPieza('${p.id}')" title="Apartar para un cliente">Apartar</button>`;
+}
+
+let _piezaApartandoId = null;
+function apartarPieza(id){
+  const p = DATA.piezas.find(x => x.id === id);
+  if(!p) return;
+  _piezaApartandoId = id;
+  const f = FAMILIAS.find(x => x.id === p.familia);
+  document.getElementById('apartar-desc').textContent = `${f?.nombreSingular || 'Pieza'}: ${p.modelo || ''}`;
+  const info = p.apartadoInfo || {};
+  document.getElementById('apartar-cliente').value = info.cliente || '';
+  document.getElementById('apartar-celular').value = info.celular || '';
+  document.getElementById('apartar-precio').value = (info.precio != null && info.precio !== '') ? info.precio : (p.precioSugerido || '');
+  document.getElementById('apartar-anticipo').value = (info.anticipo != null && info.anticipo !== '') ? info.anticipo : '';
+  _recalcRestanteApartado();
+  openModal('modal-apartar');
+  setTimeout(() => { try { document.getElementById('apartar-cliente').focus(); } catch(e){} }, 60);
+}
+
+// Muestra en vivo cuánto le falta por pagar al cliente (precio − anticipo).
+function _recalcRestanteApartado(){
+  const el = document.getElementById('apartar-restante');
+  if(!el) return;
+  const precio = _numApartar(document.getElementById('apartar-precio').value);
+  const ant = _numApartar(document.getElementById('apartar-anticipo').value);
+  if(precio <= 0 && ant <= 0){ el.innerHTML = ''; return; }
+  const rest = precio - ant;
+  el.innerHTML = `Restante por pagar: <span style="color:${rest > 0 ? '#c0392b' : '#2e7d46'}">${fmtDinero(rest)}</span>`;
+}
+
+function confirmarApartado(){
+  const p = DATA.piezas.find(x => x.id === _piezaApartandoId);
+  if(!p) return;
+  const cliente = document.getElementById('apartar-cliente').value.trim();
+  if(!cliente){ alert('Escribe el nombre del cliente para quien se aparta la pieza.'); return; }
+  pushUndo('Apartar pieza');
+  p.apartada = true;
+  p.apartadoInfo = {
+    cliente: cliente,
+    celular: document.getElementById('apartar-celular').value.trim(),
+    precio: _numApartar(document.getElementById('apartar-precio').value),
+    anticipo: _numApartar(document.getElementById('apartar-anticipo').value),
+    fecha: Date.now()
+  };
+  guardar();
+  if (typeof playDing === 'function') playDing();
+  toast('🔖 Pieza apartada para ' + cliente, 'success');
+  closeModal('modal-apartar');
+  refrescarVistaActual();
+}
+
+function liberarApartado(id){
+  const p = DATA.piezas.find(x => x.id === id);
+  if(!p) return;
+  const cli = (p.apartadoInfo && p.apartadoInfo.cliente) ? (' de ' + p.apartadoInfo.cliente) : '';
+  if(!confirm('¿Cancelar el apartado' + cli + ' y regresar la pieza al patio normal?')) return;
+  pushUndo('Liberar apartado');
+  delete p.apartada;
+  delete p.apartadoInfo;
+  guardar();
+  toast('Pieza liberada — de vuelta en el patio', 'success');
+  refrescarVistaActual();
+}
+
+// Cajita "Productos Apartados" del inicio (solo aparece si hay 1 o más).
+function renderApartados(){
+  const cont = document.getElementById('caja-apartados');
+  if(!cont) return;
+  const apartadas = DATA.piezas.filter(p => p.apartada && !p.vendida)
+    .sort((a,b) => (((b.apartadoInfo||{}).fecha)||0) - (((a.apartadoInfo||{}).fecha)||0));
+  if(apartadas.length === 0){ cont.innerHTML = ''; return; }
+  const filas = apartadas.map(p => {
+    const f = FAMILIAS.find(x => x.id === p.familia);
+    const info = p.apartadoInfo || {};
+    const precio = _numApartar(info.precio), ant = _numApartar(info.anticipo);
+    const rest = precio - ant;
+    const detPago = (precio > 0 || ant > 0)
+      ? `<div style="font-size:12px; color:#555; margin-top:2px;">Precio ${fmtDinero(precio)} · Anticipo ${fmtDinero(ant)} · <strong style="color:${rest > 0 ? '#c0392b' : '#2e7d46'}">Restante ${fmtDinero(rest)}</strong></div>`
+      : '';
+    const tel = info.celular ? ` · 📞 ${escapeHtml(info.celular)}` : '';
+    return `
+      <div style="background:#fff; border:1px solid #e5ddf2; border-left:4px solid #7e57c2; border-radius:6px; padding:10px 12px; margin-bottom:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:800; color:#1a1a1a;">${escapeHtml(f?.nombreSingular || 'Pieza')}: ${escapeHtml(p.modelo || '')}</div>
+            <div style="font-size:13px; color:#7e57c2; font-weight:700; margin-top:2px;">🔖 ${escapeHtml(info.cliente || 'cliente')}${tel}</div>
+            ${detPago}
+            <div style="font-size:11px; color:#aaa; margin-top:2px;">Apartada ${fechaCorta(info.fecha)}</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px; flex-shrink:0;">
+            <button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>
+            <button class="btn btn-small btn-mini solo-editor" style="background:#7e57c2;color:#fff;border-color:#7e57c2;" onclick="liberarApartado('${p.id}')">Liberar</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+  cont.innerHTML = `
+    <div class="card" style="background:#f6f2fc; border:2px solid #7e57c2; border-radius:10px; margin:12px 0 4px; padding:14px;">
+      <div style="font-size:16px; font-weight:900; color:#7e57c2; margin-bottom:10px;">🔖 Productos Apartados (${apartadas.length})</div>
+      ${filas}
+    </div>`;
+}
 
 // ============================================================
 // HISTORIAL DE VENTAS
@@ -3352,7 +3523,17 @@ function verDormidas() {
 let _filtroFamilia = null;
 let _filtroSinPrecio = false;
 let _filtroBajoPedido = false;
+let _filtroApartadas = false;
 const _acordeonesAbiertos = new Set();
+
+function toggleApartadasFiltro() {
+  _filtroApartadas = !_filtroApartadas;
+  _filtroFamilia = null;
+  _filtroSinPrecio = false;
+  _filtroBajoPedido = false;
+  _acordeonesAbiertos.clear();
+  renderBusqueda();
+}
 
 function toggleAcordeonFamilia(famId) {
   if (_acordeonesAbiertos.has(famId)) {
@@ -3367,19 +3548,22 @@ function toggleBajoPedidoFiltro() {
   _filtroBajoPedido = !_filtroBajoPedido;
   _filtroFamilia = null;
   _filtroSinPrecio = false;
+  _filtroApartadas = false;
   _acordeonesAbiertos.clear();
   renderBusqueda();
 }
 
 function renderBusqueda() {
   const nBajoPedido = DATA.piezas.filter(p => !p.vendida && p.bajoPedido).length;
+  const nApartadas = DATA.piezas.filter(p => p.apartada && !p.vendida).length;
   // Fila 1: especiales (Todas, Sin Precio, Bajo Pedido). Fila 2: familias.
   const filtros = document.getElementById('filtros-familia');
   filtros.innerHTML =
     '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; padding-bottom:16px; border-bottom:2px solid #ddd6c8;">' +
-      '<button class="filter-chip ' + (!_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido ? 'active' : '') + '" onclick="setFiltro(null)">Todas</button>' +
+      '<button class="filter-chip ' + (!_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido && !_filtroApartadas ? 'active' : '') + '" onclick="setFiltro(null)">Todas</button>' +
       `<button class="filter-chip ${_filtroSinPrecio ? 'active' : ''}" style="background:#c0392b; color:#fff; border-color:#c0392b; font-weight:800;" onclick="toggleSinPrecio()">⚠ SIN PRECIO</button>` +
       `<button class="filter-chip ${_filtroBajoPedido ? 'active' : ''}" style="background:#c9a24b; color:#17140f; border-color:#c9a24b; font-weight:800;" onclick="toggleBajoPedidoFiltro()">📦 BAJO PEDIDO${nBajoPedido ? ` (${nBajoPedido})` : ''}</button>` +
+      `<button class="filter-chip ${_filtroApartadas ? 'active' : ''}" style="background:#7e57c2; color:#fff; border-color:#7e57c2; font-weight:800;" onclick="toggleApartadasFiltro()">🔖 APARTADAS${nApartadas ? ` (${nApartadas})` : ''}</button>` +
     '</div>' +
     '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
       FAMILIAS.map(f => {
@@ -3393,12 +3577,15 @@ function renderBusqueda() {
   if (_filtroFamilia) piezas = piezas.filter(p => p.familia === _filtroFamilia);
   if (_filtroSinPrecio) piezas = piezas.filter(p => !p.precioSugerido && !p.precioMax);
   if (_filtroBajoPedido) piezas = piezas.filter(p => p.bajoPedido);
+  if (_filtroApartadas) piezas = piezas.filter(p => p.apartada);
 
   const info = document.getElementById('info-busqueda');
   if (_filtroSinPrecio) {
     info.innerHTML = `<strong>${piezas.length}</strong> pieza(s) <strong style="color:#e67e22;">SIN PRECIO</strong> — toca Editar para agregarles precio`;
   } else if (_filtroBajoPedido) {
     info.innerHTML = `<strong>${piezas.length}</strong> pieza(s) marcadas como <strong style="color:#c9a24b;">BAJO PEDIDO</strong> (se manejan, sin stock actual)`;
+  } else if (_filtroApartadas) {
+    info.innerHTML = `<strong>${piezas.length}</strong> pieza(s) <strong style="color:#7e57c2;">APARTADAS</strong> para clientes`;
   } else {
     info.innerHTML = `Mostrando: <strong>${piezas.length}</strong> pieza(s) en patio`;
   }
@@ -3424,7 +3611,7 @@ function renderBusqueda() {
 
   // Si "Todas" activo (sin filtro de familia): modo ACORDEÓN (cerrados por default)
   // Si una familia específica: abierto directo
-  const modoAcordeon = !_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido;
+  const modoAcordeon = !_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido && !_filtroApartadas;
 
   cont.innerHTML = gruposOrdenados.map(g => {
     const f = FAMILIAS.find(x => x.id === g.familia);
@@ -3480,13 +3667,15 @@ function renderBusqueda() {
             }
 
             return `
-              <div class="pieza-item" style="display:block; ${p.bajoPedido ? 'border-left:4px solid #c9a24b; background:#fdfaf0;' : ''}">
+              <div class="pieza-item" style="display:block; ${p.apartada ? 'border-left:4px solid #7e57c2; background:#f8f5fd;' : (p.bajoPedido ? 'border-left:4px solid #c9a24b; background:#fdfaf0;' : '')}">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
                   ${cuerpoPieza}
                   <div class="pieza-actions">
+                    ${badgeApartada(p)}
                     ${p.bajoPedido ? '<span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : ''}
                     ${estadoInyBotones(p)}
                     ${(estadoIny(p) && estadoIny(p) !== 'reconstruido') ? '' : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
+                    ${botonApartar(p)}
                                         ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((fam?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
                     <button class="btn btn-small btn-mini solo-editor" onclick="toggleBajoPedido('${p.id}')" title="Sin existencia / bajo pedido">${p.bajoPedido ? '📦✓' : '📦'}</button>
                     <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
@@ -3507,6 +3696,7 @@ function setFiltro(id) {
   _filtroFamilia = id;
   _filtroSinPrecio = false;
   _filtroBajoPedido = false;
+  _filtroApartadas = false;
   _filtroEstadoIny = null;
   _acordeonesAbiertos.clear();
   renderBusqueda();
@@ -3516,6 +3706,7 @@ function toggleSinPrecio() {
   _filtroSinPrecio = !_filtroSinPrecio;
   _filtroFamilia = null;
   _filtroBajoPedido = false;
+  _filtroApartadas = false;
   _acordeonesAbiertos.clear();
   renderBusqueda();
 }
