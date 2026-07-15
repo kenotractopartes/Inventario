@@ -13,6 +13,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { font-family: Georgia, 'Times New Roman', serif; background: #f2efe9; color: #1a1a1a; font-size: 16px; line-height: 1.5; }
@@ -135,7 +136,10 @@
 
   /* RESPONSIVE TWEAKS */
   @media (max-width: 480px) {
-    nav button { font-size: 12px; padding: 11px 4px; min-width: 80px; }
+    /* Nav deslizable con el dedo (no se aprietan las pestañas) */
+    nav { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    nav::-webkit-scrollbar { display: none; }
+    nav button { font-size: 12px; padding: 13px 10px; min-width: 84px; flex: 0 0 auto; }
     main { padding: 12px; }
     .field-row { grid-template-columns: 1fr; }
     h1 { font-size: 16px; }
@@ -143,9 +147,17 @@
     .pieza-item { flex-direction: column; align-items: stretch; }
     .pieza-actions { justify-content: flex-start; margin-top: 8px; }
     .pieza-actions .btn-small { flex: 1; min-width: 70px; }
+    /* Dedos, no mouse: todo botón chico crece a tamaño táctil */
+    .btn-mini { padding: 11px 12px !important; font-size: 13px !important; min-height: 42px !important; }
+    .btn-small { min-height: 42px; }
     /* Botones de modelo/marca más compactos */
     .btn-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
     .btn { padding: 14px 14px; font-size: 15px; }
+    /* Modales casi a pantalla completa, cómodos con el teclado abierto */
+    .modal-bg { padding: 10px 8px; }
+    .modal { padding: 18px 14px; max-height: 94vh; border-radius: 10px; }
+    /* Buscador y campos más grandes para escribir con el dedo */
+    input[type="text"], input[type="tel"], input[type="date"], input[type="number"], select, textarea { font-size: 16px; min-height: 44px; }
     /* Tablas de Motor/Cabina/Chasis: que no se desborden */
     table { font-size: 14px; }
     table td { padding: 6px 8px !important; word-break: break-word; }
@@ -483,6 +495,19 @@
     </div>
     <div id="apartar-restante" style="font-size:13px; font-weight:700; margin:-2px 0 14px;"></div>
     <button class="btn btn-block" style="background:#7e57c2; color:#fff; border-color:#7e57c2;" onclick="confirmarApartado()">🔖 Apartar para este cliente</button>
+  </div>
+</div>
+
+<!-- MODAL FOTOS Y VIDEO DE LA PIEZA -->
+<div class="modal-bg" id="modal-fotos">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <div class="modal-title">📷 Fotos y video</div>
+      <button class="modal-close" onclick="closeModal('modal-fotos')">×</button>
+    </div>
+    <p style="font-size:15px; color:#17140f; font-weight:700; margin-bottom:4px;" id="fotos-desc"></p>
+    <div id="fotos-body"></div>
+    <input type="file" id="fotos-input" accept="image/*,video/*" multiple style="display:none" onchange="subirArchivosPieza(this.files)">
   </div>
 </div>
 
@@ -1277,6 +1302,8 @@ function initFirebase() {
   try {
     fbApp = firebase.apps && firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
     fbRef = firebase.database().ref(FB_PATH);
+    // Fotos/video de piezas: escuchar el nodo público de fichas
+    if (typeof escucharFichasPublicas === 'function') escucharFichasPublicas();
 
     // Escucha cambios de otros dispositivos en tiempo real
     fbRef.on('value', (snap) => {
@@ -1560,6 +1587,266 @@ function verQR(urlCodificada, titulo) {
 }
 
 // ============================================================
+// FOTOS Y VIDEO DE PIEZAS — jul 2026
+// ------------------------------------------------------------
+// CUALQUIER persona con login (aunque esté en "Solo Ver") puede
+// subir fotos/video a una pieza desde su teléfono o compu.
+// • Los archivos van a Firebase Storage (fotos_piezas/<idPieza>/).
+//   El ORIGINAL en HD se guarda intacto; además se genera una
+//   versión ligera (máx 1600px) para que la página cargue rápido.
+// • La ficha pública vive en RTDB nodo "fichas_publicas/<idPieza>"
+//   (fotos + datos técnicos, NUNCA precios ni folios internos).
+//   NO toca inventario_patio — por eso Solo Ver sí puede subir
+//   sin riesgo de pisar el inventario del editor.
+// • El QR y el botón WhatsApp apuntan a la página permanente:
+//   motor.html?id=<idPieza> (aunque cambien las fotos, el QR vive).
+// • Si el almacenamiento aún no está activado (plan Blaze), la
+//   subida avisa claro en vez de tronar.
+// ============================================================
+var PUB = {};   // copia en memoria de fichas_publicas
+var PUB_URL_BASE = 'https://kenotractopartes.github.io/Inventario/motor.html?id=';
+
+function linkFichaPieza(id){ return PUB_URL_BASE + encodeURIComponent(id); }
+function mediaDePieza(id){ return (PUB[id] && Array.isArray(PUB[id].media)) ? PUB[id].media : []; }
+
+// Botón "📷" que va junto a Vendí/Editar en cada pieza. Visible para
+// TODOS (sin clase solo-editor). Muestra cuántas fotos/videos tiene.
+function botonFotos(p){
+  if (!p || !p.id) return '';
+  var n = mediaDePieza(p.id).length;
+  return '<button class="btn btn-small btn-mini" style="background:#185FA5;color:#fff;border-color:#185FA5;" onclick="abrirFotosPieza(\'' + p.id + '\')" title="Fotos y video de esta pieza">📷' + (n ? ' ' + n : '') + '</button>';
+}
+
+// Escuchar el nodo público en vivo (se engancha al conectar Firebase).
+function escucharFichasPublicas(){
+  try {
+    firebase.database().ref('fichas_publicas').on('value', function(snap){
+      PUB = snap.val() || {};
+      if (typeof refrescarVistaActual === 'function') refrescarVistaActual();
+      if (document.getElementById('modal-fotos')?.classList.contains('active')) renderModalFotos();
+    });
+  } catch(e){ console.error('fichas_publicas:', e); }
+}
+
+// Datos técnicos SEGUROS que se publican (jamás precio/folio/notas).
+function datosPublicosDePieza(p){
+  var f = FAMILIAS.find(function(x){ return x.id === p.familia; });
+  var ex = p.extras || {};
+  return {
+    titulo: ((f && (f.nombreSingular || f.nombre)) || 'Pieza') + (p.modelo ? ': ' + p.modelo : ''),
+    marca: p.marca || p.camionMarca || '',
+    motor: p.motor || '',
+    hp: ex.hp || '',
+    'año': p['año'] || p.camionAño || '',
+    serie: ex.serie || '',
+    cpl: ex.cpl || ''
+  };
+}
+
+function publicarFicha(p, media){
+  var d = datosPublicosDePieza(p);
+  d.media = media || [];
+  d.actualizado = Date.now();
+  if (!d.media.length) return firebase.database().ref('fichas_publicas/' + p.id).remove();
+  return firebase.database().ref('fichas_publicas/' + p.id).set(d);
+}
+
+// ---------- Modal ----------
+var _piezaFotosId = null;
+function abrirFotosPieza(id){
+  var p = DATA.piezas.find(function(x){ return x.id === id; });
+  if (!p) return;
+  _piezaFotosId = id;
+  var f = FAMILIAS.find(function(x){ return x.id === p.familia; });
+  document.getElementById('fotos-desc').textContent = (f?.nombreSingular || 'Pieza') + ': ' + (p.modelo || '');
+  renderModalFotos();
+  openModal('modal-fotos');
+}
+
+function renderModalFotos(){
+  var body = document.getElementById('fotos-body');
+  if (!body || !_piezaFotosId) return;
+  var media = mediaDePieza(_piezaFotosId);
+  var link = linkFichaPieza(_piezaFotosId);
+
+  var galeria = media.length
+    ? '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(90px,1fr)); gap:8px; margin:10px 0;">' +
+      media.map(function(m, i){
+        var mini = m.t === 'video'
+          ? '<div style="width:100%;height:74px;background:#1a1a1a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;border-radius:6px;">▶</div>'
+          : '<img src="' + (m.web || m.url || '') + '" style="width:100%;height:74px;object-fit:cover;border-radius:6px;display:block;" alt="">';
+        return '<div style="position:relative;">' + mini +
+          '<button onclick="borrarMediaPieza(' + i + ')" style="position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;border:none;background:#c0392b;color:#fff;font-size:13px;cursor:pointer;line-height:1;">✕</button></div>';
+      }).join('') + '</div>'
+    : '<p style="color:#888; text-align:center; padding:14px 0 10px; font-size:14px;">Esta pieza aún no tiene fotos.<br>Súbelas desde tu teléfono con el botón de abajo. 👇</p>';
+
+  var compartir = media.length ? (
+    '<div style="border-top:2px solid #eee; margin-top:14px; padding-top:12px;">' +
+      '<div style="font-size:12px; color:#888; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Compartir con clientes</div>' +
+      '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+        '<button class="btn btn-small" style="background:#1a1a1a;color:#fff;border-color:#1a1a1a;" onclick="verQR(\'' + encodeURIComponent(link) + '\',\'' + jsAttr(document.getElementById('fotos-desc').textContent) + '\')">🔳 Ver QR</button>' +
+        '<button class="btn btn-small" style="background:#25D366;color:#fff;border-color:#25D366;" onclick="compartirFichaWhatsApp()">📲 WhatsApp</button>' +
+        '<button class="btn btn-small" onclick="copiarLinkFicha()">🔗 Copiar link</button>' +
+        '<a class="btn btn-small" style="text-decoration:none;" href="' + link + '" target="_blank" rel="noopener">👁 Ver página</a>' +
+      '</div>' +
+    '</div>'
+  ) : '';
+
+  body.innerHTML =
+    '<div id="fotos-progreso"></div>' +
+    galeria +
+    '<button class="btn btn-block" style="background:#185FA5;color:#fff;border-color:#185FA5;font-weight:800;" onclick="document.getElementById(\'fotos-input\').click()">📷 Tomar o elegir fotos / video</button>' +
+    '<div style="font-size:12px; color:#999; text-align:center; margin-top:6px;">Se guardan en HD. En el teléfono puedes usar la cámara directo.</div>' +
+    compartir;
+}
+
+function compartirFichaWhatsApp(){
+  var titulo = document.getElementById('fotos-desc').textContent || 'Pieza';
+  var link = linkFichaPieza(_piezaFotosId);
+  var texto = titulo + '\n📷 Fotos, video y ficha técnica:\n' + link;
+  if (navigator.share) { navigator.share({ text: texto }).catch(function(){}); return; }
+  window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+}
+
+function copiarLinkFicha(){
+  var link = linkFichaPieza(_piezaFotosId);
+  (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
+    .then(function(){ toast('🔗 Link copiado', 'success'); })
+    .catch(function(){ prompt('Copia el link:', link); });
+}
+
+// ---------- Compresión (versión ligera para la página) ----------
+function comprimirImagen(file, maxLado, calidad){
+  return new Promise(function(resolve, reject){
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function(){
+      try {
+        var esc = Math.min(1, maxLado / Math.max(img.width, img.height));
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.width * esc);
+        c.height = Math.round(img.height * esc);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function(b){ b ? resolve(b) : reject(new Error('canvas')); }, 'image/jpeg', calidad);
+      } catch(e){ URL.revokeObjectURL(url); reject(e); }
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('img')); };
+    img.src = url;
+  });
+}
+
+// ---------- Subida ----------
+var _subiendoFotos = false;
+function msgProgresoFotos(html){
+  var el = document.getElementById('fotos-progreso');
+  if (el) el.innerHTML = html ? '<div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:8px;padding:9px 12px;font-size:14px;color:#0C447C;margin-bottom:10px;">' + html + '</div>' : '';
+}
+
+function subirArchivosPieza(files){
+  if (_subiendoFotos) { toast('Espera, ya hay una subida en curso', 'error'); return; }
+  var p = DATA.piezas.find(function(x){ return x.id === _piezaFotosId; });
+  if (!p || !files || !files.length) return;
+  if (!firebase.auth().currentUser){ alert('Tu sesión expiró. Recarga la página y vuelve a entrar.'); return; }
+  var lista = Array.prototype.slice.call(files);
+  document.getElementById('fotos-input').value = '';
+
+  var MAX_VIDEO_MB = 80;
+  for (var i = 0; i < lista.length; i++){
+    var esVid = (lista[i].type || '').indexOf('video') === 0;
+    if (esVid && lista[i].size > MAX_VIDEO_MB * 1024 * 1024){
+      alert('El video "' + lista[i].name + '" pesa más de ' + MAX_VIDEO_MB + ' MB. Graba uno más corto (10-15 seg) e inténtalo de nuevo.');
+      return;
+    }
+  }
+
+  _subiendoFotos = true;
+  var st = firebase.storage();
+  var media = mediaDePieza(p.id).slice();
+  var hechos = 0;
+
+  function subirUno(idx){
+    if (idx >= lista.length){
+      publicarFicha(p, media).then(function(){
+        _subiendoFotos = false;
+        msgProgresoFotos('');
+        playDing(); toast('✓ ' + hechos + ' archivo(s) subido(s)', 'success');
+        renderModalFotos();
+      }).catch(function(e){ finFalla(e); });
+      return;
+    }
+    var file = lista[idx];
+    var esVideo = (file.type || '').indexOf('video') === 0;
+    var ts = Date.now() + '_' + idx;
+    msgProgresoFotos('⏳ Subiendo ' + (idx + 1) + ' de ' + lista.length + '… no cierres esta ventana.');
+
+    if (esVideo){
+      st.ref('fotos_piezas/' + p.id + '/' + ts + '_video').put(file)
+        .then(function(snap){ return snap.ref.getDownloadURL(); })
+        .then(function(url){ media.push({ t:'video', url:url }); hechos++; subirUno(idx + 1); })
+        .catch(finFalla);
+    } else {
+      comprimirImagen(file, 1600, 0.82).then(function(webBlob){
+        var rHD = st.ref('fotos_piezas/' + p.id + '/' + ts + '_hd');
+        var rWeb = st.ref('fotos_piezas/' + p.id + '/' + ts + '_web');
+        return rHD.put(file).then(function(s){ return s.ref.getDownloadURL(); }).then(function(hdUrl){
+          return rWeb.put(webBlob).then(function(s2){ return s2.ref.getDownloadURL(); }).then(function(webUrl){
+            media.push({ t:'foto', web:webUrl, hd:hdUrl });
+            hechos++; subirUno(idx + 1);
+          });
+        });
+      }).catch(finFalla);
+    }
+  }
+
+  function finFalla(e){
+    _subiendoFotos = false;
+    console.error('Subida de fotos:', e);
+    var code = (e && e.code) || '';
+    if (code.indexOf('storage/') === 0 && (code.indexOf('unknown') >= 0 || code.indexOf('retry') >= 0 || code.indexOf('bucket') >= 0)){
+      msgProgresoFotos('⚠️ <strong>El almacenamiento de fotos aún no está activado.</strong><br>Falta activar el plan Blaze en Firebase (avísale a Eugenio). Lo que ya estaba subido no se perdió.');
+    } else if (code === 'storage/unauthorized'){
+      msgProgresoFotos('⚠️ Sin permiso para subir. Recarga la página y vuelve a iniciar sesión.');
+    } else {
+      msgProgresoFotos('⚠️ No se pudo subir. Revisa tu conexión e intenta de nuevo.');
+    }
+    if (hechos > 0) publicarFicha(p, media).catch(function(){});
+    renderTrasFalla();
+  }
+  function renderTrasFalla(){
+    var prog = document.getElementById('fotos-progreso');
+    var html = prog ? prog.innerHTML : '';
+    renderModalFotos();
+    msgProgresoFotos('');
+    var el = document.getElementById('fotos-progreso');
+    if (el) el.innerHTML = html;
+  }
+
+  subirUno(0);
+}
+
+function borrarMediaPieza(i){
+  var p = DATA.piezas.find(function(x){ return x.id === _piezaFotosId; });
+  if (!p) return;
+  var media = mediaDePieza(p.id).slice();
+  var m = media[i];
+  if (!m) return;
+  if (!confirm('¿Borrar ' + (m.t === 'video' ? 'este video' : 'esta foto') + ' de la pieza?')) return;
+  media.splice(i, 1);
+  // Borrar los archivos de Storage (si falla, no pasa nada — la ficha ya no los muestra)
+  try {
+    var st = firebase.storage();
+    [m.url, m.web, m.hd].forEach(function(u){
+      if (u) try { st.refFromURL(u).delete().catch(function(){}); } catch(e){}
+    });
+  } catch(e){}
+  publicarFicha(p, media).then(function(){
+    toast('Eliminado', 'success');
+    renderModalFotos();
+  }).catch(function(){ toast('No se pudo borrar. Intenta de nuevo.', 'error'); });
+}
+
+// ============================================================
 // COMAS AUTOMÁTICAS EN INPUTS DE PRECIO + ENTER PARA AVANZAR
 // ============================================================
 document.addEventListener('input', function(e) {
@@ -1788,6 +2075,7 @@ function renderCamiones() {
               ${estadoInyBotones(p)}
               ${(estadoIny(p) && estadoIny(p) !== 'reconstruido') ? '' : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
               ${botonApartar(p)}
+              ${botonFotos(p)}
                             <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
               <button class="btn btn-small btn-mini btn-danger solo-editor" onclick="eliminarPieza('${p.id}')">🗑</button>
             </div>
@@ -2753,6 +3041,7 @@ function renderPiezaItem(p) {
           ? `<button class="btn btn-small solo-editor" onclick="reactivarPieza('${p.id}')">↶</button>`
           : `<button class="btn btn-small btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
         ${botonApartar(p)}
+        ${botonFotos(p)}
         ${qrBtn}
         <button class="btn btn-small solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
         <button class="btn btn-small btn-danger solo-editor" onclick="eliminarPieza('${p.id}')">🗑</button>
@@ -2865,6 +3154,7 @@ function renderPiezaItemConCamion(p) {
                 ? estadoInyBotones(p)
                 : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`)}
           ${botonApartar(p)}
+          ${botonFotos(p)}
                     ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((f?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
           <button class="btn btn-small btn-mini solo-editor" onclick="toggleBajoPedido('${p.id}')" title="Sin existencia / bajo pedido">${p.bajoPedido ? '📦✓' : '📦'}</button>
           <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
@@ -3359,6 +3649,11 @@ function guardarEdicionPieza(id) {
 
   p.extras = ex;
   guardar();
+  // Si la pieza tiene ficha pública (fotos), actualizar sus datos técnicos
+  // para que la página del QR muestre lo recién editado.
+  if (typeof PUB !== 'undefined' && PUB[p.id]) {
+    try { publicarFicha(p, mediaDePieza(p.id)); } catch(e){ console.error('sync ficha:', e); }
+  }
   playDing(); toast('Pieza actualizada', 'success');
   closeModal('modal-pieza');
   refrescarVistaActual();
@@ -3370,6 +3665,17 @@ function eliminarPieza(id) {
   const p = DATA.piezas.find(x => x.id === id);
   DATA.piezas = DATA.piezas.filter(x => x.id !== id);
   guardar();
+  // Limpiar su ficha pública y sus fotos de la nube (si tenía)
+  if (typeof PUB !== 'undefined' && PUB[id]) {
+    try {
+      (mediaDePieza(id) || []).forEach(function(m){
+        [m.url, m.web, m.hd].forEach(function(u){
+          if (u) try { firebase.storage().refFromURL(u).delete().catch(function(){}); } catch(e){}
+        });
+      });
+      firebase.database().ref('fichas_publicas/' + id).remove();
+    } catch(e){ console.error('limpiar ficha:', e); }
+  }
   toast('Pieza eliminada');
   if (p && p.camionId && document.getElementById('modal-pieza').classList.contains('active')) verPiezasCamion(p.camionId);
   else refrescarModalPiezaSiAbierto();
@@ -3676,6 +3982,7 @@ function renderBusqueda() {
                     ${estadoInyBotones(p)}
                     ${(estadoIny(p) && estadoIny(p) !== 'reconstruido') ? '' : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
                     ${botonApartar(p)}
+                    ${botonFotos(p)}
                                         ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((fam?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
                     <button class="btn btn-small btn-mini solo-editor" onclick="toggleBajoPedido('${p.id}')" title="Sin existencia / bajo pedido">${p.bajoPedido ? '📦✓' : '📦'}</button>
                     <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>

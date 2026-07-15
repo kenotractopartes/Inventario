@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Tracto Partes Magaña</title>
+<!-- ============================================================
+     FICHA PÚBLICA DE PIEZA — Tracto Partes Magaña (jul 2026)
+     El QR pegado en cada motor apunta AQUÍ: motor.html?id=<idPieza>
+     Lee SOLO el nodo público fichas_publicas/<id> de Firebase
+     (fotos, video y datos técnicos). NUNCA muestra precios, folios
+     internos, notas ni el resto del inventario.
+     Esta página es permanente: aunque cambien las fotos o los datos,
+     el mismo QR sigue funcionando (la ficha se actualiza sola).
+     ============================================================ -->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { font-family: Georgia, 'Times New Roman', serif; background: #17140f; color: #f2efe9; font-size: 16px; line-height: 1.5; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 14px 14px 40px; }
+  header { text-align: center; padding: 14px 0 12px; }
+  header .marca { font-size: 20px; font-weight: 900; letter-spacing: -0.3px; color: #f2efe9; }
+  header .sub { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #c9a24b; margin-top: 2px; }
+  .visor { position: relative; width: 100%; background: #000; border-radius: 12px; overflow: hidden; min-height: 240px; display: flex; align-items: center; justify-content: center; }
+  .visor img, .visor video { width: 100%; max-height: 68vh; object-fit: contain; display: block; }
+  .contador { position: absolute; bottom: 10px; right: 12px; background: rgba(0,0,0,0.65); color: #fff; font-size: 12px; padding: 3px 10px; border-radius: 12px; font-family: Arial, sans-serif; }
+  .flecha { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.45); color: #fff; border: none; font-size: 26px; width: 44px; height: 60px; cursor: pointer; border-radius: 8px; }
+  .flecha:active { background: rgba(0,0,0,0.75); }
+  .flecha.izq { left: 8px; } .flecha.der { right: 8px; }
+  .tiras { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; padding-bottom: 4px; }
+  .tira { flex: 0 0 64px; height: 52px; border-radius: 6px; overflow: hidden; border: 2px solid transparent; cursor: pointer; position: relative; background: #2a251d; }
+  .tira img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tira.activa { border-color: #c9a24b; }
+  .tira .play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; background: rgba(0,0,0,0.35); }
+  .titulo { font-size: 24px; font-weight: 900; margin-top: 18px; letter-spacing: -0.3px; }
+  .datos { margin-top: 12px; background: #211c15; border: 1px solid #3a332a; border-radius: 12px; overflow: hidden; }
+  .dato { display: flex; justify-content: space-between; gap: 12px; padding: 11px 16px; border-bottom: 1px solid #2c261e; font-size: 15px; }
+  .dato:last-child { border-bottom: none; }
+  .dato .k { color: #b3a98f; }
+  .dato .v { font-weight: 700; text-align: right; word-break: break-word; }
+  .btn-hd { display: block; width: 100%; margin-top: 14px; background: transparent; border: 2px solid #c9a24b; color: #c9a24b; font-family: Georgia, serif; font-size: 15px; font-weight: 700; padding: 13px; border-radius: 10px; cursor: pointer; text-align: center; text-decoration: none; }
+  .btn-hd:active { background: rgba(201,162,75,0.15); }
+  .pie { text-align: center; margin-top: 26px; font-size: 13px; color: #8a8172; }
+  .pie a { color: #c9a24b; text-decoration: none; }
+  .estado { text-align: center; padding: 60px 20px; color: #b3a98f; font-size: 16px; }
+  .spinner { display: inline-block; width: 26px; height: 26px; border: 3px solid #3a332a; border-top-color: #c9a24b; border-radius: 50%; animation: gira 0.8s linear infinite; margin-bottom: 12px; }
+  @keyframes gira { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="marca">Tracto Partes Magaña</div>
+    <div class="sub">Refacciones · Monterrey</div>
+  </header>
+  <div id="contenido">
+    <div class="estado"><span class="spinner"></span><br>Cargando fotos…</div>
+  </div>
+  <div class="pie">
+    Col. Argentina, Monterrey, N.L.<br>
+    <a href="https://tractopartes.com" target="_blank" rel="noopener">tractopartes.com</a>
+  </div>
+</div>
+
+<script>
+var DB_URL = 'https://inventario-julio-26-default-rtdb.firebaseio.com';
+var ficha = null, idx = 0;
+
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+function cargar(){
+  var id = new URLSearchParams(location.search).get('id') || '';
+  // El id viene del inventario; solo aceptamos caracteres seguros.
+  if(!id || !/^[A-Za-z0-9_\-\.]+$/.test(id)){ return mostrarError('No se encontró esta pieza.'); }
+  fetch(DB_URL + '/fichas_publicas/' + encodeURIComponent(id) + '.json')
+    .then(function(r){ return r.json(); })
+    .then(function(f){
+      if(!f) return mostrarError('No se encontró esta pieza. Pregunta en mostrador y con gusto te la enseñamos.');
+      ficha = f; idx = 0; render();
+    })
+    .catch(function(){ mostrarError('No se pudieron cargar las fotos. Revisa tu conexión e intenta de nuevo.'); });
+}
+
+function mostrarError(msg){
+  document.getElementById('contenido').innerHTML = '<div class="estado">📷<br><br>' + esc(msg) + '</div>';
+}
+
+function render(){
+  var f = ficha;
+  var media = (f.media || []).filter(function(m){ return m && (m.web || m.url); });
+  document.title = (f.titulo || 'Pieza') + ' · Tracto Partes Magaña';
+
+  var visor = '';
+  if(media.length){
+    var m = media[Math.min(idx, media.length - 1)];
+    var esVideo = m.t === 'video';
+    visor =
+      '<div class="visor">' +
+        (esVideo
+          ? '<video src="' + esc(m.url || m.web) + '" controls playsinline preload="metadata"></video>'
+          : '<img src="' + esc(m.web || m.url) + '" alt="' + esc(f.titulo || 'Foto de la pieza') + '">') +
+        (media.length > 1 ? '<button class="flecha izq" onclick="mover(-1)" aria-label="Anterior">‹</button><button class="flecha der" onclick="mover(1)" aria-label="Siguiente">›</button>' : '') +
+        '<span class="contador">' + (idx + 1) + ' / ' + media.length + '</span>' +
+      '</div>' +
+      (media.length > 1
+        ? '<div class="tiras">' + media.map(function(mm, i){
+            var mini = mm.t === 'video'
+              ? '<div class="play">▶</div>'
+              : '<img src="' + esc(mm.web || mm.url) + '" alt="">';
+            return '<div class="tira' + (i === idx ? ' activa' : '') + '" onclick="ir(' + i + ')">' + mini + '</div>';
+          }).join('') + '</div>'
+        : '');
+  } else {
+    visor = '<div class="visor"><div class="estado">📷<br><br>Aún no hay fotos de esta pieza.</div></div>';
+  }
+
+  var filas = [];
+  if(f.marca)  filas.push(['Marca', f.marca]);
+  if(f.motor)  filas.push(['Motor', f.motor]);
+  if(f.hp)     filas.push(['Caballaje', f.hp + ' HP']);
+  if(f['año']) filas.push(['Año', f['año']]);
+  if(f.serie)  filas.push(['Número de serie', f.serie]);
+  if(f.cpl)    filas.push(['CPL', f.cpl]);
+
+  var hd = media.filter(function(mm){ return mm.t !== 'video' && mm.hd; });
+  var actual = media[Math.min(idx, Math.max(media.length - 1, 0))];
+  var btnHD = (actual && actual.t !== 'video' && actual.hd)
+    ? '<a class="btn-hd" href="' + esc(actual.hd) + '" target="_blank" rel="noopener">⬇️ Ver esta foto en alta calidad</a>'
+    : '';
+
+  document.getElementById('contenido').innerHTML =
+    visor +
+    '<div class="titulo">' + esc(f.titulo || 'Pieza') + '</div>' +
+    (filas.length
+      ? '<div class="datos">' + filas.map(function(d){
+          return '<div class="dato"><span class="k">' + esc(d[0]) + '</span><span class="v">' + esc(d[1]) + '</span></div>';
+        }).join('') + '</div>'
+      : '') +
+    btnHD;
+}
+
+function mover(d){
+  var n = (ficha.media || []).length;
+  if(!n) return;
+  idx = (idx + d + n) % n;
+  render();
+}
+function ir(i){ idx = i; render(); }
+
+// Deslizar con el dedo para cambiar de foto
+(function(){
+  var x0 = null;
+  document.addEventListener('touchstart', function(e){
+    if(e.target.closest('.visor')) x0 = e.touches[0].clientX;
+  }, {passive: true});
+  document.addEventListener('touchend', function(e){
+    if(x0 === null) return;
+    var dx = e.changedTouches[0].clientX - x0;
+    x0 = null;
+    if(Math.abs(dx) > 45) mover(dx < 0 ? 1 : -1);
+  }, {passive: true});
+})();
+
+cargar();
+</script>
+</body>
+</html>
