@@ -3847,6 +3847,8 @@ let _filtroFamilia = null;
 let _filtroSinPrecio = false;
 let _filtroBajoPedido = false;
 let _filtroApartadas = false;
+let _filtroFotos = false;
+let _filtroFotosTexto = '';
 const _acordeonesAbiertos = new Set();
 
 function toggleApartadasFiltro() {
@@ -3854,8 +3856,30 @@ function toggleApartadasFiltro() {
   _filtroFamilia = null;
   _filtroSinPrecio = false;
   _filtroBajoPedido = false;
+  _filtroFotos = false;
   _acordeonesAbiertos.clear();
   renderBusqueda();
+}
+
+// Filtro "📷 FOTOS": ver todas las piezas que YA tienen fotos/video,
+// con su buscador propio para encontrar una rápido.
+function toggleFotosFiltro() {
+  _filtroFotos = !_filtroFotos;
+  _filtroFamilia = null;
+  _filtroSinPrecio = false;
+  _filtroBajoPedido = false;
+  _filtroApartadas = false;
+  _filtroFotosTexto = '';
+  _acordeonesAbiertos.clear();
+  renderBusqueda();
+  if (_filtroFotos) setTimeout(function(){ try { document.getElementById('buscador-fotos').focus(); } catch(e){} }, 80);
+}
+
+function filtrarFotosTexto(v){
+  _filtroFotosTexto = (v || '').toLowerCase().trim();
+  renderBusqueda();
+  var e = document.getElementById('buscador-fotos');
+  if (e){ e.focus(); try { e.setSelectionRange(e.value.length, e.value.length); } catch(err){} }
 }
 
 function toggleAcordeonFamilia(famId) {
@@ -3872,6 +3896,7 @@ function toggleBajoPedidoFiltro() {
   _filtroFamilia = null;
   _filtroSinPrecio = false;
   _filtroApartadas = false;
+  _filtroFotos = false;
   _acordeonesAbiertos.clear();
   renderBusqueda();
 }
@@ -3879,15 +3904,20 @@ function toggleBajoPedidoFiltro() {
 function renderBusqueda() {
   const nBajoPedido = DATA.piezas.filter(p => !p.vendida && p.bajoPedido).length;
   const nApartadas = DATA.piezas.filter(p => p.apartada && !p.vendida).length;
+  const nFotos = DATA.piezas.filter(p => !p.vendida && mediaDePieza(p.id).length > 0).length;
   // Fila 1: especiales (Todas, Sin Precio, Bajo Pedido). Fila 2: familias.
   const filtros = document.getElementById('filtros-familia');
   filtros.innerHTML =
     '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; padding-bottom:16px; border-bottom:2px solid #ddd6c8;">' +
-      '<button class="filter-chip ' + (!_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido && !_filtroApartadas ? 'active' : '') + '" onclick="setFiltro(null)">Todas</button>' +
+      '<button class="filter-chip ' + (!_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido && !_filtroApartadas && !_filtroFotos ? 'active' : '') + '" onclick="setFiltro(null)">Todas</button>' +
       `<button class="filter-chip ${_filtroSinPrecio ? 'active' : ''}" style="background:#c0392b; color:#fff; border-color:#c0392b; font-weight:800;" onclick="toggleSinPrecio()">⚠ SIN PRECIO</button>` +
       `<button class="filter-chip ${_filtroBajoPedido ? 'active' : ''}" style="background:#c9a24b; color:#17140f; border-color:#c9a24b; font-weight:800;" onclick="toggleBajoPedidoFiltro()">📦 BAJO PEDIDO${nBajoPedido ? ` (${nBajoPedido})` : ''}</button>` +
       `<button class="filter-chip ${_filtroApartadas ? 'active' : ''}" style="background:#7e57c2; color:#fff; border-color:#7e57c2; font-weight:800;" onclick="toggleApartadasFiltro()">🔖 APARTADAS${nApartadas ? ` (${nApartadas})` : ''}</button>` +
+      `<button class="filter-chip ${_filtroFotos ? 'active' : ''}" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="toggleFotosFiltro()">📷 FOTOS${nFotos ? ` (${nFotos})` : ''}</button>` +
     '</div>' +
+    (_filtroFotos
+      ? '<div style="margin:-6px 0 14px;"><input type="text" id="buscador-fotos" placeholder="🔍 Buscar entre las piezas con fotos (modelo, serie, folio...)" value="' + _filtroFotosTexto.replace(/"/g,'&quot;') + '" oninput="filtrarFotosTexto(this.value)" style="width:100%; max-width:520px; padding:12px 14px; font-size:16px; border:2px solid #185FA5; border-radius:8px;"></div>'
+      : '') +
     '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
       FAMILIAS.map(f => {
         const isActive = _filtroFamilia === f.id;
@@ -3901,6 +3931,10 @@ function renderBusqueda() {
   if (_filtroSinPrecio) piezas = piezas.filter(p => !p.precioSugerido && !p.precioMax);
   if (_filtroBajoPedido) piezas = piezas.filter(p => p.bajoPedido);
   if (_filtroApartadas) piezas = piezas.filter(p => p.apartada);
+  if (_filtroFotos) {
+    piezas = piezas.filter(p => mediaDePieza(p.id).length > 0);
+    if (_filtroFotosTexto) piezas = piezas.filter(p => textoBuscablePieza(p).includes(_filtroFotosTexto));
+  }
 
   const info = document.getElementById('info-busqueda');
   if (_filtroSinPrecio) {
@@ -3909,6 +3943,8 @@ function renderBusqueda() {
     info.innerHTML = `<strong>${piezas.length}</strong> pieza(s) marcadas como <strong style="color:#c9a24b;">BAJO PEDIDO</strong> (se manejan, sin stock actual)`;
   } else if (_filtroApartadas) {
     info.innerHTML = `<strong>${piezas.length}</strong> pieza(s) <strong style="color:#7e57c2;">APARTADAS</strong> para clientes`;
+  } else if (_filtroFotos) {
+    info.innerHTML = `<strong>${piezas.length}</strong> pieza(s) <strong style="color:#185FA5;">CON FOTOS</strong>${_filtroFotosTexto ? ` que coinciden con "<strong>${escapeHtml(_filtroFotosTexto)}</strong>"` : ' — toca 📷 en una pieza para ver, compartir o borrar sus fotos'}`;
   } else {
     info.innerHTML = `Mostrando: <strong>${piezas.length}</strong> pieza(s) en patio`;
   }
@@ -3934,7 +3970,7 @@ function renderBusqueda() {
 
   // Si "Todas" activo (sin filtro de familia): modo ACORDEÓN (cerrados por default)
   // Si una familia específica: abierto directo
-  const modoAcordeon = !_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido && !_filtroApartadas;
+  const modoAcordeon = !_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido && !_filtroApartadas && !_filtroFotos;
 
   cont.innerHTML = gruposOrdenados.map(g => {
     const f = FAMILIAS.find(x => x.id === g.familia);
@@ -4021,6 +4057,7 @@ function setFiltro(id) {
   _filtroSinPrecio = false;
   _filtroBajoPedido = false;
   _filtroApartadas = false;
+  _filtroFotos = false;
   _filtroEstadoIny = null;
   _acordeonesAbiertos.clear();
   renderBusqueda();
@@ -4031,6 +4068,7 @@ function toggleSinPrecio() {
   _filtroFamilia = null;
   _filtroBajoPedido = false;
   _filtroApartadas = false;
+  _filtroFotos = false;
   _acordeonesAbiertos.clear();
   renderBusqueda();
 }
