@@ -237,6 +237,7 @@
     <button class="btn btn-mini" style="background:#cfe9e9; color:#1a1a1a; border-color:#6db8a0;" onclick="verTodasPiezas('mancuernas')">Mancuerna</button>
     <button class="btn btn-mini" style="background:#f5d6e8; color:#1a1a1a; border-color:#c87da8;" onclick="verTodasPiezas('cabinas')">Cabina</button>
     <button class="btn btn-mini" style="background:#f0d8d0; color:#1a1a1a; border-color:#c89a8a;" onclick="verInyectoresEstados()">Inyectores</button>
+    <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800; margin-left:16px;" onclick="verPiezasConFotos()" title="Ver las piezas que ya tienen fotos">📷 Fotos<span id="btn-fotos-count"></span></button>
   </div>
 
   <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="openCamionModal()">🚛 Registrar Camión Nuevo 🚛</button>
@@ -2106,6 +2107,7 @@ function textoBuscablePieza(p) {
 function renderCamiones() {
   // Cajita de "Productos Apartados" (arriba del inicio, si hay 1 o más)
   if (typeof renderApartados === 'function') renderApartados();
+  if (typeof actualizarContadorFotosInicio === 'function') actualizarContadorFotosInicio();
   // Lista de camiones (filtrar también por estado)
   const filtro = (document.getElementById('filtro-camiones')?.value || '').toLowerCase().trim();
   const camionesFiltrados = DATA.camiones.filter(c => {
@@ -3999,6 +4001,23 @@ function filtrarFotosTexto(v){
   renderBusqueda();
   var e = document.getElementById('buscador-fotos');
   if (e){ e.focus(); try { e.setSelectionRange(e.value.length, e.value.length); } catch(err){} }
+}
+
+// Atajo del Inicio (botón "📷 Fotos"): salta a la pestaña Piezas con el
+// filtro de fotos ya puesto. Así reúsa el buscador y los botones de allá
+// en vez de duplicar la pantalla.
+function verPiezasConFotos(){
+  showView('buscar');
+  _filtroFotos = false;      // forzar que el toggle lo deje ENCENDIDO
+  toggleFotosFiltro();
+}
+
+// Contador del botón "📷 Fotos" del Inicio.
+function actualizarContadorFotosInicio(){
+  var el = document.getElementById('btn-fotos-count');
+  if(!el) return;
+  var n = DATA.piezas.filter(function(p){ return p && !p.vendida && mediaDePieza(p.id).length > 0; }).length;
+  el.textContent = n ? ' (' + n + ')' : '';
 }
 
 function toggleAcordeonFamilia(famId) {
