@@ -27,6 +27,9 @@
   .visor { position: relative; width: 100%; background: #000; border-radius: 12px; overflow: hidden; min-height: 240px; display: flex; align-items: center; justify-content: center; }
   .visor img, .visor video { width: 100%; max-height: 68vh; object-fit: contain; display: block; }
   .contador { position: absolute; bottom: 10px; right: 12px; background: rgba(0,0,0,0.65); color: #fff; font-size: 12px; padding: 3px 10px; border-radius: 12px; font-family: Arial, sans-serif; }
+  .cinta-vendido { position: absolute; top: 12px; left: 12px; z-index: 3; background: #c0392b; color: #fff; font-family: Arial, sans-serif; font-size: 14px; font-weight: 800; letter-spacing: 2px; padding: 7px 16px; border-radius: 5px; box-shadow: 0 3px 12px rgba(0,0,0,0.5); }
+  .aviso-vendido { margin-top: 12px; background: #2b1a17; border: 1px solid #7d3b31; border-left: 4px solid #c0392b; border-radius: 8px; padding: 13px 16px; font-size: 15px; color: #f0d9d5; line-height: 1.55; }
+  .aviso-vendido strong { color: #ff8a7a; }
   .flecha { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.45); color: #fff; border: none; font-size: 26px; width: 44px; height: 60px; cursor: pointer; border-radius: 8px; }
   .flecha:active { background: rgba(0,0,0,0.75); }
   .flecha.izq { left: 8px; } .flecha.der { right: 8px; }
@@ -103,6 +106,7 @@ function render(){
     var esVideo = m.t === 'video';
     visor =
       '<div class="visor">' +
+        (f.vendida ? '<span class="cinta-vendido">VENDIDO</span>' : '') +
         (esVideo
           ? '<video src="' + esc(m.url || m.web) + '" controls playsinline preload="metadata"></video>'
           : '<img src="' + esc(m.web || m.url) + '" alt="' + esc(f.titulo || 'Foto de la pieza') + '">') +
@@ -145,9 +149,14 @@ function render(){
     ? '<a class="btn-hd" href="' + esc(actual.hd) + '" target="_blank" rel="noopener">⬇️ Ver esta foto en alta calidad</a>'
     : '';
 
+  var avisoVendido = f.vendida
+    ? '<div class="aviso-vendido"><strong>Esta pieza ya se vendió.</strong><br>Pregúntanos en el mostrador — puede que tengamos otra igual o parecida. Col. Argentina, Monterrey.</div>'
+    : '';
+
   document.getElementById('contenido').innerHTML =
     visor +
     '<div class="titulo">' + esc(f.titulo || 'Pieza') + '</div>' +
+    avisoVendido +
     (filas.length
       ? '<div class="datos">' + filas.map(function(d){
           return '<div class="dato"><span class="k">' + esc(d[0]) + '</span><span class="v">' + esc(d[1]) + '</span></div>';
