@@ -1871,6 +1871,24 @@ function msgProgresoFotos(html){
   if (el) el.innerHTML = html ? '<div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:8px;padding:9px 12px;font-size:14px;color:#0C447C;margin-bottom:10px;">' + html + '</div>' : '';
 }
 
+// Sube un archivo mostrando el avance en %. Con videos pesados la subida
+// tarda minutos: sin esto parece que se trabó y la gente cierra la ventana.
+function subirConProgreso(ref, archivo, etiqueta){
+  return new Promise(function(resolve, reject){
+    var tarea;
+    try { tarea = ref.put(archivo); } catch(e){ return reject(e); }
+    tarea.on('state_changed', function(s){
+      var pct = s.totalBytes ? Math.round((s.bytesTransferred / s.totalBytes) * 100) : 0;
+      var mb = (s.totalBytes / (1024 * 1024)).toFixed(0);
+      msgProgresoFotos('⏳ Subiendo ' + etiqueta + ' — <strong>' + pct + '%</strong>' +
+        (s.totalBytes > 8 * 1024 * 1024 ? ' <span style="font-size:12px;color:#5a7fa5">(' + mb + ' MB)</span>' : '') +
+        '<br><span style="font-size:12px">No cierres esta ventana.</span>');
+    }, reject, function(){
+      tarea.snapshot.ref.getDownloadURL().then(resolve, reject);
+    });
+  });
+}
+
 function subirArchivosPieza(files){
   if (_subiendoFotos) { toast('Espera, ya hay una subida en curso', 'error'); return; }
   var p = DATA.piezas.find(function(x){ return x.id === _piezaFotosId; });
@@ -1879,11 +1897,17 @@ function subirArchivosPieza(files){
   var lista = Array.prototype.slice.call(files);
   document.getElementById('fotos-input').value = '';
 
-  var MAX_VIDEO_MB = 80;
+  // Tope de peso por video. En 4K el iPhone graba ~6 MB por segundo, así que
+  // 500 MB dan ~1.5 min en 4K o varios minutos en 1080p. El tope de verdad
+  // está en las reglas de Storage (520 MB) — este es el aviso amable.
+  var MAX_VIDEO_MB = 500;
   for (var i = 0; i < lista.length; i++){
     var esVid = (lista[i].type || '').indexOf('video') === 0;
     if (esVid && lista[i].size > MAX_VIDEO_MB * 1024 * 1024){
-      alert('El video "' + lista[i].name + '" pesa más de ' + MAX_VIDEO_MB + ' MB. Graba uno más corto (10-15 seg) e inténtalo de nuevo.');
+      var pesaMB = Math.round(lista[i].size / (1024 * 1024));
+      alert('El video "' + lista[i].name + '" pesa ' + pesaMB + ' MB y el máximo son ' + MAX_VIDEO_MB + ' MB.\n\n' +
+            'Tip: si grabas en 1080p en vez de 4K, el video pesa 4 veces menos, sube mucho más rápido y al cliente se le ve igual de bien en su teléfono.\n' +
+            '(Ajustes → Cámara → Grabar video → 1080p HD a 30 fps)');
       return;
     }
   }
@@ -1906,19 +1930,19 @@ function subirArchivosPieza(files){
     var file = lista[idx];
     var esVideo = (file.type || '').indexOf('video') === 0;
     var ts = Date.now() + '_' + idx;
-    msgProgresoFotos('⏳ Subiendo ' + (idx + 1) + ' de ' + lista.length + '… no cierres esta ventana.');
+    var etiqueta = (esVideo ? 'video' : 'foto') + ' ' + (idx + 1) + ' de ' + lista.length;
+    msgProgresoFotos('⏳ Preparando ' + etiqueta + '…');
 
     if (esVideo){
-      st.ref('fotos_piezas/' + p.id + '/' + ts + '_video').put(file)
-        .then(function(snap){ return snap.ref.getDownloadURL(); })
+      subirConProgreso(st.ref('fotos_piezas/' + p.id + '/' + ts + '_video'), file, etiqueta)
         .then(function(url){ media.push({ t:'video', url:url }); hechos++; subirUno(idx + 1); })
         .catch(finFalla);
     } else {
       comprimirImagen(file, 1600, 0.82).then(function(webBlob){
         var rHD = st.ref('fotos_piezas/' + p.id + '/' + ts + '_hd');
         var rWeb = st.ref('fotos_piezas/' + p.id + '/' + ts + '_web');
-        return rHD.put(file).then(function(s){ return s.ref.getDownloadURL(); }).then(function(hdUrl){
-          return rWeb.put(webBlob).then(function(s2){ return s2.ref.getDownloadURL(); }).then(function(webUrl){
+        return subirConProgreso(rHD, file, etiqueta).then(function(hdUrl){
+          return subirConProgreso(rWeb, webBlob, etiqueta).then(function(webUrl){
             media.push({ t:'foto', web:webUrl, hd:hdUrl });
             hechos++; subirUno(idx + 1);
           });
