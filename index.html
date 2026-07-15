@@ -301,6 +301,8 @@
 <!-- ADMINISTRAR -->
 <section class="view" id="view-admin">
   <h2>Administrar Catálogos</h2>
+  <!-- Espacio usado por las fotos/videos en la nube -->
+  <div id="caja-espacio"></div>
   <div class="info-bar">Agrega o quita <strong>marcas, modelos, motores</strong> sin depender de nadie. Los cambios se guardan al momento.</div>
   <div id="admin-listas"></div>
 </section>
@@ -1935,7 +1937,12 @@ function subirArchivosPieza(files){
 
     if (esVideo){
       subirConProgreso(st.ref('fotos_piezas/' + p.id + '/' + ts + '_video'), file, etiqueta)
-        .then(function(url){ media.push({ t:'video', url:url }); hechos++; subirUno(idx + 1); })
+        .then(function(url){
+          // kb = lo que ocupa en la nube. Se guarda al subir para que el
+          // contador de espacio sea instantáneo (sin preguntarle al servidor).
+          media.push({ t:'video', url:url, kb: Math.round(file.size / 1024) });
+          hechos++; subirUno(idx + 1);
+        })
         .catch(finFalla);
     } else {
       comprimirImagen(file, 1600, 0.82).then(function(webBlob){
@@ -1943,7 +1950,7 @@ function subirArchivosPieza(files){
         var rWeb = st.ref('fotos_piezas/' + p.id + '/' + ts + '_web');
         return subirConProgreso(rHD, file, etiqueta).then(function(hdUrl){
           return subirConProgreso(rWeb, webBlob, etiqueta).then(function(webUrl){
-            media.push({ t:'foto', web:webUrl, hd:hdUrl });
+            media.push({ t:'foto', web:webUrl, hd:hdUrl, kb: Math.round((file.size + webBlob.size) / 1024) });
             hechos++; subirUno(idx + 1);
           });
         });
@@ -3445,6 +3452,112 @@ var _filtroEstadoIny = null;
 function filtrarEstadoIny(e){ _filtroEstadoIny = (_filtroEstadoIny === e) ? null : e; if (typeof renderBusqueda === 'function') renderBusqueda(); }
 
 // ============================================================
+// ESPACIO USADO EN LA NUBE (fotos y video) — jul 2026
+// ------------------------------------------------------------
+// Firebase Storage regala 5 GB. Esta cajita (en el panel de Admin) lo
+// muestra sin tener que entrar a la consola de Firebase.
+// Las subidas nuevas guardan su peso en la ficha (campo kb), así la
+// cuenta es instantánea. Para los archivos viejos (subidos antes de que
+// existiera ese campo) se le pregunta el peso al SDK una sola vez y se
+// guarda en memoria. Nota: los links de descarga NO traen permiso CORS,
+// por eso se usa getMetadata() del SDK y no un fetch directo.
+// ============================================================
+var LIMITE_GRATIS_GB = 5;
+var _pesoCache = {};   // url -> bytes (para archivos sin kb guardado)
+
+function _fmtPeso(bytes){
+  if(bytes >= 1024 * 1024 * 1024) return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+  if(bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  return Math.round(bytes / 1024) + ' KB';
+}
+
+// Junta todas las piezas con ficha y sus archivos.
+function _inventarioMedia(){
+  var lista = [];
+  Object.keys(PUB || {}).forEach(function(id){
+    var f = PUB[id] || {};
+    var media = f.media || [];
+    if(media.length) lista.push({ id: id, titulo: f.titulo || 'Pieza', media: media });
+  });
+  return lista;
+}
+
+// Pide el peso al SDK solo de los archivos que no lo tengan guardado.
+function _pesoDeMedia(m){
+  if(m.kb != null) return Promise.resolve(m.kb * 1024);
+  var urls = [m.url, m.web, m.hd].filter(Boolean);
+  return Promise.all(urls.map(function(u){
+    if(_pesoCache[u] != null) return Promise.resolve(_pesoCache[u]);
+    return firebase.storage().refFromURL(u).getMetadata()
+      .then(function(md){ var n = Number(md.size) || 0; _pesoCache[u] = n; return n; })
+      .catch(function(){ _pesoCache[u] = 0; return 0; });
+  })).then(function(tam){ return tam.reduce(function(a, b){ return a + b; }, 0); });
+}
+
+function renderEspacio(){
+  var cont = document.getElementById('caja-espacio');
+  if(!cont) return;
+  var lista = _inventarioMedia();
+  var nArchivos = lista.reduce(function(a, x){ return a + x.media.length; }, 0);
+  if(!nArchivos){
+    cont.innerHTML = '<div class="card" style="background:#eef4fb; border:2px solid #185FA5; border-radius:10px; padding:14px; margin-bottom:14px;">' +
+      '<div style="font-size:16px; font-weight:900; color:#185FA5;">☁️ Espacio de fotos en la nube</div>' +
+      '<div style="font-size:14px; color:#555; margin-top:6px;">Todavía no hay fotos subidas. Tienes los <strong>5 GB</strong> gratis completos.</div></div>';
+    return;
+  }
+  cont.innerHTML = '<div class="card" style="background:#eef4fb; border:2px solid #185FA5; border-radius:10px; padding:14px; margin-bottom:14px;">' +
+    '<div style="font-size:16px; font-weight:900; color:#185FA5;">☁️ Espacio de fotos en la nube</div>' +
+    '<div style="font-size:14px; color:#555; margin-top:6px;">⏳ Calculando ' + nArchivos + ' archivo(s)…</div></div>';
+
+  Promise.all(lista.map(function(x){
+    return Promise.all(x.media.map(_pesoDeMedia)).then(function(tam){
+      return { titulo: x.titulo, n: x.media.length, bytes: tam.reduce(function(a, b){ return a + b; }, 0) };
+    });
+  })).then(function(res){
+    var total = res.reduce(function(a, x){ return a + x.bytes; }, 0);
+    var limite = LIMITE_GRATIS_GB * 1024 * 1024 * 1024;
+    var pct = Math.min(100, (total / limite) * 100);
+    var color = pct < 70 ? '#2e7d46' : (pct < 90 ? '#c9a24b' : '#c0392b');
+    var prom = total / res.length;
+    var caben = prom > 0 ? Math.floor(limite / prom) : 0;
+    var extraGB = Math.max(0, (total - limite) / 1024 / 1024 / 1024);
+    var costo = extraGB * 0.026;
+
+    var top = res.slice().sort(function(a, b){ return b.bytes - a.bytes; }).slice(0, 5);
+    var filas = top.map(function(x){
+      return '<div style="display:flex; justify-content:space-between; gap:10px; font-size:13px; padding:4px 0; border-bottom:1px solid #dce6f2;">' +
+        '<span style="color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(x.titulo) + ' <span style="color:#999">(' + x.n + ')</span></span>' +
+        '<strong style="color:#185FA5; white-space:nowrap;">' + _fmtPeso(x.bytes) + '</strong></div>';
+    }).join('');
+
+    cont.innerHTML =
+      '<div class="card" style="background:#eef4fb; border:2px solid #185FA5; border-radius:10px; padding:14px; margin-bottom:14px;">' +
+        '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap;">' +
+          '<div style="font-size:16px; font-weight:900; color:#185FA5;">☁️ Espacio de fotos en la nube</div>' +
+          '<button class="btn btn-small btn-mini" onclick="_pesoCache={}; renderEspacio();">🔄 Actualizar</button>' +
+        '</div>' +
+        '<div style="font-size:22px; font-weight:900; color:#17140f; margin-top:8px;">' + _fmtPeso(total) +
+          ' <span style="font-size:14px; font-weight:400; color:#777;">de ' + LIMITE_GRATIS_GB + ' GB gratis</span></div>' +
+        '<div style="height:14px; background:#d7e3f0; border-radius:7px; overflow:hidden; margin-top:8px;">' +
+          '<div style="height:100%; width:' + Math.max(pct, 1.5) + '%; background:' + color + ';"></div></div>' +
+        '<div style="font-size:13px; color:#555; margin-top:6px;"><strong>' + pct.toFixed(1) + '%</strong> usado · ' +
+          nArchivos + ' archivo(s) en ' + res.length + ' pieza(s) · promedio ' + _fmtPeso(prom) + ' por pieza</div>' +
+        (total <= limite
+          ? '<div style="font-size:13px; color:#2e7d46; font-weight:700; margin-top:4px;">✔ Todo gratis. A este ritmo caben ~' + caben + ' piezas con fotos.</div>'
+          : '<div style="font-size:13px; color:#c0392b; font-weight:700; margin-top:4px;">Te pasaste ' + extraGB.toFixed(1) + ' GB del nivel gratis → cuesta ~$' + costo.toFixed(2) + ' USD al mes.</div>') +
+        '<div style="margin-top:10px; padding-top:8px; border-top:2px solid #dce6f2;">' +
+          '<div style="font-size:11px; color:#888; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Las que más pesan</div>' +
+          filas +
+        '</div>' +
+        '<div style="font-size:12px; color:#888; margin-top:8px; line-height:1.4;">Los videos pesan mucho más que las fotos. Si pasas los 5 GB, cada GB extra cuesta ~$0.03 USD al mes.</div>' +
+      '</div>';
+  }).catch(function(e){
+    console.error('espacio:', e);
+    cont.innerHTML = '<div class="card" style="background:#fdecea; border:2px solid #b03a2e; border-radius:10px; padding:12px; margin-bottom:14px; font-size:14px; color:#7a1d13;">No se pudo calcular el espacio. Revisa tu conexión. <button class="btn btn-small btn-mini" onclick="renderEspacio()">Reintentar</button></div>';
+  });
+}
+
+// ============================================================
 // FOLIO INTERNO ÚNICO POR FAMILIA — jul 2026
 // ------------------------------------------------------------
 // El folio que Raúl pone a mano NO se puede repetir dentro de la MISMA
@@ -4301,6 +4414,8 @@ function toggleSinPrecio() {
 // ADMINISTRAR CATÁLOGOS
 // ============================================================
 function renderAdmin() {
+  // Cajita de espacio usado por las fotos/videos en la nube
+  if (typeof renderEspacio === 'function') renderEspacio();
   const cat = getCatalogos();
 
   // Inicializar overrides de familias si no existen
