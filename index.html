@@ -238,6 +238,7 @@
     <button class="btn btn-mini" style="background:#f5d6e8; color:#1a1a1a; border-color:#c87da8;" onclick="verTodasPiezas('cabinas')">Cabina</button>
     <button class="btn btn-mini" style="background:#f0d8d0; color:#1a1a1a; border-color:#c89a8a;" onclick="verInyectoresEstados()">Inyectores</button>
     <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800; margin-left:16px;" onclick="verPiezasConFotos()" title="Ver las piezas que ya tienen fotos">📷 Fotos<span id="btn-fotos-count"></span></button>
+    <button class="btn btn-mini" style="background:#fff; color:#185FA5; border-color:#185FA5; font-weight:800;" onclick="verPiezasSinFotos()" title="Ver las piezas a las que les falta foto">📷❌ Sin fotos<span id="btn-sinfotos-count"></span></button>
   </div>
 
   <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="openCamionModal()">🚛 Registrar Camión Nuevo 🚛</button>
@@ -255,6 +256,9 @@
     🔍 Filtro activo: "<span id="aviso-busqueda-texto"></span>" · <a href="#" onclick="document.getElementById('filtro-camiones').value=''; renderCamiones(); return false;" style="color:#c0392b; text-decoration:underline;">✕ Limpiar</a>
   </div>
   <div id="contador-camiones" style="margin-top:6px; font-size:12px; color:#888; font-weight:600;"></div>
+
+  <!-- Familias que coinciden con lo que se busca (botones chiquitos para afinar) -->
+  <div id="familias-coinciden"></div>
 
   <!-- Cajita de Productos Apartados (solo aparece si hay 1 o más) -->
   <div id="caja-apartados"></div>
@@ -511,6 +515,18 @@
     <p style="font-size:15px; color:#17140f; font-weight:700; margin-bottom:4px;" id="fotos-desc"></p>
     <div id="fotos-body"></div>
     <input type="file" id="fotos-input" accept="image/*,video/*" multiple style="display:none" onchange="subirArchivosPieza(this.files)">
+  </div>
+</div>
+
+<!-- MODAL QR — modal propio y por ENCIMA de los demás (z-index 1100).
+     Antes el QR se dibujaba en modal-pieza y el modal de fotos lo tapaba. -->
+<div class="modal-bg" id="modal-qr" style="z-index:1100;">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-qr-title">QR</div>
+      <button class="modal-close" onclick="closeModal('modal-qr')">×</button>
+    </div>
+    <div id="modal-qr-body"></div>
   </div>
 </div>
 
@@ -1596,10 +1612,11 @@ var _qrActual = { url: '', titulo: '' };
 function verQR(urlCodificada, titulo) {
   const url = decodeURIComponent(urlCodificada);
   _qrActual = { url: url, titulo: titulo || '' };
-  // Reusa el modal-pieza
-  document.getElementById('modal-pieza-title').textContent = 'QR · ' + (titulo || 'Carpeta');
+  // Modal propio (z-index 1100): así se ve ENCIMA del modal de fotos desde
+  // donde se abre, y ya no le borra el contenido a modal-pieza.
+  document.getElementById('modal-qr-title').textContent = 'QR · ' + (titulo || 'Carpeta');
   const puedeCompartir = !!(navigator.share && navigator.canShare);
-  document.getElementById('modal-pieza-body').innerHTML = `
+  document.getElementById('modal-qr-body').innerHTML = `
     <div style="text-align:center; padding:10px;">
       <div id="qr-grande" style="display:inline-block; padding:16px; background:#fff; border:2px solid #1a1a1a; border-radius:8px;"></div>
       <div style="margin-top:14px; font-size:13px; color:#666; word-break:break-all;">${escapeHtml(url)}</div>
@@ -1611,7 +1628,7 @@ function verQR(urlCodificada, titulo) {
       <div style="font-size:12px; color:#999; margin-top:8px; line-height:1.4;">Guárdalo en la galería y mándalo a la impresora de etiquetas.</div>
     </div>
   `;
-  openModal('modal-pieza');
+  openModal('modal-qr');
   setTimeout(() => {
     const c = document.getElementById('qr-grande');
     if (c) try { new QRCode(c, { text: url, width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M }); } catch(e) {}
@@ -2159,6 +2176,35 @@ function renderCamiones() {
     avisoTxt.textContent = filtro;
   } else {
     avisoEl.style.display = 'none';
+  }
+
+  // Botones chiquitos con las FAMILIAS que coinciden con lo buscado.
+  // Buscar "C15" saca motores, compresores, árboles… — esto deja afinar
+  // de un toque en vez de revolver todo.
+  const contFam = document.getElementById('familias-coinciden');
+  if (contFam) {
+    if (!filtro) contFam.innerHTML = '';
+    else {
+      const cuenta = {};
+      DATA.piezas.forEach(p => {
+        if (!p || p.vendida) return;
+        if (!textoBuscablePieza(p).includes(filtro)) return;
+        cuenta[p.familia] = (cuenta[p.familia] || 0) + 1;
+      });
+      const fams = Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a]);
+      contFam.innerHTML = fams.length
+        ? '<div style="margin-top:8px;">' +
+            '<div style="font-size:11px; color:#888; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:5px;">Aparece en estas familias — toca para ver solo esas</div>' +
+            '<div style="display:flex; gap:6px; flex-wrap:wrap;">' +
+              fams.map(id => {
+                const f = FAMILIAS.find(x => x.id === id);
+                const nom = (f && (f.nombreSingular || f.nombre)) || id;
+                return '<button class="btn" style="padding:6px 11px; font-size:12px; min-height:0; background:' + ((f && f.color) || '#f4f4f0') + '; border-color:' + ((f && f.color) || '#999') + '; color:#1a1a1a; font-weight:700;" onclick="verFamiliaBuscada(\'' + id + '\',\'' + jsAttr(filtro) + '\')">' + escapeHtml(nom) + ' (' + cuenta[id] + ')</button>';
+              }).join('') +
+            '</div>' +
+          '</div>'
+        : '';
+    }
   }
 
   // Contador de camiones
@@ -3297,6 +3343,26 @@ function verInyectoresEstados() {
   openModal('modal-pieza');
 }
 
+// Abre SOLO las piezas de una familia que coinciden con lo que se buscó
+// en el Inicio (se llega desde los botones chiquitos de "Aparece en estas familias").
+function verFamiliaBuscada(famId, texto) {
+  _reabrirModalPieza = function(){ verFamiliaBuscada(famId, texto); };
+  const f = FAMILIAS.find(x => x.id === famId);
+  const t = (texto || '').toLowerCase().trim();
+  const lista = DATA.piezas
+    .filter(p => p && p.familia === famId && !p.vendida && (!t || textoBuscablePieza(p).includes(t)))
+    .sort((a, b) => (b.fechaRegistro || 0) - (a.fechaRegistro || 0));
+  const nom = (f && (f.nombreSingular || f.nombre)) || 'Piezas';
+  document.getElementById('modal-pieza-title').textContent = nom + (t ? ' · "' + t + '"' : '');
+  let html = '<div class="info-bar"><strong>' + lista.length + '</strong> ' + escapeHtml(nom) +
+    (t ? ' que coinciden con "<strong>' + escapeHtml(t) + '</strong>"' : '') + '</div>';
+  html += lista.length
+    ? lista.map(p => renderPiezaItemConCamion(p)).join('')
+    : '<p style="text-align:center; color:#888; padding:20px;">Ninguna coincide.</p>';
+  document.getElementById('modal-pieza-body').innerHTML = html;
+  openModal('modal-pieza');
+}
+
 // Item de pieza con info del camión origen (para los botones rápidos)
 function renderPiezaItemConCamion(p) {
   const f = FAMILIAS.find(x => x.id === p.familia);
@@ -4168,6 +4234,7 @@ let _filtroSinPrecio = false;
 let _filtroBajoPedido = false;
 let _filtroApartadas = false;
 let _filtroFotos = false;
+let _filtroSinFotos = false;
 let _filtroFotosTexto = '';
 const _acordeonesAbiertos = new Set();
 
@@ -4177,8 +4244,24 @@ function toggleApartadasFiltro() {
   _filtroSinPrecio = false;
   _filtroBajoPedido = false;
   _filtroFotos = false;
+  _filtroSinFotos = false;
   _acordeonesAbiertos.clear();
   renderBusqueda();
+}
+
+// Filtro "📷❌ SIN FOTOS": las piezas a las que todavía les falta foto.
+// Es la lista de trabajo de Irving.
+function toggleSinFotosFiltro() {
+  _filtroSinFotos = !_filtroSinFotos;
+  _filtroFamilia = null;
+  _filtroSinPrecio = false;
+  _filtroBajoPedido = false;
+  _filtroApartadas = false;
+  _filtroFotos = false;
+  _filtroFotosTexto = '';
+  _acordeonesAbiertos.clear();
+  renderBusqueda();
+  if (_filtroSinFotos) setTimeout(function(){ try { document.getElementById('buscador-fotos').focus(); } catch(e){} }, 80);
 }
 
 // Filtro "📷 FOTOS": ver todas las piezas que YA tienen fotos/video,
@@ -4189,6 +4272,7 @@ function toggleFotosFiltro() {
   _filtroSinPrecio = false;
   _filtroBajoPedido = false;
   _filtroApartadas = false;
+  _filtroSinFotos = false;
   _filtroFotosTexto = '';
   _acordeonesAbiertos.clear();
   renderBusqueda();
@@ -4211,12 +4295,24 @@ function verPiezasConFotos(){
   toggleFotosFiltro();
 }
 
-// Contador del botón "📷 Fotos" del Inicio.
+// Atajo del Inicio (botón "Sin fotos"): las que le faltan a Irving.
+function verPiezasSinFotos(){
+  showView('buscar');
+  _filtroSinFotos = false;
+  toggleSinFotosFiltro();
+}
+
+// Contadores de los botones "📷 Fotos" y "Sin fotos" del Inicio.
 function actualizarContadorFotosInicio(){
-  var el = document.getElementById('btn-fotos-count');
-  if(!el) return;
-  var n = DATA.piezas.filter(function(p){ return p && !p.vendida && mediaDePieza(p.id).length > 0; }).length;
-  el.textContent = n ? ' (' + n + ')' : '';
+  var con = 0, sin = 0;
+  DATA.piezas.forEach(function(p){
+    if(!p || p.vendida) return;
+    if(mediaDePieza(p.id).length > 0) con++; else sin++;
+  });
+  var a = document.getElementById('btn-fotos-count');
+  if(a) a.textContent = con ? ' (' + con + ')' : '';
+  var b = document.getElementById('btn-sinfotos-count');
+  if(b) b.textContent = sin ? ' (' + sin + ')' : '';
 }
 
 function toggleAcordeonFamilia(famId) {
@@ -4234,6 +4330,7 @@ function toggleBajoPedidoFiltro() {
   _filtroSinPrecio = false;
   _filtroApartadas = false;
   _filtroFotos = false;
+  _filtroSinFotos = false;
   _acordeonesAbiertos.clear();
   renderBusqueda();
 }
@@ -4242,18 +4339,20 @@ function renderBusqueda() {
   const nBajoPedido = DATA.piezas.filter(p => !p.vendida && p.bajoPedido).length;
   const nApartadas = DATA.piezas.filter(p => p.apartada && !p.vendida).length;
   const nFotos = DATA.piezas.filter(p => !p.vendida && mediaDePieza(p.id).length > 0).length;
+  const nSinFotos = DATA.piezas.filter(p => !p.vendida && mediaDePieza(p.id).length === 0).length;
   // Fila 1: especiales (Todas, Sin Precio, Bajo Pedido). Fila 2: familias.
   const filtros = document.getElementById('filtros-familia');
   filtros.innerHTML =
     '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; padding-bottom:16px; border-bottom:2px solid #ddd6c8;">' +
-      '<button class="filter-chip ' + (!_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido && !_filtroApartadas && !_filtroFotos ? 'active' : '') + '" onclick="setFiltro(null)">Todas</button>' +
+      '<button class="filter-chip ' + (!_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido && !_filtroApartadas && !_filtroFotos && !_filtroSinFotos ? 'active' : '') + '" onclick="setFiltro(null)">Todas</button>' +
       `<button class="filter-chip ${_filtroSinPrecio ? 'active' : ''}" style="background:#c0392b; color:#fff; border-color:#c0392b; font-weight:800;" onclick="toggleSinPrecio()">⚠ SIN PRECIO</button>` +
       `<button class="filter-chip ${_filtroBajoPedido ? 'active' : ''}" style="background:#c9a24b; color:#17140f; border-color:#c9a24b; font-weight:800;" onclick="toggleBajoPedidoFiltro()">📦 BAJO PEDIDO${nBajoPedido ? ` (${nBajoPedido})` : ''}</button>` +
       `<button class="filter-chip ${_filtroApartadas ? 'active' : ''}" style="background:#7e57c2; color:#fff; border-color:#7e57c2; font-weight:800;" onclick="toggleApartadasFiltro()">🔖 APARTADAS${nApartadas ? ` (${nApartadas})` : ''}</button>` +
       `<button class="filter-chip ${_filtroFotos ? 'active' : ''}" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="toggleFotosFiltro()">📷 FOTOS${nFotos ? ` (${nFotos})` : ''}</button>` +
+      `<button class="filter-chip ${_filtroSinFotos ? 'active' : ''}" style="background:#fff; color:#185FA5; border-color:#185FA5; font-weight:800;" onclick="toggleSinFotosFiltro()">📷❌ SIN FOTOS${nSinFotos ? ` (${nSinFotos})` : ''}</button>` +
     '</div>' +
-    (_filtroFotos
-      ? '<div style="margin:-6px 0 14px;"><input type="text" id="buscador-fotos" placeholder="🔍 Buscar entre las piezas con fotos (modelo, serie, folio...)" value="' + _filtroFotosTexto.replace(/"/g,'&quot;') + '" oninput="filtrarFotosTexto(this.value)" style="width:100%; max-width:520px; padding:12px 14px; font-size:16px; border:2px solid #185FA5; border-radius:8px;"></div>'
+    ((_filtroFotos || _filtroSinFotos)
+      ? '<div style="margin:-6px 0 14px;"><input type="text" id="buscador-fotos" placeholder="🔍 Buscar aquí dentro (modelo, serie, folio...)" value="' + _filtroFotosTexto.replace(/"/g,'&quot;') + '" oninput="filtrarFotosTexto(this.value)" style="width:100%; max-width:520px; padding:12px 14px; font-size:16px; border:2px solid #185FA5; border-radius:8px;"></div>'
       : '') +
     '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
       FAMILIAS.map(f => {
@@ -4268,9 +4367,10 @@ function renderBusqueda() {
   if (_filtroSinPrecio) piezas = piezas.filter(p => !p.precioSugerido && !p.precioMax);
   if (_filtroBajoPedido) piezas = piezas.filter(p => p.bajoPedido);
   if (_filtroApartadas) piezas = piezas.filter(p => p.apartada);
-  if (_filtroFotos) {
-    piezas = piezas.filter(p => mediaDePieza(p.id).length > 0);
-    if (_filtroFotosTexto) piezas = piezas.filter(p => textoBuscablePieza(p).includes(_filtroFotosTexto));
+  if (_filtroFotos) piezas = piezas.filter(p => mediaDePieza(p.id).length > 0);
+  if (_filtroSinFotos) piezas = piezas.filter(p => mediaDePieza(p.id).length === 0);
+  if ((_filtroFotos || _filtroSinFotos) && _filtroFotosTexto) {
+    piezas = piezas.filter(p => textoBuscablePieza(p).includes(_filtroFotosTexto));
   }
 
   const info = document.getElementById('info-busqueda');
@@ -4282,6 +4382,8 @@ function renderBusqueda() {
     info.innerHTML = `<strong>${piezas.length}</strong> pieza(s) <strong style="color:#7e57c2;">APARTADAS</strong> para clientes`;
   } else if (_filtroFotos) {
     info.innerHTML = `<strong>${piezas.length}</strong> pieza(s) <strong style="color:#185FA5;">CON FOTOS</strong>${_filtroFotosTexto ? ` que coinciden con "<strong>${escapeHtml(_filtroFotosTexto)}</strong>"` : ' — toca 📷 en una pieza para ver, compartir o borrar sus fotos'}`;
+  } else if (_filtroSinFotos) {
+    info.innerHTML = `<strong>${piezas.length}</strong> pieza(s) <strong style="color:#185FA5;">SIN FOTOS</strong>${_filtroFotosTexto ? ` que coinciden con "<strong>${escapeHtml(_filtroFotosTexto)}</strong>"` : ' — a estas les falta foto. Toca 📷 en una pieza para subirlas.'}`;
   } else {
     info.innerHTML = `Mostrando: <strong>${piezas.length}</strong> pieza(s) en patio`;
   }
@@ -4307,7 +4409,7 @@ function renderBusqueda() {
 
   // Si "Todas" activo (sin filtro de familia): modo ACORDEÓN (cerrados por default)
   // Si una familia específica: abierto directo
-  const modoAcordeon = !_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido && !_filtroApartadas && !_filtroFotos;
+  const modoAcordeon = !_filtroFamilia && !_filtroSinPrecio && !_filtroBajoPedido && !_filtroApartadas && !_filtroFotos && !_filtroSinFotos;
 
   cont.innerHTML = gruposOrdenados.map(g => {
     const f = FAMILIAS.find(x => x.id === g.familia);
@@ -4395,6 +4497,7 @@ function setFiltro(id) {
   _filtroBajoPedido = false;
   _filtroApartadas = false;
   _filtroFotos = false;
+  _filtroSinFotos = false;
   _filtroEstadoIny = null;
   _acordeonesAbiertos.clear();
   renderBusqueda();
@@ -4406,6 +4509,7 @@ function toggleSinPrecio() {
   _filtroBajoPedido = false;
   _filtroApartadas = false;
   _filtroFotos = false;
+  _filtroSinFotos = false;
   _acordeonesAbiertos.clear();
   renderBusqueda();
 }
