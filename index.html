@@ -3086,6 +3086,16 @@ function guardarPieza() {
   // numérico, se numeran en secuencia (0123, 0124, …) para que no se repitan.
   const folioBaseRaw = (document.getElementById('pieza-folio')?.value || '').trim();
   const folioEsNum = /^\d+$/.test(folioBaseRaw);
+  // Folio único por familia: revisar TODOS los folios que se van a crear
+  // ANTES de guardar nada (si son varias piezas, la secuencia completa).
+  if (folioBaseRaw) {
+    for (let i = 0; i < cantidad; i++) {
+      const folioTest = folioEsNum ? String(parseInt(folioBaseRaw, 10) + i).padStart(4, '0') : (i === 0 ? folioBaseRaw : '');
+      if (!folioTest) continue;
+      const avisoF = avisoFolioRepetido(_piezaFamilia, folioTest, null);
+      if (avisoF) { alert(avisoF); return; }
+    }
+  }
   for (let i = 0; i < cantidad; i++) {
     let folioI = '';
     if (folioBaseRaw) folioI = folioEsNum ? String(parseInt(folioBaseRaw, 10) + i).padStart(4, '0') : (i === 0 ? folioBaseRaw : '');
@@ -3409,6 +3419,53 @@ function conteoInyectores(){
 // Filtro por estado dentro de la familia Inyectores (toca el contador para ver solo esos)
 var _filtroEstadoIny = null;
 function filtrarEstadoIny(e){ _filtroEstadoIny = (_filtroEstadoIny === e) ? null : e; if (typeof renderBusqueda === 'function') renderBusqueda(); }
+
+// ============================================================
+// FOLIO INTERNO ÚNICO POR FAMILIA — jul 2026
+// ------------------------------------------------------------
+// El folio que Raúl pone a mano NO se puede repetir dentro de la MISMA
+// familia: dos árboles de levas no pueden ser ambos 0001. Pero SÍ se
+// puede repetir entre familias distintas: un árbol de levas 0001 y un
+// motor 0001 conviven sin problema (son numeraciones separadas).
+// ============================================================
+// Clave para comparar: los folios numéricos se comparan por su NÚMERO,
+// así "1", "01" y "0001" cuentan como el mismo folio. Los que llevan
+// letras se comparan en mayúsculas y sin espacios.
+function _folioClave(v){
+  var s = String(v == null ? '' : v).trim().toUpperCase();
+  if(!s) return '';
+  return /^\d+$/.test(s) ? String(parseInt(s, 10)) : s;
+}
+
+// Devuelve la pieza que YA usa ese folio en esa familia, o null.
+// ignorarId: al editar, para que la pieza no choque consigo misma.
+function piezaConFolio(familia, folio, ignorarId){
+  var clave = _folioClave(folio);
+  if(!clave) return null;
+  for(var i = 0; i < DATA.piezas.length; i++){
+    var p = DATA.piezas[i];
+    if(!p || p.familia !== familia) continue;
+    if(ignorarId && p.id === ignorarId) continue;
+    if(_folioClave(p.folioInterno) === clave) return p;
+  }
+  return null;
+}
+
+// Mensaje listo para alert(). Devuelve '' si el folio está libre.
+function avisoFolioRepetido(familia, folio, ignorarId){
+  var otra = piezaConFolio(familia, folio, ignorarId);
+  if(!otra) return '';
+  var fam = FAMILIAS.find(function(x){ return x.id === familia; });
+  var nom = (fam && (fam.nombreSingular || fam.nombre)) || 'pieza';
+  var folioTxt = String(folio).trim();
+  return '⚠️ NO SE GUARDÓ — folio repetido\n\n' +
+    'Ya hay un(a) ' + nom + ' con el folio ' + folioTxt + ':\n' +
+    '   → ' + nom + ': ' + (otra.modelo || '(sin modelo)') +
+    (otra.folioInterno ? '  ·  Folio ' + otra.folioInterno : '') + '\n\n' +
+    'Dentro de la misma familia el folio no se puede repetir.\n' +
+    'Ponle otro folio a este(a) ' + nom + '.\n\n' +
+    '(Ojo: otras familias SÍ pueden usar el ' + folioTxt + ' — el problema es solo con otro(a) ' + nom + '.)';
+}
 
 // ============================================================
 // APARTAR PIEZAS (reservar para un cliente) — jul 2026
@@ -3743,9 +3800,14 @@ function guardarEdicionPieza(id) {
   if (!p) return;
   const f = FAMILIAS.find(x => x.id === p.familia);
 
+  // Folio único por familia: se valida ANTES de tocar nada, para que la
+  // pieza no quede a medio editar si el folio choca con otra igual.
+  const folioRaw = (document.getElementById('edit-folio')?.value || '').trim();
+  const avisoF = avisoFolioRepetido(p.familia, folioRaw, p.id);
+  if (avisoF) { alert(avisoF); return; }
+
   p.modelo = document.getElementById('edit-modelo')?.value.trim() || p.modelo;
   // Folio interno (lo pone Raúl a mano). Si son solo números, se rellena a 4 dígitos.
-  const folioRaw = (document.getElementById('edit-folio')?.value || '').trim();
   if (folioRaw) p.folioInterno = /^\d+$/.test(folioRaw) ? folioRaw.padStart(4, '0') : folioRaw;
   else delete p.folioInterno;
   const precioRaw = document.getElementById('edit-precio')?.value || '';
