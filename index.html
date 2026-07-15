@@ -1703,7 +1703,7 @@ function renderModalFotos(){
 function compartirFichaWhatsApp(){
   var titulo = document.getElementById('fotos-desc').textContent || 'Pieza';
   var link = linkFichaPieza(_piezaFotosId);
-  var texto = titulo + '\n📷 Fotos, video y ficha técnica:\n' + link;
+  var texto = titulo + '\nCLICK AL ENLACE para 📷 Fotos, video y ficha técnica 👇👇\n' + link;
   if (navigator.share) { navigator.share({ text: texto }).catch(function(){}); return; }
   window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
 }
