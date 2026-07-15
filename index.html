@@ -831,8 +831,23 @@ function espejoChasisEstatus(data){
 }
 var _estatusChasisData = {};
 function contarFaltantesEstatus(){
-  const yaEn={}; DATA.piezas.forEach(p=>{ if(p&&p.extras&&p.extras.estatusId) yaEn[p.extras.estatusId]=true; });
-  return Object.keys(_estatusChasisData||{}).filter(eid=>!yaEn[eid]);
+  // Un chasis del Estatus NO falta si ya hay pieza con su estatusId, O si
+  // ya hay un chasis con la MISMA serie (refuerzo jul 2026: así el aviso
+  // no acusa en falso si los IDs cambian pero la pieza sí existe).
+  const yaEn={}; const seriesPz={};
+  DATA.piezas.forEach(p=>{
+    if(!p) return;
+    if(p.extras&&p.extras.estatusId) yaEn[p.extras.estatusId]=true;
+    if(p.familia==='chasis'&&p.extras&&p.extras.fichaVin){
+      const s=_serieNorm(p.extras.fichaVin); if(s) seriesPz[s]=true;
+    }
+  });
+  return Object.keys(_estatusChasisData||{}).filter(eid=>{
+    if(yaEn[eid]) return false;
+    const s=_serieNorm(_txtPlano((_estatusChasisData[eid]||{}).serie));
+    if(s && seriesPz[s]) return false;
+    return true;
+  });
 }
 function actualizarBannerFaltantes(){
   const faltan=contarFaltantesEstatus();
@@ -1376,6 +1391,12 @@ function refrescarVistaActual() {
     else if (activa.id === 'view-salidas') renderSalidas();
   } else { renderCamiones(); }
   if (typeof actualizarBannerHuerfanos === 'function') actualizarBannerHuerfanos();
+  // FIX jul 2026: recalcular también el aviso de "faltantes". Antes solo se
+  // calculaba al llegar el Estatus de Maura (que carga PRIMERO, por ser
+  // público); cuando después llegaba el inventario completo de la nube,
+  // nadie lo recalculaba y el aviso "N chasis NO están" se quedaba pegado
+  // aunque ya estuviera todo. (Los datos siempre estuvieron bien.)
+  if (typeof actualizarBannerFaltantes === 'function') actualizarBannerFaltantes();
   refrescarModalPiezaSiAbierto();
 }
 // Si el modal de piezas (Ver todas / Inyectores / piezas de un camión) está abierto, lo re-renderiza para que coincida
