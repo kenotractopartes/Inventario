@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Tracto Partes Magaña</title>
+<!-- Tarjetita que muestra WhatsApp/Facebook al pegar el link -->
+<meta property="og:title" content="Tracto Partes Magaña — Fotos y ficha técnica">
+<meta property="og:description" content="Mira las fotos, el video y los datos de esta pieza. Col. Argentina, Monterrey.">
+<meta property="og:site_name" content="Tracto Partes Magaña">
 <!-- ============================================================
      FICHA PÚBLICA DE PIEZA — Tracto Partes Magaña (jul 2026)
      El QR pegado en cada motor apunta AQUÍ: motor.html?id=<idPieza>
@@ -118,12 +122,22 @@ function render(){
   }
 
   var filas = [];
-  if(f.marca)  filas.push(['Marca', f.marca]);
-  if(f.motor)  filas.push(['Motor', f.motor]);
-  if(f.hp)     filas.push(['Caballaje', f.hp + ' HP']);
-  if(f['año']) filas.push(['Año', f['año']]);
-  if(f.serie)  filas.push(['Número de serie', f.serie]);
-  if(f.cpl)    filas.push(['CPL', f.cpl]);
+  if(f.marca)       filas.push(['Marca', f.marca]);
+  if(f.motor)       filas.push(['Motor', f.motor]);
+  if(f.hp)          filas.push(['Caballaje', f.hp + ' HP']);
+  if(f['año'])      filas.push(['Año', f['año']]);
+  if(f.serie)       filas.push(['Número de serie', f.serie]);
+  if(f.cpl)         filas.push(['CPL', f.cpl]);
+  if(f.terminacion) filas.push(['Terminación', f.terminacion]);
+  if(f.condicion)   filas.push(['Condición', f.condicion]);
+  if(f.dobleTurbo)  filas.push(['Doble turbo', f.dobleTurbo]);
+  if(f.libras)      filas.push(['Libras', f.libras]);
+  if(f.marcaEje)    filas.push(['Marca de eje', f.marcaEje]);
+  if(f.suspension)  filas.push(['Suspensión', f.suspension]);
+  if(f.paso)        filas.push(['Paso', f.paso]);
+  if(f.vin)         filas.push(['VIN', f.vin]);
+  if(f.noMotor)     filas.push(['N° de motor', f.noMotor]);
+  if(f.extra)       filas.push(['Detalle', f.extra]);
 
   var hd = media.filter(function(mm){ return mm.t !== 'video' && mm.hd; });
   var actual = media[Math.min(idx, Math.max(media.length - 1, 0))];

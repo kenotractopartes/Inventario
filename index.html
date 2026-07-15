@@ -1628,7 +1628,9 @@ function escucharFichasPublicas(){
   } catch(e){ console.error('fichas_publicas:', e); }
 }
 
-// Datos técnicos SEGUROS que se publican (jamás precio/folio/notas).
+// Datos técnicos SEGUROS que se publican (jamás precio/folio/notas/ubicación
+// en el patio). Cada familia publica solo lo que su registro tenga: un cofre
+// sin caballaje simplemente no muestra esa fila en la página.
 function datosPublicosDePieza(p){
   var f = FAMILIAS.find(function(x){ return x.id === p.familia; });
   var ex = p.extras || {};
@@ -1639,7 +1641,17 @@ function datosPublicosDePieza(p){
     hp: ex.hp || '',
     'año': p['año'] || p.camionAño || '',
     serie: ex.serie || '',
-    cpl: ex.cpl || ''
+    cpl: ex.cpl || '',
+    terminacion: (ex.terminacion && ex.terminacion !== p.modelo) ? ex.terminacion : '',
+    condicion: ex.estado || ex.estadoMotor || '',
+    dobleTurbo: ex.dobleTurbo ? 'Sí' : '',
+    libras: ex.libras || '',
+    marcaEje: ex.marcaEje || '',
+    suspension: ex.suspension || '',
+    paso: ex.paso || '',
+    vin: ex.fichaVin || '',
+    noMotor: ex.fichaNoMotor || '',
+    extra: ex.fichaExtra || ((ex.descripcion && ex.descripcion !== p.modelo) ? ex.descripcion : '')
   };
 }
 
@@ -1686,7 +1698,7 @@ function renderModalFotos(){
       '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
         '<button class="btn btn-small" style="background:#1a1a1a;color:#fff;border-color:#1a1a1a;" onclick="verQR(\'' + encodeURIComponent(link) + '\',\'' + jsAttr(document.getElementById('fotos-desc').textContent) + '\')">🔳 Ver QR</button>' +
         '<button class="btn btn-small" style="background:#25D366;color:#fff;border-color:#25D366;" onclick="compartirFichaWhatsApp()">📲 WhatsApp</button>' +
-        '<button class="btn btn-small" onclick="copiarLinkFicha()">🔗 Copiar link</button>' +
+        '<button class="btn btn-small" onclick="copiarLinkFicha()">🔗 Copiar mensaje</button>' +
         '<a class="btn btn-small" style="text-decoration:none;" href="' + link + '" target="_blank" rel="noopener">👁 Ver página</a>' +
       '</div>' +
     '</div>'
@@ -1700,19 +1712,24 @@ function renderModalFotos(){
     compartir;
 }
 
-function compartirFichaWhatsApp(){
+// El mismo mensaje bonito para WhatsApp del teléfono Y para copiar en compu.
+function textoCompartirFicha(){
   var titulo = document.getElementById('fotos-desc').textContent || 'Pieza';
   var link = linkFichaPieza(_piezaFotosId);
-  var texto = titulo + '\nCLICK AL ENLACE para 📷 Fotos, video y ficha técnica 👇👇\n' + link;
+  return titulo + '\nCLICK AL ENLACE para 📷 Fotos, video y ficha técnica 👇👇\n' + link;
+}
+
+function compartirFichaWhatsApp(){
+  var texto = textoCompartirFicha();
   if (navigator.share) { navigator.share({ text: texto }).catch(function(){}); return; }
   window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
 }
 
 function copiarLinkFicha(){
-  var link = linkFichaPieza(_piezaFotosId);
-  (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
-    .then(function(){ toast('🔗 Link copiado', 'success'); })
-    .catch(function(){ prompt('Copia el link:', link); });
+  var texto = textoCompartirFicha();
+  (navigator.clipboard ? navigator.clipboard.writeText(texto) : Promise.reject())
+    .then(function(){ toast('✓ Mensaje copiado — pégalo en WhatsApp', 'success'); })
+    .catch(function(){ prompt('Copia el mensaje:', texto); });
 }
 
 // ---------- Compresión (versión ligera para la página) ----------
