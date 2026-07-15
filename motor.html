@@ -46,8 +46,16 @@
   .dato .v { font-weight: 700; text-align: right; word-break: break-word; }
   .btn-hd { display: block; width: 100%; margin-top: 14px; background: transparent; border: 2px solid #c9a24b; color: #c9a24b; font-family: Georgia, serif; font-size: 15px; font-weight: 700; padding: 13px; border-radius: 10px; cursor: pointer; text-align: center; text-decoration: none; }
   .btn-hd:active { background: rgba(201,162,75,0.15); }
-  .pie { text-align: center; margin-top: 26px; font-size: 13px; color: #8a8172; }
-  .pie a { color: #c9a24b; text-decoration: none; }
+  .pie { text-align: center; margin-top: 32px; padding-top: 22px; border-top: 1px solid #2c261e; }
+  .pie-marca { font-size: 15px; font-weight: 700; color: #f2efe9; margin-bottom: 8px; }
+  .pie-dir { display: block; font-size: 14px; color: #b3a98f; text-decoration: none; line-height: 1.5; padding: 4px 0; }
+  .pie-dir:active { color: #c9a24b; }
+  .pie-tel { display: inline-flex; align-items: center; gap: 12px; margin-top: 16px; padding: 13px 24px; background: #1D9E75; color: #fff; font-family: Arial, Helvetica, sans-serif; text-decoration: none; border-radius: 10px; box-shadow: 0 3px 12px rgba(0,0,0,0.4); text-align: left; }
+  .pie-tel:active { background: #0F6E56; }
+  .pie-tel .num { display: block; font-size: 19px; font-weight: 700; letter-spacing: 0.5px; }
+  .pie-tel .lbl { display: block; font-size: 11px; font-weight: 400; opacity: 0.9; margin-top: 1px; }
+  .pie-web { display: inline-flex; align-items: center; gap: 7px; margin-top: 18px; font-size: 15px; color: #6ab0f3; text-decoration: underline; text-underline-offset: 3px; font-family: Arial, Helvetica, sans-serif; }
+  .pie-web:active { color: #a9d3f8; }
   .estado { text-align: center; padding: 60px 20px; color: #b3a98f; font-size: 16px; }
   .spinner { display: inline-block; width: 26px; height: 26px; border: 3px solid #3a332a; border-top-color: #c9a24b; border-radius: 50%; animation: gira 0.8s linear infinite; margin-bottom: 12px; }
   @keyframes gira { to { transform: rotate(360deg); } }
@@ -63,8 +71,14 @@
     <div class="estado"><span class="spinner"></span><br>Cargando fotos…</div>
   </div>
   <div class="pie">
-    Col. Argentina, Monterrey, N.L.<br>
-    <a href="https://tractopartes.com" target="_blank" rel="noopener">tractopartes.com</a>
+    <div class="pie-marca">Tracto Partes Magaña</div>
+    <a class="pie-dir" href="https://www.google.com/maps/search/?api=1&amp;query=Ing.%20Francisco%20Beltr%C3%A1n%203163%2C%20Argentina%2C%2064550%20Monterrey%2C%20N.L." target="_blank" rel="noopener">📍 Ing. Francisco Beltrán 3163, Argentina,<br>64550 Monterrey, N.L.</a>
+    <a class="pie-tel" href="tel:+528121529279">
+      <span style="font-size:24px">📱</span>
+      <span><span class="num">81 2152 9279</span><span class="lbl">Celular · toca para llamarnos</span></span>
+    </a>
+    <br>
+    <a class="pie-web" href="https://tractopartes.com" target="_blank" rel="noopener">🌐 tractopartes.com</a>
   </div>
 </div>
 
