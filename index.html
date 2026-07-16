@@ -1003,7 +1003,7 @@ function renderSalidas(){
   let list=getSalidas().slice().sort((a,b)=>(b.fechaRegistro||0)-(a.fechaRegistro||0));
   if(q) list=list.filter(s=>{
     const txt=[s.folio,s.empresa,s.lugar].concat((s.items||[]).map(i=>(i.desc||'')+' '+(i.cod||''))).join(' ').toLowerCase();
-    return txt.includes(q);
+    return coincideBusqueda(txt, q);
   });
   const de=document.getElementById('dl-empresas'); if(de) de.innerHTML=salidasSugeridas('empresa').map(v=>'<option value="'+escapeHtml(v)+'">').join('');
   const dl=document.getElementById('dl-lugares'); if(dl) dl.innerHTML=salidasSugeridas('lugar').map(v=>'<option value="'+escapeHtml(v)+'">').join('');
@@ -2152,6 +2152,31 @@ function textoBuscablePieza(p) {
   ].filter(Boolean).join(' ').toLowerCase();
 }
 
+// ============================================================
+// BÚSQUEDA TOLERANTE — jul 2026
+// ------------------------------------------------------------
+// Antes se comparaba letra por letra (texto.includes(consulta)). Problema:
+// "ISXconEGR" (pegado) NO se encontraba al buscar "ISX CON EGR" (con
+// espacios), ni al revés. Ahora:
+//   • Se ignoran espacios, guiones, puntos y diagonales en AMBOS lados
+//     → "ISX CON EGR" encuentra "ISXconEGR" y viceversa.
+//   • Se busca palabra por palabra: TODAS deben aparecer (en cualquier
+//     orden) → "egr isx" también lo encuentra.
+// Si la consulta va vacía, todo coincide (no filtra).
+function _sinSeparadores(s){ return String(s == null ? '' : s).toLowerCase().replace(/[\s\-_.\/]/g, ''); }
+
+function coincideBusqueda(texto, consulta){
+  const q = String(consulta == null ? '' : consulta).toLowerCase().trim();
+  if(!q) return true;
+  const t = String(texto == null ? '' : texto).toLowerCase();
+  const tNo = _sinSeparadores(t);
+  // Cada palabra de lo buscado debe aparecer (tal cual, o pegada sin separadores).
+  return q.split(/\s+/).every(function(palabra){
+    if(!palabra) return true;
+    return t.indexOf(palabra) !== -1 || tNo.indexOf(_sinSeparadores(palabra)) !== -1;
+  });
+}
+
 function renderCamiones() {
   // Cajita de "Productos Apartados" (arriba del inicio, si hay 1 o más)
   if (typeof renderApartados === 'function') renderApartados();
@@ -2161,8 +2186,8 @@ function renderCamiones() {
   const camionesFiltrados = DATA.camiones.filter(c => {
     if (!filtro) return true;
     const txtCamion = [c.folio, c.marca, c.modelo, c.motor, c.año, c.notas].join(' ').toLowerCase();
-    if (txtCamion.includes(filtro)) return true;
-    return DATA.piezas.filter(p => p.camionId === c.id).some(p => textoBuscablePieza(p).includes(filtro));
+    if (coincideBusqueda(txtCamion, filtro)) return true;
+    return DATA.piezas.filter(p => p.camionId === c.id).some(p => coincideBusqueda(textoBuscablePieza(p), filtro));
   });
 
   const activos = camionesFiltrados.filter(c => !c.desmantelado).sort((a,b) => (b.fechaRegistro || 0) - (a.fechaRegistro || 0));
@@ -2188,7 +2213,7 @@ function renderCamiones() {
       const cuenta = {};
       DATA.piezas.forEach(p => {
         if (!p || p.vendida) return;
-        if (!textoBuscablePieza(p).includes(filtro)) return;
+        if (!coincideBusqueda(textoBuscablePieza(p), filtro)) return;
         cuenta[p.familia] = (cuenta[p.familia] || 0) + 1;
       });
       const fams = Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a]);
@@ -2256,7 +2281,7 @@ function renderCamiones() {
   const filtroSueltas = (document.getElementById('filtro-camiones')?.value || '').toLowerCase().trim();
   const sueltas = DATA.piezas.filter(p => !p.camionId && !p.vendida).filter(p => {
     if (!filtroSueltas) return true;
-    return textoBuscablePieza(p).includes(filtroSueltas);
+    return coincideBusqueda(textoBuscablePieza(p), filtroSueltas);
   }).sort((a,b) => (b.fechaRegistro || 0) - (a.fechaRegistro || 0));
 
   if (sueltas.length > 0) {
@@ -2299,7 +2324,7 @@ function renderCamiones() {
   if (filtroSueltas && typeof getSalidas === 'function') {
     const smatch = getSalidas().filter(s => {
       const txt = [s.folio, s.empresa, s.lugar].concat((s.items||[]).map(i => (i.desc||'')+' '+(i.cod||'')+' '+(i.origenTxt||''))).join(' ').toLowerCase();
-      return txt.includes(filtroSueltas);
+      return coincideBusqueda(txt, filtroSueltas);
     });
     if (smatch.length) {
       const rows = smatch.map(s => {
@@ -3350,7 +3375,7 @@ function verFamiliaBuscada(famId, texto) {
   const f = FAMILIAS.find(x => x.id === famId);
   const t = (texto || '').toLowerCase().trim();
   const lista = DATA.piezas
-    .filter(p => p && p.familia === famId && !p.vendida && (!t || textoBuscablePieza(p).includes(t)))
+    .filter(p => p && p.familia === famId && !p.vendida && (!t || coincideBusqueda(textoBuscablePieza(p), t)))
     .sort((a, b) => (b.fechaRegistro || 0) - (a.fechaRegistro || 0));
   const nom = (f && (f.nombreSingular || f.nombre)) || 'Piezas';
   document.getElementById('modal-pieza-title').textContent = nom + (t ? ' · "' + t + '"' : '');
@@ -4125,9 +4150,9 @@ function renderInvFam() {
   body.innerHTML = h;
 }
 function filtrarInvFam() {
-  const q = (document.getElementById('invfam-busca') ? document.getElementById('invfam-busca').value : '').toLowerCase();
+  const q = (document.getElementById('invfam-busca') ? document.getElementById('invfam-busca').value : '');
   document.querySelectorAll('#invfam-lista .invfam-item').forEach(el => {
-    el.style.display = (el.dataset.txt || '').indexOf(q) >= 0 ? '' : 'none';
+    el.style.display = coincideBusqueda(el.dataset.txt || '', q) ? '' : 'none';
   });
 }
 function borrarInvFam(id) {
@@ -4370,7 +4395,7 @@ function renderBusqueda() {
   if (_filtroFotos) piezas = piezas.filter(p => mediaDePieza(p.id).length > 0);
   if (_filtroSinFotos) piezas = piezas.filter(p => mediaDePieza(p.id).length === 0);
   if ((_filtroFotos || _filtroSinFotos) && _filtroFotosTexto) {
-    piezas = piezas.filter(p => textoBuscablePieza(p).includes(_filtroFotosTexto));
+    piezas = piezas.filter(p => coincideBusqueda(textoBuscablePieza(p), _filtroFotosTexto));
   }
 
   const info = document.getElementById('info-busqueda');
