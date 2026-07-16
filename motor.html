@@ -100,6 +100,16 @@ function cargar(){
     .then(function(r){ return r.json(); })
     .then(function(f){
       if(!f) return mostrarError('No se encontró esta pieza. Pregunta en mostrador y con gusto te la enseñamos.');
+      // Fotos por modelo (jul 2026): si la ficha tiene sus fotos directo, se
+      // usan; si solo trae "modelKey", las fotos viven en media_modelo y se
+      // leen de ahí (compartidas con todas las piezas del mismo modelo).
+      if((!f.media || !f.media.length) && f.modelKey){
+        fetch(DB_URL + '/media_modelo/' + encodeURIComponent(f.modelKey) + '.json')
+          .then(function(r){ return r.json(); })
+          .then(function(mm){ f.media = (mm && mm.media) || []; ficha = f; idx = 0; render(); })
+          .catch(function(){ ficha = f; idx = 0; render(); });
+        return;
+      }
       ficha = f; idx = 0; render();
     })
     .catch(function(){ mostrarError('No se pudieron cargar las fotos. Revisa tu conexión e intenta de nuevo.'); });

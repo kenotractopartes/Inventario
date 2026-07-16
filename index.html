@@ -1730,11 +1730,52 @@ function compartirImagenQR(){
 // • Si el almacenamiento aún no está activado (plan Blaze), la
 //   subida avisa claro en vez de tronar.
 // ============================================================
-var PUB = {};   // copia en memoria de fichas_publicas
+// FOTOS POR MODELO (jul 2026) ---------------------------------------
+// Las fotos/videos se guardan UNA sola vez por MODELO (familia + modelo):
+// los 36 inyectores "C15" comparten el MISMO juego de fotos. Se sube una
+// vez y todas las piezas de ese modelo (incluidas las futuras) las
+// muestran solas. Los archivos pesados viven una sola vez en Storage; en
+// la nube (RTDB) hay dos nodos:
+//   • media_modelo/<clave> = { media:[...], titulo }  ← las fotos, por modelo
+//   • fichas_publicas/<idPieza> = { datos técnicos, modelKey }  ← lo que lee
+//     el QR de cada pieza; apunta a las fotos de su modelo.
+// Si una pieza no tiene modelo, cae al modo viejo (fotos individuales en
+// su propia ficha) — compatibilidad total con lo ya subido.
+var PUB = {};            // fichas_publicas por pieza (datos + puntero al modelo)
+var MEDIA_MODELO = {};   // fotos/videos COMPARTIDOS por modelo
 var PUB_URL_BASE = 'https://fotonas.tractopartes.com/motor.html?id=';
 
 function linkFichaPieza(id){ return PUB_URL_BASE + encodeURIComponent(id); }
-function mediaDePieza(id){ return (PUB[id] && Array.isArray(PUB[id].media)) ? PUB[id].media : []; }
+
+// Clave del modelo: misma familia + mismo modelo (ignorando mayúsculas y
+// separadores). '' si la pieza no tiene modelo (no se puede compartir).
+function _modelKey(p){
+  if(!p || !p.familia || !p.modelo) return '';
+  var m = String(p.modelo).toLowerCase().replace(/[\s\-_.\/]/g, '');
+  return m ? (p.familia + '::' + m) : '';
+}
+function _modelKeyDeId(id){
+  var p = DATA.piezas.find(function(x){ return x.id === id; });
+  return p ? _modelKey(p) : '';
+}
+
+// Media de una pieza: primero las COMPARTIDAS de su modelo; si no tiene,
+// las individuales de su propia ficha (piezas viejas o sin modelo).
+function mediaDePieza(id){
+  var key = _modelKeyDeId(id);
+  if(key && MEDIA_MODELO[key] && Array.isArray(MEDIA_MODELO[key].media) && MEDIA_MODELO[key].media.length)
+    return MEDIA_MODELO[key].media;
+  return (PUB[id] && Array.isArray(PUB[id].media)) ? PUB[id].media : [];
+}
+// ¿La pieza toma sus fotos del modelo (compartidas con otras iguales)?
+function fotosSonDeModelo(id){
+  var key = _modelKeyDeId(id);
+  return !!(key && MEDIA_MODELO[key] && (MEDIA_MODELO[key].media || []).length);
+}
+function cuantasPiezasDelModelo(key){
+  if(!key) return 0;
+  return DATA.piezas.filter(function(p){ return p && !p.vendida && _modelKey(p) === key; }).length;
+}
 
 // Botón "📷" que va junto a Vendí/Editar en cada pieza. Visible para
 // TODOS (sin clase solo-editor). Muestra cuántas fotos/videos tiene.
@@ -1746,13 +1787,14 @@ function botonFotos(p){
 
 // Escuchar el nodo público en vivo (se engancha al conectar Firebase).
 function escucharFichasPublicas(){
+  function _refresca(){
+    if (typeof refrescarVistaActual === 'function') refrescarVistaActual();
+    if (document.getElementById('modal-fotos')?.classList.contains('active')) renderModalFotos();
+  }
   try {
-    firebase.database().ref('fichas_publicas').on('value', function(snap){
-      PUB = snap.val() || {};
-      if (typeof refrescarVistaActual === 'function') refrescarVistaActual();
-      if (document.getElementById('modal-fotos')?.classList.contains('active')) renderModalFotos();
-    });
-  } catch(e){ console.error('fichas_publicas:', e); }
+    firebase.database().ref('fichas_publicas').on('value', function(snap){ PUB = snap.val() || {}; _refresca(); });
+    firebase.database().ref('media_modelo').on('value', function(snap){ MEDIA_MODELO = snap.val() || {}; _refresca(); });
+  } catch(e){ console.error('fichas/media:', e); }
 }
 
 // Datos técnicos SEGUROS que se publican (jamás precio/folio/notas/ubicación
@@ -1785,12 +1827,57 @@ function datosPublicosDePieza(p){
   };
 }
 
-function publicarFicha(p, media){
+// Publica/actualiza la ficha pública de UNA pieza (datos técnicos + a qué
+// modelo pertenece). Las fotos NO se copian aquí cuando son por modelo:
+// viven en media_modelo y la ficha solo apunta con modelKey. Si la pieza
+// no tiene modelo, guarda sus fotos individuales en su propia ficha.
+function publicarFicha(p){
+  if(!p || !p.id) return Promise.resolve();
   var d = datosPublicosDePieza(p);
-  d.media = media || [];
   d.actualizado = Date.now();
-  if (!d.media.length) return firebase.database().ref('fichas_publicas/' + p.id).remove();
+  var key = _modelKey(p);
+  if(key){
+    var mediaMod = (MEDIA_MODELO[key] && MEDIA_MODELO[key].media) || [];
+    if(!mediaMod.length) return firebase.database().ref('fichas_publicas/' + p.id).remove();
+    d.modelKey = key;
+    return firebase.database().ref('fichas_publicas/' + p.id).set(d);
+  }
+  var mediaInd = (PUB[p.id] && PUB[p.id].media) || [];
+  if(!mediaInd.length) return firebase.database().ref('fichas_publicas/' + p.id).remove();
+  d.media = mediaInd;
   return firebase.database().ref('fichas_publicas/' + p.id).set(d);
+}
+
+// Guarda las fotos de una pieza. Si tiene modelo → las guarda en el MODELO
+// (compartidas) y re-publica la ficha de todas las piezas de ese modelo,
+// para que sus QR muestren las mismas fotos. Si no tiene modelo → fotos
+// individuales en su propia ficha (modo viejo).
+function guardarMedia(p, media){
+  media = media || [];
+  var key = _modelKey(p);
+  if(key){
+    // Actualizar en memoria YA (para que republicar y renderModal usen lo nuevo).
+    MEDIA_MODELO[key] = { media: media, titulo: (datosPublicosDePieza(p).titulo || ''), actualizado: Date.now() };
+    var escribir = media.length
+      ? firebase.database().ref('media_modelo/' + key).set(MEDIA_MODELO[key])
+      : firebase.database().ref('media_modelo/' + key).remove();
+    if(!media.length) delete MEDIA_MODELO[key];
+    return escribir.then(function(){ return republicarModelo(key); });
+  }
+  // Sin modelo: individual
+  PUB[p.id] = PUB[p.id] || {};
+  PUB[p.id].media = media;
+  return publicarFicha(p);
+}
+
+// Re-publica la ficha de TODAS las piezas (no vendidas) de un modelo.
+function republicarModelo(key){
+  if(!key) return Promise.resolve();
+  var proms = DATA.piezas
+    .filter(function(p){ return p && !p.vendida && _modelKey(p) === key; })
+    .map(function(p){ try { return publicarFicha(p); } catch(e){ return null; } })
+    .filter(Boolean);
+  return Promise.all(proms);
 }
 
 // ---------- Modal ----------
@@ -1810,6 +1897,14 @@ function renderModalFotos(){
   if (!body || !_piezaFotosId) return;
   var media = mediaDePieza(_piezaFotosId);
   var link = linkFichaPieza(_piezaFotosId);
+  var key = _modelKeyDeId(_piezaFotosId);
+  var nMod = key ? cuantasPiezasDelModelo(key) : 1;
+
+  // Aviso de fotos compartidas por modelo (para que se entienda que se
+  // toman una sola vez y aplican a todos los registros iguales).
+  var avisoModelo = (key && nMod > 1)
+    ? '<div style="background:#fff8e1; border:1px solid #e6c65a; border-radius:8px; padding:9px 12px; font-size:13px; color:#6b5a12; margin-bottom:10px;">🔗 <strong>Fotos por modelo:</strong> estas fotos se comparten con los <strong>' + nMod + ' registros</strong> de este mismo modelo. Las subes UNA vez y aplican a todos (y a los que registres después).</div>'
+    : '';
 
   var galeria = media.length
     ? '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(90px,1fr)); gap:8px; margin:10px 0;">' +
@@ -1836,6 +1931,7 @@ function renderModalFotos(){
 
   body.innerHTML =
     '<div id="fotos-progreso"></div>' +
+    avisoModelo +
     galeria +
     '<button class="btn btn-block" style="background:#185FA5;color:#fff;border-color:#185FA5;font-weight:800;" onclick="document.getElementById(\'fotos-input\').click()">📷 Tomar o elegir fotos / video</button>' +
     '<div style="font-size:12px; color:#999; text-align:center; margin-top:6px;">Se guardan en HD. En el teléfono puedes usar la cámara directo.</div>' +
@@ -1938,10 +2034,13 @@ function subirArchivosPieza(files){
 
   function subirUno(idx){
     if (idx >= lista.length){
-      publicarFicha(p, media).then(function(){
+      guardarMedia(p, media).then(function(){
         _subiendoFotos = false;
         msgProgresoFotos('');
-        playDing(); toast('✓ ' + hechos + ' archivo(s) subido(s)', 'success');
+        var key = _modelKey(p);
+        var nMod = key ? cuantasPiezasDelModelo(key) : 1;
+        playDing();
+        toast('✓ ' + hechos + ' archivo(s) subido(s)' + (nMod > 1 ? ' — se aplican a los ' + nMod + ' registros de este modelo' : ''), 'success');
         renderModalFotos();
       }).catch(function(e){ finFalla(e); });
       return;
@@ -1986,7 +2085,7 @@ function subirArchivosPieza(files){
     } else {
       msgProgresoFotos('⚠️ No se pudo subir. Revisa tu conexión e intenta de nuevo.');
     }
-    if (hechos > 0) publicarFicha(p, media).catch(function(){});
+    if (hechos > 0) guardarMedia(p, media).catch(function(){});
     renderTrasFalla();
   }
   function renderTrasFalla(){
@@ -2007,7 +2106,13 @@ function borrarMediaPieza(i){
   var media = mediaDePieza(p.id).slice();
   var m = media[i];
   if (!m) return;
-  if (!confirm('¿Borrar ' + (m.t === 'video' ? 'este video' : 'esta foto') + ' de la pieza?')) return;
+  var key = _modelKey(p);
+  var nMod = key ? cuantasPiezasDelModelo(key) : 1;
+  var aviso = (nMod > 1)
+    ? '¿Borrar ' + (m.t === 'video' ? 'este video' : 'esta foto') + '?\n\nOJO: esta pieza comparte fotos con otros ' + (nMod - 1) + ' registro(s) del mismo modelo. Se borrará para TODOS.'
+    : '¿Borrar ' + (m.t === 'video' ? 'este video' : 'esta foto') + ' de la pieza?';
+  if (!confirm(aviso)) return;
+  media = media.slice();
   media.splice(i, 1);
   // Borrar los archivos de Storage (si falla, no pasa nada — la ficha ya no los muestra)
   try {
@@ -2016,7 +2121,7 @@ function borrarMediaPieza(i){
       if (u) try { st.refFromURL(u).delete().catch(function(){}); } catch(e){}
     });
   } catch(e){}
-  publicarFicha(p, media).then(function(){
+  guardarMedia(p, media).then(function(){
     toast('Eliminado', 'success');
     renderModalFotos();
   }).catch(function(){ toast('No se pudo borrar. Intenta de nuevo.', 'error'); });
@@ -3219,6 +3324,14 @@ function guardarPieza() {
   }
 
   guardar();
+  // Si el modelo recién registrado YA tiene fotos (otras piezas iguales), la
+  // pieza nueva las hereda sola: publicamos su ficha para que su QR funcione.
+  try {
+    const keyNueva = _modelKey({ familia: _piezaFamilia, modelo: modeloFinal });
+    if (keyNueva && MEDIA_MODELO[keyNueva] && (MEDIA_MODELO[keyNueva].media || []).length) {
+      republicarModelo(keyNueva);
+    }
+  } catch(e){ console.error('publicar modelo nuevo:', e); }
   playDing();
   if (_modoCompra) toast(`🛒 ${cantidad} compra${cantidad > 1 ? 's' : ''} registrada${cantidad > 1 ? 's' : ''}`, 'success');
   else toast(`✓ ${cantidad} pieza${cantidad > 1 ? 's' : ''} agregada${cantidad > 1 ? 's' : ''}`, 'success');
@@ -3471,7 +3584,7 @@ function confirmarVenta() {
   // Si tiene ficha pública, marcarla como VENDIDA: el QR pegado en el motor
   // se lo dice al cliente que lo escanee después.
   if (typeof PUB !== 'undefined' && PUB[p.id]) {
-    try { publicarFicha(p, mediaDePieza(p.id)); } catch(e){ console.error('sync ficha venta:', e); }
+    try { publicarFicha(p); } catch(e){ console.error('sync ficha venta:', e); }
   }
   playDing(); toast('Venta registrada', 'success');
   closeModal('modal-venta');
@@ -3489,7 +3602,7 @@ function reactivarPieza(id) {
   guardar();
   // Quitar el "VENDIDO" de su ficha pública (vuelve a estar disponible)
   if (typeof PUB !== 'undefined' && PUB[p.id]) {
-    try { publicarFicha(p, mediaDePieza(p.id)); } catch(e){ console.error('sync ficha reactivar:', e); }
+    try { publicarFicha(p); } catch(e){ console.error('sync ficha reactivar:', e); }
   }
   toast('Pieza reactivada');
   refrescarVistaActual();
@@ -3562,13 +3675,20 @@ function _fmtPeso(bytes){
   return Math.round(bytes / 1024) + ' KB';
 }
 
-// Junta todas las piezas con ficha y sus archivos.
+// Junta los juegos de fotos ÚNICOS: cada modelo cuenta UNA vez (aunque lo
+// compartan 36 piezas), más las piezas viejas con fotos individuales. Así el
+// espacio no se infla por las fotos compartidas.
 function _inventarioMedia(){
   var lista = [];
+  Object.keys(MEDIA_MODELO || {}).forEach(function(key){
+    var mm = MEDIA_MODELO[key] || {};
+    var media = mm.media || [];
+    if(media.length) lista.push({ id: key, titulo: mm.titulo || 'Modelo', media: media, esModelo: true });
+  });
   Object.keys(PUB || {}).forEach(function(id){
     var f = PUB[id] || {};
-    var media = f.media || [];
-    if(media.length) lista.push({ id: id, titulo: f.titulo || 'Pieza', media: media });
+    // Solo las que tienen fotos PROPIAS (sin modelKey) — las de modelo ya se contaron.
+    if(!f.modelKey && (f.media || []).length) lista.push({ id: id, titulo: f.titulo || 'Pieza', media: f.media });
   });
   return lista;
 }
@@ -4077,11 +4197,10 @@ function guardarEdicionPieza(id) {
 
   p.extras = ex;
   guardar();
-  // Si la pieza tiene ficha pública (fotos), actualizar sus datos técnicos
-  // para que la página del QR muestre lo recién editado.
-  if (typeof PUB !== 'undefined' && PUB[p.id]) {
-    try { publicarFicha(p, mediaDePieza(p.id)); } catch(e){ console.error('sync ficha:', e); }
-  }
+  // Actualizar su ficha pública: si su modelo tiene fotos, se publica con los
+  // datos nuevos; si no, publicarFicha la quita sola. (Sirve también cuando al
+  // editar le cambian el modelo y cae en un modelo que YA tiene fotos.)
+  try { publicarFicha(p); } catch(e){ console.error('sync ficha:', e); }
   playDing(); toast('Pieza actualizada', 'success');
   closeModal('modal-pieza');
   refrescarVistaActual();
@@ -4091,19 +4210,33 @@ function eliminarPieza(id) {
   pushUndo('Eliminar pieza');
   if (!confirm('¿Eliminar esta pieza permanentemente?')) return;
   const p = DATA.piezas.find(x => x.id === id);
+  // ANTES de sacarla: ver si sus fotos son del modelo (compartidas) y si
+  // quedan otras piezas del mismo modelo.
+  const key = _modelKey(p);
+  const mediaIndividual = (!key && PUB[id] && PUB[id].media) ? PUB[id].media.slice() : [];
   DATA.piezas = DATA.piezas.filter(x => x.id !== id);
   guardar();
-  // Limpiar su ficha pública y sus fotos de la nube (si tenía)
-  if (typeof PUB !== 'undefined' && PUB[id]) {
-    try {
-      (mediaDePieza(id) || []).forEach(function(m){
-        [m.url, m.web, m.hd].forEach(function(u){
-          if (u) try { firebase.storage().refFromURL(u).delete().catch(function(){}); } catch(e){}
+  try {
+    // Su propia ficha siempre se quita.
+    firebase.database().ref('fichas_publicas/' + id).remove();
+    if (key) {
+      // Fotos por modelo: solo borrar los archivos si ERA LA ÚLTIMA pieza de
+      // ese modelo. Si quedan otras, las fotos siguen sirviendo para ellas.
+      const quedan = DATA.piezas.some(function(x){ return x && _modelKey(x) === key; });
+      if (!quedan && MEDIA_MODELO[key]) {
+        (MEDIA_MODELO[key].media || []).forEach(function(m){
+          [m.url, m.web, m.hd].forEach(function(u){ if (u) try { firebase.storage().refFromURL(u).delete().catch(function(){}); } catch(e){} });
         });
+        delete MEDIA_MODELO[key];
+        firebase.database().ref('media_modelo/' + key).remove();
+      }
+    } else {
+      // Fotos individuales: borrar sus archivos.
+      mediaIndividual.forEach(function(m){
+        [m.url, m.web, m.hd].forEach(function(u){ if (u) try { firebase.storage().refFromURL(u).delete().catch(function(){}); } catch(e){} });
       });
-      firebase.database().ref('fichas_publicas/' + id).remove();
-    } catch(e){ console.error('limpiar ficha:', e); }
-  }
+    }
+  } catch(e){ console.error('limpiar ficha:', e); }
   toast('Pieza eliminada');
   if (p && p.camionId && document.getElementById('modal-pieza').classList.contains('active')) verPiezasCamion(p.camionId);
   else refrescarModalPiezaSiAbierto();
