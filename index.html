@@ -1776,12 +1776,17 @@ var PUB_URL_BASE = 'https://fotonas.tractopartes.com/motor.html?id=';
 
 function linkFichaPieza(id){ return PUB_URL_BASE + encodeURIComponent(id); }
 
-// Clave del modelo: misma familia + mismo modelo (ignorando mayúsculas y
-// separadores). '' si la pieza no tiene modelo (no se puede compartir).
+// Clave del modelo: misma familia + mismo modelo + misma MARCA (ignorando
+// mayúsculas y separadores). Se incluye la marca porque en algunas familias
+// el modelo es genérico (ej. dos "Radiador" de distinta marca NO son la misma
+// pieza: uno Freightliner, otro Kenworth). '' si la pieza no tiene modelo.
+function _normClave(s){ return String(s == null ? '' : s).toLowerCase().replace(/[\s\-_.\/]/g, ''); }
 function _modelKey(p){
   if(!p || !p.familia || !p.modelo) return '';
-  var m = String(p.modelo).toLowerCase().replace(/[\s\-_.\/]/g, '');
-  return m ? (p.familia + '::' + m) : '';
+  var m = _normClave(p.modelo);
+  if(!m) return '';
+  var marca = _normClave(p.marca);
+  return p.familia + '::' + m + '::' + marca;
 }
 function _modelKeyDeId(id){
   var p = DATA.piezas.find(function(x){ return x.id === id; });
@@ -3356,7 +3361,8 @@ function guardarPieza() {
   // Si el modelo recién registrado YA tiene fotos (otras piezas iguales), la
   // pieza nueva las hereda sola: publicamos su ficha para que su QR funcione.
   try {
-    const keyNueva = _modelKey({ familia: _piezaFamilia, modelo: modeloFinal });
+    const piezaRef = DATA.piezas[DATA.piezas.length - 1];
+    const keyNueva = piezaRef ? _modelKey(piezaRef) : '';
     if (keyNueva && MEDIA_MODELO[keyNueva] && (MEDIA_MODELO[keyNueva].media || []).length) {
       republicarModelo(keyNueva);
     }
