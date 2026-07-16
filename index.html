@@ -1080,7 +1080,7 @@ function editarSalida(id){
   if(typeof esEditor==='function' && !esEditor()){ alert('Entra como Editor para editar salidas.'); return; }
   const s=getSalidas().find(x=>x.id===id); if(!s) return;
   _salidaEditId=id;
-  _salidaItems=(s.items||[]).map(i=>({cant:i.cant||1,desc:i.desc||'',cod:i.cod||'',regreso:!!i.regreso,origenId:i.origenId||'',origenTxt:i.origenTxt||''}));
+  _salidaItems=(s.items||[]).map(i=>({cant:i.cant||1,desc:i.desc||'',cod:i.cod||'',regreso:!!i.regreso,origenId:i.origenId||'',origenIds:Array.isArray(i.origenIds)?i.origenIds.slice():[],origenTxt:i.origenTxt||''}));
   if(!_salidaItems.length) _salidaItems=[{cant:1,desc:'',cod:'',regreso:false}];
   abrirFormSalida(s);
 }
@@ -1133,7 +1133,7 @@ function guardarSalida(){
   if(typeof esEditor==='function' && !esEditor()){ alert('Entra como Editor para guardar salidas.'); return; }
   const folio=(document.getElementById('sal-folio').value||'').trim();
   if(!folio){ alert('Ponle un folio a la salida.'); return; }
-  const items=_salidaItems.filter(it=>(it.desc||'').trim()||(it.cod||'').trim()).map(it=>({cant:parseInt(it.cant,10)||1,desc:(it.desc||'').trim(),cod:(it.cod||'').trim(),regreso:!!it.regreso,origenId:it.origenId||'',origenTxt:it.origenTxt||''}));
+  const items=_salidaItems.filter(it=>(it.desc||'').trim()||(it.cod||'').trim()).map(it=>({cant:parseInt(it.cant,10)||1,desc:(it.desc||'').trim(),cod:(it.cod||'').trim(),regreso:!!it.regreso,origenId:it.origenId||'',origenIds:Array.isArray(it.origenIds)?it.origenIds.slice():[],origenTxt:it.origenTxt||''}));
   if(!items.length){ alert('Agrega al menos una pieza (descripción o código).'); return; }
   const datos={
     folio, fecha:document.getElementById('sal-fecha').value||'',
@@ -1151,15 +1151,38 @@ function guardarSalida(){
     nuevaId='sal_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
     arr.push(Object.assign({id:nuevaId, fechaRegistro:Date.now()}, datos));
   }
-  // Fase B: los cores ligados en esta salida pasan a "en reparación"
-  let movidos=0;
+  // Fase B: los cores ligados pasan a "en reparación". Si la CANTIDAD del
+  // renglón es mayor que 1, se ligan VARIOS cores del MISMO modelo (así al
+  // regresar vuelven todos, no solo uno — fix jul 2026). En una edición se
+  // respetan los cores ya ligados (no se vuelven a expandir).
+  let movidos=0, faltaron=0;
   items.forEach(function(it){
-    if(it.origenId){
-      const core=DATA.piezas.find(x=>x.id===it.origenId);
-      if(core && esFamiliaReparacion(core.familia) && (core.estado||'reconstruido')==='core'){ core.estado='reparacion'; movidos++; }
+    let ligados = (it.origenIds && it.origenIds.length) ? it.origenIds.slice() : [];
+    if(!ligados.length && it.origenId){
+      const coreBase=DATA.piezas.find(x=>x.id===it.origenId);
+      if(coreBase && esFamiliaReparacion(coreBase.familia)){
+        ligados=[coreBase.id];
+        const cant=Math.max(1, parseInt(it.cant,10)||1);
+        if(cant>1){
+          const mk=_modelKey(coreBase);
+          const extra=DATA.piezas.filter(function(x){
+            return x && ligados.indexOf(x.id)===-1 && !x.vendida && esFamiliaReparacion(x.familia)
+              && (x.estado||'reconstruido')==='core'
+              && (mk ? _modelKey(x)===mk : (x.familia===coreBase.familia && (x.modelo||'')===(coreBase.modelo||'')));
+          }).slice(0, cant-1);
+          extra.forEach(function(x){ ligados.push(x.id); });
+          if(ligados.length < cant) faltaron += (cant - ligados.length);
+        }
+      }
     }
+    it.origenIds = ligados;
+    ligados.forEach(function(cid){
+      const c=DATA.piezas.find(x=>x.id===cid);
+      if(c && esFamiliaReparacion(c.familia) && (c.estado||'reconstruido')==='core'){ c.estado='reparacion'; movidos++; }
+    });
   });
   guardar(); closeModal('modal-salida'); refrescarVistaActual();
+  if(faltaron>0) alert('⚠️ Se enviaron '+movidos+' core(s) a reparación.\n\nPediste más de los que hay disponibles como "core" de ese modelo: faltaron '+faltaron+'. Revisa si esos cores todavía no los tienes registrados como core.');
   toast(movidos>0 ? ('🔧 '+movidos+' core(s) enviados a reparación') : 'Salida guardada', 'success');
   // Al crear una salida nueva, ofrecer imprimir la hoja de inmediato
   if(nuevaId) imprimirSalidaMenu(nuevaId);
@@ -1178,26 +1201,32 @@ function marcarRegresosSalida(id){
   const body=document.getElementById('modal-salida-body');
   body.innerHTML=
     '<p style="color:#666;font-size:14px;margin-bottom:10px;">Marca las piezas que ya <strong>regresaron</strong> del taller. Cuando todas regresen, la salida queda <strong>COMPLETA</strong>.</p>'+
-    '<div>'+(s.items||[]).map((it,i)=>
-      '<label style="display:flex;align-items:center;gap:10px;padding:9px;border:1px solid #ddd;border-radius:6px;margin-bottom:6px;cursor:pointer;">'+
+    '<div>'+(s.items||[]).map((it,i)=>{
+      var nLig=(it.origenIds&&it.origenIds.length)?it.origenIds.length:(it.origenId?1:0);
+      var notaLig=nLig>1?'<span style="color:#2980b9;font-size:12px;font-weight:700;"> · regresan '+nLig+' al inventario</span>':'';
+      return '<label style="display:flex;align-items:center;gap:10px;padding:9px;border:1px solid #ddd;border-radius:6px;margin-bottom:6px;cursor:pointer;">'+
         '<input type="checkbox" '+(it.regreso?'checked':'')+' onchange="_toggleRegreso(\''+id+'\','+i+',this.checked)" style="width:20px;height:20px;">'+
-        '<span>'+(it.cant||1)+' × '+escapeHtml(it.desc||'')+(it.cod?' ('+escapeHtml(it.cod)+')':'')+'</span>'+
-      '</label>').join('')+'</div>'+
+        '<span>'+(it.cant||1)+' × '+escapeHtml(it.desc||'')+(it.cod?' ('+escapeHtml(it.cod)+')':'')+notaLig+'</span>'+
+      '</label>';
+    }).join('')+'</div>'+
     '<button class="btn btn-primary" style="margin-top:12px;" onclick="closeModal(\'modal-salida\');renderSalidas();">Listo</button>';
   openModal('modal-salida');
 }
 function _toggleRegreso(id,i,val){
   const s=getSalidas().find(x=>x.id===id); if(!s||!s.items||!s.items[i]) return;
-  s.items[i].regreso=val;
-  // Sincroniza el inyector ligado: regresó → reconstruido (en venta); si se desmarca → en reparación
-  const oid=s.items[i].origenId;
-  if(oid){
+  const it=s.items[i];
+  it.regreso=val;
+  // Regresar TODOS los cores ligados a este renglón (varios si la cantidad
+  // era >1). Compatibilidad: si es una salida vieja con un solo origenId, se
+  // usa ese. regresó → reconstruido (en venta); si se desmarca → en reparación.
+  const ids=(it.origenIds && it.origenIds.length) ? it.origenIds : (it.origenId ? [it.origenId] : []);
+  ids.forEach(function(oid){
     const core=DATA.piezas.find(x=>x.id===oid);
     if(core && esFamiliaReparacion(core.familia)){
       core.estado = val ? 'reconstruido' : 'reparacion';
       if(val) core.vendida=false;
     }
-  }
+  });
   guardar();
 }
 
