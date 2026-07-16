@@ -1776,13 +1776,19 @@ var PUB_URL_BASE = 'https://fotonas.tractopartes.com/motor.html?id=';
 
 function linkFichaPieza(id){ return PUB_URL_BASE + encodeURIComponent(id); }
 
-// Clave del modelo: misma familia + mismo modelo + misma MARCA (ignorando
-// mayúsculas y separadores). Se incluye la marca porque en algunas familias
-// el modelo es genérico (ej. dos "Radiador" de distinta marca NO son la misma
-// pieza: uno Freightliner, otro Kenworth). '' si la pieza no tiene modelo.
+// FAMILIAS que comparten fotos por modelo. Solo las que se reparan a "casi
+// nuevo" y quedan iguales entre sí (a pedido de Eugenio, jul 2026). Las demás
+// (radiadores, puertas, cofres, cabezas, etc.) son usadas/dañadas y cada pieza
+// es única → fotos individuales. Para sumar otra familia, agrégala aquí.
+var FAMILIAS_FOTOS_MODELO = ['inyectores', 'arboles', 'transmisiones'];
+
+// Clave del modelo: familia + modelo + MARCA (ignorando mayúsculas y
+// separadores). Devuelve '' (→ fotos individuales) si la pieza no tiene
+// modelo, o si su familia NO comparte fotos por modelo.
 function _normClave(s){ return String(s == null ? '' : s).toLowerCase().replace(/[\s\-_.\/]/g, ''); }
 function _modelKey(p){
   if(!p || !p.familia || !p.modelo) return '';
+  if(FAMILIAS_FOTOS_MODELO.indexOf(p.familia) === -1) return '';
   var m = _normClave(p.modelo);
   if(!m) return '';
   var marca = _normClave(p.marca);
