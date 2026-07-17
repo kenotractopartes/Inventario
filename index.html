@@ -2902,9 +2902,11 @@ let _cofreModeloSel = null;
 const FAMILIAS_SIN_ESTADO = ['motores','cabinas','puertas','radiadores','chasis','quintaRueda'];
 function familiaLlevaEstado(famId){ return FAMILIAS_SIN_ESTADO.indexOf(famId) === -1; }
 const ESTADOS_PIEZA = ['Usado','Reconstruido','Nuevo'];
-// Botones de estado para el form de EDITAR (guardan en el input oculto edit-estado).
-function _selEditEstado(btn, val){
-  const cur = document.getElementById('edit-estado');
+const ESTADOS_MOTOR = ['Usado','Reconstruido'];   // motor: solo estas dos (jul 2026)
+// Botones de estado para el form de EDITAR (guardan en un input oculto).
+// inputId por defecto 'edit-estado'; los motores usan 'edit-estadoMotor'.
+function _selEditEstado(btn, val, inputId){
+  const cur = document.getElementById(inputId || 'edit-estado');
   const yaEra = cur && cur.value === val;
   btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('selected'));
   if(yaEra){ if(cur) cur.value = ''; }              // volver a picar = deseleccionar
@@ -3043,7 +3045,6 @@ function seleccionarFamilia(famId) {
           <div class="btn-grid" id="pieza-estado-motor">
             <button type="button" class="btn btn-small" onclick="selectPiezaExtra(this, 'estadoMotor', 'Usado')">Usado</button>
             <button type="button" class="btn btn-small" onclick="selectPiezaExtra(this, 'estadoMotor', 'Reconstruido')">Reconstruido</button>
-            <button type="button" class="btn btn-small" onclick="selectPiezaExtra(this, 'estadoMotor', 'Nuevo')">Nuevo</button>
           </div>
         </div>
       </div>`;
@@ -4168,7 +4169,12 @@ function editarPieza(id) {
           <div class="field"><label>CPL</label><input type="text" id="edit-cpl" value="${escapeHtml(ex.cpl || '')}"></div>
           <div class="field"><label>HP</label><input type="text" id="edit-hp" value="${escapeHtml(ex.hp || '')}"></div>
         </div>
-        <div class="field"><label>Estado</label><input type="text" id="edit-estadoMotor" value="${escapeHtml(ex.estadoMotor || '')}"></div>
+        <div class="field"><label>Estado / Condición</label>
+          <input type="hidden" id="edit-estadoMotor" value="${escapeHtml(ex.estadoMotor || '')}">
+          <div class="btn-grid">
+            ${ESTADOS_MOTOR.map(e => `<button type="button" class="btn btn-small${ex.estadoMotor === e ? ' selected' : ''}" onclick="_selEditEstado(this,'${e}','edit-estadoMotor')">${e}</button>`).join('')}
+          </div>
+        </div>
       </div>`;
   }
 
