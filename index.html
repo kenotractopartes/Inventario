@@ -885,14 +885,42 @@ function _seriesEstatusSet(){
   });
   return set;
 }
+// Lista de series del Estatus de Maura, normalizadas (para comparar por coincidencia).
+function _seriesArrEstatus(){
+  return Object.keys(_estatusChasisData||{})
+    .map(eid=>_serieNorm(_txtPlano((_estatusChasisData[eid]||{}).serie)))
+    .filter(Boolean);
+}
+// ¿La serie de un chasis coincide con alguna de Maura? Cuenta como coincidencia:
+//  • que sea EXACTA, o
+//  • que la serie de Maura esté CONTENIDA en el VIN de Raúl (o al revés) — Maura
+//    a veces abrevia el N° de serie (ej. "23961" dentro de "3AKJAHBGX4DM23961").
+// Mínimo 4 caracteres para evitar coincidencias por casualidad. (jul 2026)
+function _serieCoincideEstatus(vin){
+  if(!vin) return false;
+  const series=_seriesArrEstatus();
+  for(let i=0;i<series.length;i++){
+    const s=series[i];
+    if(!s) continue;
+    if(s===vin) return true;
+    if(s.length>=4 && (vin.indexOf(s)!==-1 || s.indexOf(vin)!==-1)) return true;
+  }
+  return false;
+}
 function esHuerfanoChasis(p){
   if(!p || p.familia!=='chasis' || p.vendida) return false;
   if(!_estatusChasisData || Object.keys(_estatusChasisData).length===0) return false; // maestro no cargado → no alarmar
-  const set=_seriesEstatusSet();
-  const vin=_serieNorm(p.extras && p.extras.fichaVin);
-  if(vin) return !set[vin];                       // tiene serie → huérfano si esa serie no está en el maestro
+  // 1) Si vino del puente de Maura y su registro SIGUE existiendo → NO es
+  //    huérfano (el vínculo manda, aunque Maura le haya cambiado/acortado la
+  //    serie). Solo se rompe si Maura BORRÓ el registro. (fix jul 2026)
   const eid=p.extras && p.extras.estatusId;
-  if(eid) return !_estatusChasisData[eid];         // sin serie pero vino del puente → huérfano si borraron el maestro
+  if(eid && _estatusChasisData[eid]) return false;
+  // 2) Por número de serie: huérfano solo si NO coincide con ninguna de Maura
+  //    (ni exacta ni abreviada).
+  const vin=_serieNorm(p.extras && p.extras.fichaVin);
+  if(vin) return !_serieCoincideEstatus(vin);
+  // 3) Sin serie pero vino del puente → huérfano si borraron su registro.
+  if(eid) return !_estatusChasisData[eid];
   return false;                                    // sin serie ni origen → no se puede determinar
 }
 function chasisHuerfanos(){ return DATA.piezas.filter(esHuerfanoChasis); }
