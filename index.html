@@ -4474,9 +4474,9 @@ function toggleFotosFiltro() {
 
 function filtrarFotosTexto(v){
   _filtroFotosTexto = (v || '').toLowerCase().trim();
-  renderBusqueda();
-  var e = document.getElementById('buscador-fotos');
-  if (e){ e.focus(); try { e.setSelectionRange(e.value.length, e.value.length); } catch(err){} }
+  // Solo refiltrar resultados. NO se reconstruye el cuadro de búsqueda, así
+  // no se pierde el foco ni caracteres al teclear (sobre todo en el teléfono).
+  _renderResultadosBusqueda();
 }
 
 // Atajo del Inicio (botón "📷 Fotos"): salta a la pestaña Piezas con el
@@ -4533,6 +4533,11 @@ function renderBusqueda() {
   const nApartadas = DATA.piezas.filter(p => p.apartada && !p.vendida).length;
   const nFotos = DATA.piezas.filter(p => !p.vendida && mediaDePieza(p.id).length > 0).length;
   const nSinFotos = DATA.piezas.filter(p => !p.vendida && mediaDePieza(p.id).length === 0).length;
+  // Si el buscador de fotos ya existe y tiene texto/foco (Raúl tecleando),
+  // preservarlo aunque una sync de la nube dispare este re-render.
+  const _busPrev = document.getElementById('buscador-fotos');
+  const _busVal = _busPrev ? _busPrev.value : _filtroFotosTexto;
+  const _busFoco = !!(_busPrev && document.activeElement === _busPrev);
   // Fila 1: especiales (Todas, Sin Precio, Bajo Pedido). Fila 2: familias.
   const filtros = document.getElementById('filtros-familia');
   filtros.innerHTML =
@@ -4545,7 +4550,7 @@ function renderBusqueda() {
       `<button class="filter-chip ${_filtroSinFotos ? 'active' : ''}" style="background:#fff; color:#185FA5; border-color:#185FA5; font-weight:800;" onclick="toggleSinFotosFiltro()">📷❌ SIN FOTOS${nSinFotos ? ` (${nSinFotos})` : ''}</button>` +
     '</div>' +
     ((_filtroFotos || _filtroSinFotos)
-      ? '<div style="margin:-6px 0 14px;"><input type="text" id="buscador-fotos" placeholder="🔍 Buscar aquí dentro (modelo, serie, folio...)" value="' + _filtroFotosTexto.replace(/"/g,'&quot;') + '" oninput="filtrarFotosTexto(this.value)" style="width:100%; max-width:520px; padding:12px 14px; font-size:16px; border:2px solid #185FA5; border-radius:8px;"></div>'
+      ? '<div style="margin:-6px 0 14px;"><input type="text" id="buscador-fotos" placeholder="🔍 Buscar aquí dentro (modelo, serie, folio...)" value="' + String(_busVal).replace(/"/g,'&quot;') + '" oninput="filtrarFotosTexto(this.value)" style="width:100%; max-width:520px; padding:12px 14px; font-size:16px; border:2px solid #185FA5; border-radius:8px;"></div>'
       : '') +
     '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
       FAMILIAS.map(f => {
@@ -4555,6 +4560,19 @@ function renderBusqueda() {
       }).join('') +
     '</div>';
 
+  // Si Raúl estaba tecleando en el buscador, devolverle el foco y el cursor.
+  if (_busFoco) {
+    const _nb = document.getElementById('buscador-fotos');
+    if (_nb) { try { _nb.focus(); _nb.setSelectionRange(_nb.value.length, _nb.value.length); } catch(e){} }
+  }
+  // Los resultados van en su propia función: así, al teclear en el buscador
+  // de FOTOS/SIN FOTOS, solo se refiltran los resultados y NO se reconstruye
+  // el cuadro de búsqueda (antes se recreaba en cada letra y en el teléfono
+  // se perdían caracteres — por eso "189" no encontraba nada). Fix jul 2026.
+  _renderResultadosBusqueda();
+}
+
+function _renderResultadosBusqueda() {
   let piezas = DATA.piezas.filter(p => !p.vendida);
   if (_filtroFamilia) piezas = piezas.filter(p => p.familia === _filtroFamilia);
   if (_filtroSinPrecio) piezas = piezas.filter(p => !p.precioSugerido && !p.precioMax);
