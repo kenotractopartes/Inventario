@@ -4943,22 +4943,23 @@ function excelFilaDe(p) {
 // se quitan las que no le sirven al chasis (Estado, Condición, CPL, HP, N°
 // Serie, Libras, Marca Eje, Suspensión, Paso) y se agregan Consecutivo, Baja
 // federal y Extra para poder filtrarlos.
-const EXCEL_HEADERS_CHASIS = ['Folio','Modelo/Tipo','Motor','Marca Camión','Modelo Camión','Año',
-  'VIN','N° Motor','Consecutivo','Baja federal','Extra','Ubicación','Precio Mín','Precio Máx',
-  'Link Drive','Notas','Estatus','Fecha Registro'];
+// Quitadas también (jul 2026): Motor, N° Motor y Link Drive — no le sirven al chasis.
+const EXCEL_HEADERS_CHASIS = ['Folio','Modelo/Tipo','Marca Camión','Modelo Camión','Año',
+  'VIN','Consecutivo','Baja federal','Extra','Ubicación','Precio Mín','Precio Máx',
+  'Notas','Estatus','Fecha Registro'];
 function excelFilaChasis(p) {
   const ex = p.extras || {};
   const camion = DATA.camiones.find(c => c.id === p.camionId);
   const baja = ex.baja === 'SI' ? 'Sí' : (ex.baja === 'NO' ? 'No' : (ex.baja || ''));
   return [
     camion ? camion.folio : (p.camionFolio && p.camionFolio !== 'SUELTA' ? p.camionFolio : ''),
-    p.modelo || '', p.motor || '',
+    p.modelo || '',
     (ex.fichaMarca || p.camionMarca || p.marca || ''), (ex.fichaModelo || p.camionModelo || ''),
     (ex.fichaAño || p.camionAño || p.año || ''),
-    ex.fichaVin || '', ex.fichaNoMotor || '',
+    ex.fichaVin || '',
     ex.consecutivo || '', baja, ex.fichaExtra || '',
     ex.ubicacion || '',
-    p.precioSugerido || '', p.precioMax || '', ex.driveLink || '', p.notas || '',
+    p.precioSugerido || '', p.precioMax || '', p.notas || '',
     p.vendida ? 'VENDIDA' : 'En Patio', p.fechaRegistro ? new Date(p.fechaRegistro).toLocaleDateString('es-MX') : ''
   ];
 }
