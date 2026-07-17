@@ -5026,6 +5026,9 @@ function exportExcelFamilia(famId) {
 // Columnas relevantes a mostrar por tipo de familia (para impresión limpia)
 function columnasImprimir(f) {
   const base = ['Modelo/Tipo'];
+  // Chasis (jul 2026): sin "Modelo" (venía vacío/redundante) y con "Ubicación"
+  // en el patio, a pedido de Eugenio.
+  if (f.id === 'chasis') return [...base,'Marca','Año','VIN','Ubicación','Precio'];
   if (f.tieneInfoMotor) return [...base,'Serie','CPL','HP','Precio'];
   if (f.tieneFichaTecnica) return [...base,'Marca','Modelo','Año','VIN','Precio'];
   if (f.id === 'diferenciales' || f.id === 'mancuernas') return [...base,'Libras','Marca Eje','Suspensión','Paso','Precio'];
