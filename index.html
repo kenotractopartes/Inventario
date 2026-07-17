@@ -4429,6 +4429,45 @@ let _filtroApartadas = false;
 let _filtroFotos = false;
 let _filtroSinFotos = false;
 let _filtroFotosTexto = '';
+// Filtros EXCLUSIVOS de Chasis (aparecen solo al ver la familia Chasis).
+// null = todos. Consecutivo: null=todos, ''=sin definir, o el texto exacto.
+// Baja: null=todos, 'SI', 'NO'. Los dos se combinan (Y).
+let _filtroChasisConsec = null;
+let _filtroChasisBaja = null;
+
+function setFiltroChasisConsec(v){
+  _filtroChasisConsec = (v === '__TODOS__') ? null : (v === '__VACIO__' ? '' : v);
+  renderBusqueda();
+}
+function setFiltroChasisBaja(v){
+  _filtroChasisBaja = v;   // null, 'SI' o 'NO'
+  renderBusqueda();
+}
+// Panel con los dos filtros de chasis (Consecutivo + Baja federal).
+function panelFiltrosChasis(){
+  const consecOpts =
+    '<option value="__TODOS__"' + (_filtroChasisConsec === null ? ' selected' : '') + '>— Todos los consecutivos —</option>' +
+    '<option value="__VACIO__"' + (_filtroChasisConsec === '' ? ' selected' : '') + '>— sin definir —</option>' +
+    CONSECUTIVOS_TPM.map(o => '<option' + (_filtroChasisConsec === o ? ' selected' : '') + '>' + escapeHtml(o) + '</option>').join('');
+  const btnBaja = (label, val, colorOn) => {
+    const active = _filtroChasisBaja === val;
+    const style = active
+      ? ('background:' + colorOn + ';color:#fff;border-color:' + colorOn + ';')
+      : 'background:#fff;color:#1a1a1a;border-color:#ccc;';
+    return '<button onclick="setFiltroChasisBaja(' + (val === null ? 'null' : "'" + val + "'") + ')" style="flex:1;padding:10px;border-radius:6px;border:2px solid;font-weight:700;cursor:pointer;font-size:14px;' + style + '">' + label + '</button>';
+  };
+  return '<div style="background:#f3f0e8;border:2px solid #b8a86a;border-radius:10px;padding:12px;margin-bottom:14px;">' +
+    '<div style="font-size:12px;font-weight:800;color:#7a6a2a;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🔎 Filtrar chasis</div>' +
+    '<label style="font-size:12px;color:#555;font-weight:700;">Consecutivo (estatus de papelería)</label>' +
+    '<select onchange="setFiltroChasisConsec(this.value)" style="width:100%;padding:11px;font-size:15px;border:2px solid #b8a86a;border-radius:8px;margin:4px 0 12px;">' + consecOpts + '</select>' +
+    '<label style="font-size:12px;color:#555;font-weight:700;">Baja federal</label>' +
+    '<div style="display:flex;gap:8px;margin-top:4px;">' +
+      btnBaja('Todos', null, '#888') +
+      btnBaja('Sí tiene ✔', 'SI', '#2e7d46') +
+      btnBaja('No tiene ✗', 'NO', '#b03a2e') +
+    '</div>' +
+  '</div>';
+}
 const _acordeonesAbiertos = new Set();
 
 function toggleApartadasFiltro() {
@@ -4560,6 +4599,9 @@ function renderBusqueda() {
       }).join('') +
     '</div>';
 
+  // Panel de filtros SOLO cuando estás en la familia Chasis.
+  if (_filtroFamilia === 'chasis') filtros.innerHTML += panelFiltrosChasis();
+
   // Si Raúl estaba tecleando en el buscador, devolverle el foco y el cursor.
   if (_busFoco) {
     const _nb = document.getElementById('buscador-fotos');
@@ -4575,6 +4617,11 @@ function renderBusqueda() {
 function _renderResultadosBusqueda() {
   let piezas = DATA.piezas.filter(p => !p.vendida);
   if (_filtroFamilia) piezas = piezas.filter(p => p.familia === _filtroFamilia);
+  // Filtros exclusivos de Chasis (Consecutivo + Baja federal, se combinan).
+  if (_filtroFamilia === 'chasis') {
+    if (_filtroChasisConsec !== null) piezas = piezas.filter(p => ((p.extras && p.extras.consecutivo) || '') === _filtroChasisConsec);
+    if (_filtroChasisBaja !== null) piezas = piezas.filter(p => ((p.extras && p.extras.baja) || '') === _filtroChasisBaja);
+  }
   if (_filtroSinPrecio) piezas = piezas.filter(p => !p.precioSugerido && !p.precioMax);
   if (_filtroBajoPedido) piezas = piezas.filter(p => p.bajoPedido);
   if (_filtroApartadas) piezas = piezas.filter(p => p.apartada);
@@ -4710,6 +4757,8 @@ function setFiltro(id) {
   _filtroFotos = false;
   _filtroSinFotos = false;
   _filtroEstadoIny = null;
+  // Al cambiar de familia, resetear los filtros de chasis.
+  if (id !== 'chasis') { _filtroChasisConsec = null; _filtroChasisBaja = null; }
   _acordeonesAbiertos.clear();
   renderBusqueda();
 }
