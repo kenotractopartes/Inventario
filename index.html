@@ -2896,6 +2896,21 @@ let _piezaExtras = {};
 let _cofreMarcaSel = null;
 let _cofreModeloSel = null;
 
+// Selector de "Estado / Condición" (Usado/Reconstruido/Nuevo) — jul 2026.
+// NO se pone en: motores (ya tienen "Estado del motor"), cabinas, puertas,
+// radiadores, chasis ni quinta rueda (a pedido de Eugenio). Guarda ex.estado.
+const FAMILIAS_SIN_ESTADO = ['motores','cabinas','puertas','radiadores','chasis','quintaRueda'];
+function familiaLlevaEstado(famId){ return FAMILIAS_SIN_ESTADO.indexOf(famId) === -1; }
+const ESTADOS_PIEZA = ['Usado','Reconstruido','Nuevo'];
+// Botones de estado para el form de EDITAR (guardan en el input oculto edit-estado).
+function _selEditEstado(btn, val){
+  const cur = document.getElementById('edit-estado');
+  const yaEra = cur && cur.value === val;
+  btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('selected'));
+  if(yaEra){ if(cur) cur.value = ''; }              // volver a picar = deseleccionar
+  else { btn.classList.add('selected'); if(cur) cur.value = val; }
+}
+
 function openPiezaModal(camionId) {
   _reabrirModalPieza = null;
   _modoCompra = false;
@@ -3097,6 +3112,13 @@ function seleccionarFamilia(famId) {
   if (!camion) {
     const cat = getCatalogos();
     html += `<div class="field"><label>Motor</label><select id="pieza-motor-suelto"><option value="">—</option>${cat.motores.map(m => `<option>${m}</option>`).join('')}</select></div>`;
+  }
+
+  // Estado / Condición (Usado / Reconstruido / Nuevo) — solo familias que lo llevan.
+  if (familiaLlevaEstado(f.id)) {
+    html += '<div class="field"><label>Estado / Condición</label><div class="btn-grid" id="pieza-estado-cond">' +
+      ESTADOS_PIEZA.map(e => "<button type=\"button\" class=\"btn btn-small\" onclick=\"selectPiezaExtra(this,'estado','" + e + "')\">" + e + "</button>").join('') +
+      '</div></div>';
   }
 
   html += `
@@ -4114,6 +4136,15 @@ function editarPieza(id) {
     </div>
   `;
 
+  // Estado / Condición (Usado / Reconstruido / Nuevo) — solo familias que lo llevan.
+  if (familiaLlevaEstado(p.familia)) {
+    html += '<div class="field"><label>Estado / Condición</label>' +
+      '<input type="hidden" id="edit-estado" value="' + escapeHtml(ex.estado || '') + '">' +
+      '<div class="btn-grid" id="edit-estado-cond">' +
+      ESTADOS_PIEZA.map(e => '<button type="button" class="btn btn-small' + (ex.estado === e ? ' selected' : '') + '" onclick="_selEditEstado(this,\'' + e + '\')">' + e + '</button>').join('') +
+      '</div></div>';
+  }
+
   if (f?.tipo === 'libre' || f?.id === 'arboles' || f?.id === 'ciguenales') {
     html += `<div class="field"><label>${f.id === 'arboles' ? 'Terminación / N° de Parte' : 'Descripción'}</label>
       <input type="text" id="edit-descripcion" value="${escapeHtml(ex.descripcion || ex.terminacion || '')}"></div>`;
@@ -4228,6 +4259,11 @@ function guardarEdicionPieza(id) {
   p.notas = document.getElementById('edit-notas')?.value.trim() || '';
 
   const ex = p.extras || {};
+  // Estado / Condición (Usado / Reconstruido / Nuevo)
+  if (document.getElementById('edit-estado')) {
+    const est = document.getElementById('edit-estado').value.trim();
+    if (est) ex.estado = est; else delete ex.estado;
+  }
   if (document.getElementById('edit-descripcion')) {
     const desc = document.getElementById('edit-descripcion').value.trim();
     if (f?.id === 'arboles') { ex.terminacion = desc; ex.descripcion = desc; }
