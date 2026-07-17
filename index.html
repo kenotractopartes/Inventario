@@ -4939,6 +4939,34 @@ function excelFilaDe(p) {
   ];
 }
 
+// EXCEL DE CHASIS — columnas a la medida (jul 2026, a pedido de Eugenio):
+// se quitan las que no le sirven al chasis (Estado, Condición, CPL, HP, N°
+// Serie, Libras, Marca Eje, Suspensión, Paso) y se agregan Consecutivo, Baja
+// federal y Extra para poder filtrarlos.
+const EXCEL_HEADERS_CHASIS = ['Folio','Modelo/Tipo','Motor','Marca Camión','Modelo Camión','Año',
+  'VIN','N° Motor','Consecutivo','Baja federal','Extra','Ubicación','Precio Mín','Precio Máx',
+  'Link Drive','Notas','Estatus','Fecha Registro'];
+function excelFilaChasis(p) {
+  const ex = p.extras || {};
+  const camion = DATA.camiones.find(c => c.id === p.camionId);
+  const baja = ex.baja === 'SI' ? 'Sí' : (ex.baja === 'NO' ? 'No' : (ex.baja || ''));
+  return [
+    camion ? camion.folio : (p.camionFolio && p.camionFolio !== 'SUELTA' ? p.camionFolio : ''),
+    p.modelo || '', p.motor || '',
+    (ex.fichaMarca || p.camionMarca || p.marca || ''), (ex.fichaModelo || p.camionModelo || ''),
+    (ex.fichaAño || p.camionAño || p.año || ''),
+    ex.fichaVin || '', ex.fichaNoMotor || '',
+    ex.consecutivo || '', baja, ex.fichaExtra || '',
+    ex.ubicacion || '',
+    p.precioSugerido || '', p.precioMax || '', ex.driveLink || '', p.notas || '',
+    p.vendida ? 'VENDIDA' : 'En Patio', p.fechaRegistro ? new Date(p.fechaRegistro).toLocaleDateString('es-MX') : ''
+  ];
+}
+
+// Encabezados y filas según la familia (chasis lleva sus columnas propias).
+function excelHeadersFam(famId){ return famId === 'chasis' ? EXCEL_HEADERS_CHASIS : EXCEL_HEADERS; }
+function excelFilaFam(p, famId){ return famId === 'chasis' ? excelFilaChasis(p) : excelFilaDe(p); }
+
 // Convierte filas en hoja CON formato de tabla (autofilter + header congelado)
 function hojaConFormato(filas, nCols) {
   const ws = XLSX.utils.aoa_to_sheet(filas);
@@ -4965,7 +4993,8 @@ function exportExcel() {
   FAMILIAS.forEach(f => {
     const piezas = DATA.piezas.filter(p => p.familia === f.id);
     if (piezas.length === 0) return;
-    const ws = hojaConFormato([EXCEL_HEADERS, ...piezas.map(excelFilaDe)], EXCEL_HEADERS.length);
+    const heads = excelHeadersFam(f.id);
+    const ws = hojaConFormato([heads, ...piezas.map(p => excelFilaFam(p, f.id))], heads.length);
     XLSX.utils.book_append_sheet(wb, ws, f.nombre.substring(0,31).replace(/[\\\/\?\*\[\]:]/g,''));
   });
   const filasCamiones = [['Folio','Marca','Modelo','Año','Motor','Fecha Llegada','Estado','Piezas en Patio','Piezas Vendidas','Notas']];
@@ -4987,7 +5016,8 @@ function exportExcelFamilia(famId) {
   const piezas = DATA.piezas.filter(p => p.familia === famId);
   if (piezas.length === 0) { toast(`No hay ${f.nombre.toLowerCase()}`, 'error'); return; }
   const wb = XLSX.utils.book_new();
-  const ws = hojaConFormato([EXCEL_HEADERS, ...piezas.map(excelFilaDe)], EXCEL_HEADERS.length);
+  const heads = excelHeadersFam(famId);
+  const ws = hojaConFormato([heads, ...piezas.map(p => excelFilaFam(p, famId))], heads.length);
   XLSX.utils.book_append_sheet(wb, ws, f.nombre.substring(0,31).replace(/[\\\/\?\*\[\]:]/g,''));
   XLSX.writeFile(wb, `${f.nombre}_TPM_${new Date().toISOString().slice(0,10)}.xlsx`);
   toast(`Excel de ${f.nombre} descargado`, 'success');
