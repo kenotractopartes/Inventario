@@ -524,6 +524,17 @@
   </div>
 </div>
 
+<!-- MODAL PRECIOS EN LOTE (poner precio a varias piezas de un jalón) -->
+<div class="modal-bg" id="modal-precios" style="z-index:1050;">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-precios-title">Poner precio a varias</div>
+      <button class="modal-close" onclick="closeModal('modal-precios')">×</button>
+    </div>
+    <div id="modal-precios-body"></div>
+  </div>
+</div>
+
 <!-- MODAL ÚLTIMOS REGISTROS -->
 <div class="modal-bg" id="modal-ultimos">
   <div class="modal">
@@ -669,6 +680,122 @@ const ARNES_TIPOS = [
   { id:'MOTOR',      nombre:'⚙️ Motor' },
   { id:'INYECTOR',   nombre:'💉 Inyector' }
 ];
+// ── PRECIOS EN LOTE ────────────────────────────────────────────────────────
+// Botón chiquito 💲 en el encabezado de cada grupo: abre una lista con palomita
+// por pieza y permite ponerles el mismo rango de precio (mín/máx) de un jalón.
+// Doble confirmación antes de tocar nada: resumen + escribir el número de piezas.
+// Se llena en cada render: clave del grupo -> { titulo, ids } de lo que se ve.
+let _gruposUltimoRender = {};
+let _preciosSel = new Set();
+let _preciosGrupoIds = [];
+
+function _fmtMx(n){ return '$' + Number(n).toLocaleString('es-MX'); }
+
+function abrirPrecioMasivo(clave){
+  if (typeof esEditor === 'function' && !esEditor()) { alert('Entra como Editor (arriba a la derecha) para poner precios.'); return; }
+  const g = _gruposUltimoRender[clave];
+  if (!g || !g.ids.length) { alert('No hay piezas en este grupo.'); return; }
+  _preciosGrupoIds = g.ids.slice();
+  _preciosSel = new Set(_preciosGrupoIds);   // todas palomeadas por default
+  document.getElementById('modal-precios-title').textContent = 'Precio en lote · ' + g.titulo;
+  _pintarModalPrecios();
+  openModal('modal-precios');
+}
+
+function _pintarModalPrecios(){
+  const filas = _preciosGrupoIds.map(function(id){
+    const p = DATA.piezas.find(function(x){ return x.id === id; });
+    if (!p) return '';
+    const marcado = _preciosSel.has(id) ? ' checked' : '';
+    const actual = (p.precioSugerido || p.precioMax)
+      ? '<span style="color:#2e7d46; font-weight:700;">' + (p.precioSugerido ? _fmtMx(p.precioSugerido) : '') + (p.precioMax ? ' – ' + _fmtMx(p.precioMax) : '') + '</span>'
+      : '<span style="color:#c0392b; font-weight:700;">sin precio</span>';
+    const num = (p.extras && p.extras.numeroArnes) ? '#' + escapeHtml(String(p.extras.numeroArnes)) + ' ' : '';
+    return '<label style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid #eee; cursor:pointer;">' +
+      '<input type="checkbox" onchange="_togglePrecioSel(\'' + id + '\', this.checked)"' + marcado + ' style="width:20px; height:20px; flex:none;">' +
+      '<span style="flex:1; min-width:0; font-size:14px;"><strong>' + num + escapeHtml(p.modelo || '') + '</strong>' +
+        (p.folioInterno ? ' <span style="color:#999; font-family:ui-monospace,monospace;">' + escapeHtml(p.folioInterno) + '</span>' : '') +
+        '<br><span style="font-size:12px; color:#888;">' + actual + '</span></span>' +
+    '</label>';
+  }).join('');
+
+  document.getElementById('modal-precios-body').innerHTML =
+    '<div style="background:#fff8e8; border:1px solid #e8d9b0; border-radius:8px; padding:12px; margin-bottom:14px;">' +
+      '<div style="display:flex; gap:10px; flex-wrap:wrap;">' +
+        '<div style="flex:1; min-width:130px;"><label style="font-size:12px; font-weight:700; color:#555;">Precio mínimo</label>' +
+          '<input type="number" id="bp-min" inputmode="numeric" placeholder="Ej. 3500" style="width:100%; padding:10px; border:2px solid #ccc; border-radius:6px; font-size:16px;"></div>' +
+        '<div style="flex:1; min-width:130px;"><label style="font-size:12px; font-weight:700; color:#555;">Precio máximo</label>' +
+          '<input type="number" id="bp-max" inputmode="numeric" placeholder="Ej. 4500" style="width:100%; padding:10px; border:2px solid #ccc; border-radius:6px; font-size:16px;"></div>' +
+      '</div>' +
+      '<div style="font-size:12px; color:#8a6d3b; margin-top:8px;">Si dejas uno en blanco, ese no se toca. Puedes poner solo el mínimo, solo el máximo, o los dos.</div>' +
+    '</div>' +
+    '<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;">' +
+      '<button onclick="_selPrecios(true)" style="padding:6px 11px; font-size:12px; font-weight:700; border:1px solid #ccc; border-radius:5px; background:#fff; cursor:pointer;">Palomear todas</button>' +
+      '<button onclick="_selPrecios(false)" style="padding:6px 11px; font-size:12px; font-weight:700; border:1px solid #ccc; border-radius:5px; background:#fff; cursor:pointer;">Ninguna</button>' +
+      '<span id="bp-cuenta" style="font-size:13px; font-weight:800; color:#8a4a20;"></span>' +
+    '</div>' +
+    '<div style="max-height:44vh; overflow-y:auto; border:1px solid #e5ded0; border-radius:6px; margin-bottom:16px;">' + filas + '</div>' +
+    '<button onclick="aplicarPrecioMasivo()" style="width:100%; padding:14px; border:none; border-radius:8px; background:#2e7d46; color:#fff; font-size:16px; font-weight:800; cursor:pointer;">💲 Ponerle el precio a las palomeadas</button>';
+  _actualizarCuentaPrecios();
+}
+
+function _actualizarCuentaPrecios(){
+  const el = document.getElementById('bp-cuenta');
+  if (el) el.textContent = _preciosSel.size + ' de ' + _preciosGrupoIds.length + ' palomeada(s)';
+}
+
+function _togglePrecioSel(id, on){
+  if (on) _preciosSel.add(id); else _preciosSel.delete(id);
+  _actualizarCuentaPrecios();
+}
+
+function _selPrecios(todas){
+  _preciosSel = todas ? new Set(_preciosGrupoIds) : new Set();
+  _pintarModalPrecios();
+}
+
+function aplicarPrecioMasivo(){
+  if (typeof esEditor === 'function' && !esEditor()) { alert('Entra como Editor para poner precios.'); return; }
+  const ids = Array.from(_preciosSel);
+  if (!ids.length) { alert('No palomeaste ninguna pieza.'); return; }
+
+  const rawMin = (document.getElementById('bp-min').value || '').trim();
+  const rawMax = (document.getElementById('bp-max').value || '').trim();
+  if (!rawMin && !rawMax) { alert('Escribe al menos un precio (mínimo o máximo).'); return; }
+  const min = rawMin ? Number(rawMin) : null;
+  const max = rawMax ? Number(rawMax) : null;
+  if ((min !== null && (!isFinite(min) || min < 0)) || (max !== null && (!isFinite(max) || max < 0))) { alert('Los precios tienen que ser números positivos.'); return; }
+  if (min !== null && max !== null && max < min) { alert('El máximo no puede ser menor que el mínimo.'); return; }
+
+  // 1ª confirmación: resumen de lo que va a pasar.
+  const resumen = 'Le vas a poner precio a ' + ids.length + ' pieza(s):\n\n' +
+    (min !== null ? '  Mínimo:  ' + _fmtMx(min) + '\n' : '  Mínimo:  (no se toca)\n') +
+    (max !== null ? '  Máximo:  ' + _fmtMx(max) + '\n' : '  Máximo:  (no se toca)\n') +
+    '\nEsto PISA el precio que ya tuvieran.\n\n¿Le sigo?';
+  if (!confirm(resumen)) return;
+
+  // 2ª confirmación: hay que escribir el número exacto de piezas.
+  const tecleado = prompt('Última confirmación.\n\nEscribe el número ' + ids.length + ' para aplicar el precio a esas ' + ids.length + ' pieza(s).');
+  if (String(tecleado == null ? '' : tecleado).trim() !== String(ids.length)) {
+    alert('Cancelado — no se cambió ningún precio.');
+    return;
+  }
+
+  let n = 0;
+  ids.forEach(function(id){
+    const p = DATA.piezas.find(function(x){ return x.id === id; });
+    if (!p) return;
+    if (min !== null) p.precioSugerido = min;
+    if (max !== null) p.precioMax = max;
+    n++;
+  });
+
+  guardar();
+  closeModal('modal-precios');
+  renderBusqueda();
+  alert('✅ Listo. Se le puso precio a ' + n + ' pieza(s).');
+}
+
 // ── Importación única del sistema viejo de arneses del taller ──────────────
 // El HTML viejo (arneses_taller_firebase.html) vive en otro proyecto de Firebase
 // con lectura pública. Se queda ahí como respaldo; esto solo COPIA los registros
@@ -4853,11 +4980,12 @@ function _renderResultadosBusqueda() {
       clave = 'zona::' + z;
       titulo = '📍 ' + (z ? nombreZonaArnes(z) : 'Sin zona asignada');
     }
-    if (!grupos[clave]) grupos[clave] = { familia: p.familia, zona: agruparPorZona ? ((p.extras && p.extras.zonaArnes) || '') : null, titulo: titulo, piezas: [] };
+    if (!grupos[clave]) grupos[clave] = { clave: clave, familia: p.familia, zona: agruparPorZona ? ((p.extras && p.extras.zonaArnes) || '') : null, titulo: titulo, piezas: [] };
     grupos[clave].piezas.push(p);
   });
 
   const cont = document.getElementById('resultados-busqueda');
+  _gruposUltimoRender = {};   // se limpia SIEMPRE, aunque no haya resultados
   if (Object.keys(grupos).length === 0) {
     // La familia Arneses arranca vacía: se ofrece traerlos del sistema viejo.
     const sinArneses = agruparPorZona && _filtroArnesZona === null && _filtroArnesTipo === null &&
@@ -4891,6 +5019,16 @@ function _renderResultadosBusqueda() {
     const f = FAMILIAS.find(x => x.id === g.familia);
     const colorFam = f?.color || '#f4f4f0';
     const abierto = !modoAcordeon || _acordeonesAbiertos.has(g.familia);
+    // Lo que realmente se ve en este grupo (mismo filtro y mismo orden que abajo):
+    // es lo que se le ofrece al botón 💲 de precio en lote.
+    const visibles = (esFamiliaReparacion(g.familia) && _filtroEstadoIny ? g.piezas.filter(p => estadoIny(p) === _filtroEstadoIny) : g.piezas)
+      .slice().sort((a,b) => agruparPorZona
+        ? ((parseInt((a.extras&&a.extras.numeroArnes)||0,10)||0) - (parseInt((b.extras&&b.extras.numeroArnes)||0,10)||0))
+        : ((b.fechaRegistro||0) - (a.fechaRegistro||0)));
+    _gruposUltimoRender[g.clave] = { titulo: g.titulo || (f && f.nombre) || g.familia, ids: visibles.map(p => p.id) };
+    const btnPrecios = (typeof esEditor === 'function' && !esEditor()) ? '' :
+      `<button onclick="event.stopPropagation(); abrirPrecioMasivo('${g.clave}')" title="Ponerle precio a varias de un jalón"
+         style="padding:4px 9px; font-size:12px; font-weight:800; border:1px solid #2e7d46; border-radius:5px; background:#fff; color:#2e7d46; cursor:pointer; white-space:nowrap;">💲 Precios</button>`;
 
     const headerClick = modoAcordeon
       ? `onclick="toggleAcordeonFamilia('${g.familia}')" style="cursor:pointer; background:${colorFam}; padding:14px; margin:0;"`
@@ -4910,12 +5048,13 @@ function _renderResultadosBusqueda() {
               <div class="card-meta">${g.piezas.length} pieza(s)${esFamiliaReparacion(g.familia) ? (function(){ const r=g.piezas.filter(x=>estadoIny(x)==='reconstruido').length, co=g.piezas.filter(x=>estadoIny(x)==='core').length, re=g.piezas.filter(x=>estadoIny(x)==='reparacion').length; return ` · <span onclick="event.stopPropagation();filtrarEstadoIny('reconstruido')" style="cursor:pointer;color:#2e7d46;font-weight:700;text-decoration:${_filtroEstadoIny==='reconstruido'?'underline':'none'}">${r} en venta</span> · <span onclick="event.stopPropagation();filtrarEstadoIny('core')" style="cursor:pointer;color:#c9a24b;font-weight:700;text-decoration:${_filtroEstadoIny==='core'?'underline':'none'}">${co} core(s)</span> · <span onclick="event.stopPropagation();filtrarEstadoIny('reparacion')" style="cursor:pointer;color:#2980b9;font-weight:700;text-decoration:${_filtroEstadoIny==='reparacion'?'underline':'none'}">${re} en reparación</span> <span style="color:#999;font-weight:400;font-size:11px;">👆 toca para filtrar</span>`; })() : ''}${modoAcordeon && !abierto ? ' · <span style="color:#c0392b; font-weight:700;">toca para ver</span>' : ''}</div>
             </div>
           </div>
-          <span class="badge badge-count">${g.piezas.length}</span>
+          <div style="display:flex; align-items:center; gap:8px; flex:none;">
+            ${btnPrecios}
+            <span class="badge badge-count">${g.piezas.length}</span>
+          </div>
         </div>
         ${abierto ? `<div class="piezas-list" style="padding:14px;">
-          ${(esFamiliaReparacion(g.familia) && _filtroEstadoIny ? g.piezas.filter(p => estadoIny(p) === _filtroEstadoIny) : g.piezas).sort((a,b) => agruparPorZona
-            ? ((parseInt((a.extras&&a.extras.numeroArnes)||0,10)||0) - (parseInt((b.extras&&b.extras.numeroArnes)||0,10)||0))
-            : ((b.fechaRegistro||0) - (a.fechaRegistro||0))).map(p => {
+          ${visibles.map(p => {
             const camion = DATA.camiones.find(c => c.id === p.camionId);
             const extras = formatExtras(p.extras, p.modelo);
             const precio = precioBadge(p) ? " " + precioBadge(p) : "";
