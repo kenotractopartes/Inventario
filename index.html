@@ -649,9 +649,96 @@ const FAMILIAS = [
     botones: ['ISX CM870','ISX CM871','N14 Celect','N14 Celect Plus','M11','ISM','ISC','ISB','C15','C13','C10','C12','3406','DD15','DDEC4','DDEC5','Serie 60','MaxForce 13','PX6','PX8'] },
   { id: 'inyectores', nombre: 'Inyectores', nombreSingular: 'Inyector', color: '#f0d8d0', tipo: 'porMotor',
     botones: ['ISX','N14','ISM','ISC','ISB','C15','C13','C12','C10','3406','DD15','Detroit S60','MaxForce','PX6','PX8','BigCam'] },
+  // Arneses del cuarto de arneses (migrados jul 2026 del sistema aparte).
+  // Se ubican por ZONA + NÚMERO (ej. "Tubo principal #18"); el número se repite
+  // entre zonas, por eso va en la ubicación y NO en el folio interno.
+  { id: 'arneses', nombre: 'Arneses', nombreSingular: 'Arnés', color: '#ffd9c9', tipo: 'libre',
+    botones: [], placeholderLibre: 'Ej. KW – ISX – Café' },
   { id: 'otros', nombre: 'Otros', nombreSingular: 'Otro', color: '#e8e8e8', tipo: 'libre',
     botones: [], placeholderLibre: '¿Qué pieza es?' }
 ];
+// Zonas del cuarto de arneses (orden de la pared/tubos) y tipos de arnés.
+const ARNES_ZONAS = [
+  { id:'TUBO_PRINCIPAL', nombre:'Tubo principal' },
+  { id:'TUBO_CRUZADO',   nombre:'Tubo cruzado' },
+  { id:'PARED_1',        nombre:'Pared 1' },
+  { id:'PARED_2',        nombre:'Pared 2' }
+];
+const ARNES_TIPOS = [
+  { id:'FABRICANTE', nombre:'🔧 Fabricante' },
+  { id:'MOTOR',      nombre:'⚙️ Motor' },
+  { id:'INYECTOR',   nombre:'💉 Inyector' }
+];
+// ── Importación única del sistema viejo de arneses del taller ──────────────
+// El HTML viejo (arneses_taller_firebase.html) vive en otro proyecto de Firebase
+// con lectura pública. Se queda ahí como respaldo; esto solo COPIA los registros
+// hacia el inventario real. Los ids son estables (pza_arn_<id>), así que si se
+// vuelve a correr NO duplica nada: salta los que ya existen.
+const ARNESES_VIEJOS_URL = 'https://arneses-default-rtdb.firebaseio.com/arneses_v3.json';
+
+function _modeloArnes(a){
+  return [a.marca, a.motor, a.spec].map(function(x){ return String(x == null ? '' : x).trim(); })
+    .filter(Boolean).join(' – ') || 'Arnés';
+}
+
+function importarArnesesViejos(){
+  if (typeof esEditor === 'function' && !esEditor()) { alert('Entra como Editor (arriba a la derecha) para importar los arneses.'); return; }
+  const btn = document.getElementById('btn-importar-arneses');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Trayendo los arneses…'; }
+  fetch(ARNESES_VIEJOS_URL).then(function(r){ return r.json(); }).then(function(data){
+    let lista = (data && data.arneses) || [];
+    if (!Array.isArray(lista)) lista = Object.values(lista || {});
+    lista = lista.filter(function(a){ return a && a.activo !== false; });
+    if (!lista.length) throw new Error('El sistema viejo no devolvió arneses.');
+
+    const yaHay = new Set(DATA.piezas.map(function(p){ return p.id; }));
+    let nuevos = 0, saltados = 0;
+    lista.forEach(function(a, i){
+      const id = 'pza_arn_' + a.id;
+      if (yaHay.has(id)) { saltados++; return; }
+      const extras = { zonaArnes: a.zona || '', numeroArnes: a.numero, tipoArnes: a.tipo || '' };
+      if (a.spec) extras.spec = String(a.spec).trim();
+      // El número se repite entre zonas (hay tres #1), por eso va en la UBICACIÓN
+      // y NUNCA en folioInterno — el folio debe ser único dentro de la familia.
+      extras.ubicacion = nombreZonaArnes(a.zona) + ' #' + a.numero;
+      DATA.piezas.push({
+        id: id,
+        familia: 'arneses',
+        camionId: null,
+        camionFolio: 'SUELTA',
+        modelo: _modeloArnes(a),
+        motor: String(a.motor || '').trim(),
+        marca: String(a.marca || '').trim(),
+        extras: extras,
+        precioSugerido: null,
+        precioMax: null,
+        notas: '',
+        vendida: false,
+        fechaRegistro: (a.fecha ? new Date(a.fecha + 'T12:00:00').getTime() : Date.now()) + i
+      });
+      nuevos++;
+    });
+
+    guardar();
+    renderBusqueda();
+    alert('✅ Listo.\n\nArneses importados: ' + nuevos +
+          (saltados ? '\nYa estaban (no se duplicaron): ' + saltados : '') +
+          '\n\nEl sistema viejo se queda intacto como respaldo.');
+  }).catch(function(e){
+    console.error(e);
+    alert('No se pudieron traer los arneses: ' + (e && e.message ? e.message : e));
+    if (btn) { btn.disabled = false; btn.textContent = '📥 Importar los arneses del sistema viejo'; }
+  });
+}
+
+// Etiqueta redonda con el número del arnés tal como está pintado en la pared.
+function numeroArnesBadge(p){
+  if(!p || p.familia !== 'arneses') return '';
+  var n = p.extras && p.extras.numeroArnes;
+  if(n === undefined || n === null || n === '') return '';
+  return '<span style="display:inline-block;min-width:30px;text-align:center;background:#8a4a20;color:#fff;border-radius:6px;padding:1px 7px;font-size:15px;font-weight:900;margin-right:7px;vertical-align:2px;">#' + escapeHtml(String(n)) + '</span>';
+}
+function nombreZonaArnes(z){ var o = ARNES_ZONAS.find(function(x){ return x.id === z; }); return o ? o.nombre : (z || ''); }
 
 // ============================================================
 // ESTADO (localStorage)
@@ -4504,6 +4591,37 @@ let _filtroFotosTexto = '';
 // Baja: null=todos, 'SI', 'NO'. Los dos se combinan (Y).
 let _filtroChasisConsec = null;
 let _filtroChasisBaja = null;
+// Filtros EXCLUSIVOS de Arneses (zona del cuarto + tipo). null = todos.
+let _filtroArnesZona = null;
+let _filtroArnesTipo = null;
+
+function setFiltroArnesZona(v){ _filtroArnesZona = v; renderBusqueda(); }
+function setFiltroArnesTipo(v){ _filtroArnesTipo = v; renderBusqueda(); }
+// Panel con los filtros del cuarto de arneses (Zona + Tipo).
+function panelFiltrosArnes(){
+  const cuenta = (fn) => DATA.piezas.filter(p => p && !p.vendida && p.familia === 'arneses' && fn(p)).length;
+  const btn = (label, activo, onclick, colorOn) => {
+    const style = activo
+      ? ('background:' + colorOn + ';color:#fff;border-color:' + colorOn + ';')
+      : 'background:#fff;color:#1a1a1a;border-color:#ccc;';
+    return '<button onclick="' + onclick + '" style="padding:9px 12px;border-radius:6px;border:2px solid;font-weight:700;cursor:pointer;font-size:13px;' + style + '">' + label + '</button>';
+  };
+  const zonas = ARNES_ZONAS.map(z => {
+    const n = cuenta(p => ((p.extras && p.extras.zonaArnes) || '') === z.id);
+    return btn('📍 ' + z.nombre + (n ? ' (' + n + ')' : ''), _filtroArnesZona === z.id, "setFiltroArnesZona('" + z.id + "')", '#b06a2e');
+  }).join('');
+  const tipos = ARNES_TIPOS.map(t => {
+    const n = cuenta(p => ((p.extras && p.extras.tipoArnes) || '') === t.id);
+    return btn(t.nombre + (n ? ' (' + n + ')' : ''), _filtroArnesTipo === t.id, "setFiltroArnesTipo('" + t.id + "')", '#185FA5');
+  }).join('');
+  return '<div style="background:#fff4ee;border:2px solid #e2a882;border-radius:10px;padding:12px;margin-bottom:14px;">' +
+    '<div style="font-size:12px;font-weight:800;color:#8a4a20;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">🔌 Cuarto de arneses</div>' +
+    '<label style="font-size:12px;color:#555;font-weight:700;">Zona</label>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 12px;">' + btn('Todas', _filtroArnesZona === null, 'setFiltroArnesZona(null)', '#888') + zonas + '</div>' +
+    '<label style="font-size:12px;color:#555;font-weight:700;">Tipo de arnés</label>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">' + btn('Todos', _filtroArnesTipo === null, 'setFiltroArnesTipo(null)', '#888') + tipos + '</div>' +
+  '</div>';
+}
 
 function setFiltroChasisConsec(v){
   _filtroChasisConsec = (v === '__TODOS__') ? null : (v === '__VACIO__' ? '' : v);
@@ -4671,6 +4789,8 @@ function renderBusqueda() {
 
   // Panel de filtros SOLO cuando estás en la familia Chasis.
   if (_filtroFamilia === 'chasis') filtros.innerHTML += panelFiltrosChasis();
+  // Panel de filtros SOLO cuando estás en la familia Arneses (zona del cuarto + tipo).
+  if (_filtroFamilia === 'arneses') filtros.innerHTML += panelFiltrosArnes();
 
   // Si Raúl estaba tecleando en el buscador, devolverle el foco y el cursor.
   if (_busFoco) {
@@ -4691,6 +4811,11 @@ function _renderResultadosBusqueda() {
   if (_filtroFamilia === 'chasis') {
     if (_filtroChasisConsec !== null) piezas = piezas.filter(p => ((p.extras && p.extras.consecutivo) || '') === _filtroChasisConsec);
     if (_filtroChasisBaja !== null) piezas = piezas.filter(p => ((p.extras && p.extras.baja) || '') === _filtroChasisBaja);
+  }
+  // Filtros exclusivos de Arneses (Zona + Tipo, se combinan).
+  if (_filtroFamilia === 'arneses') {
+    if (_filtroArnesZona !== null) piezas = piezas.filter(p => ((p.extras && p.extras.zonaArnes) || '') === _filtroArnesZona);
+    if (_filtroArnesTipo !== null) piezas = piezas.filter(p => ((p.extras && p.extras.tipoArnes) || '') === _filtroArnesTipo);
   }
   if (_filtroSinPrecio) piezas = piezas.filter(p => !p.precioSugerido && !p.precioMax);
   if (_filtroBajoPedido) piezas = piezas.filter(p => p.bajoPedido);
@@ -4716,22 +4841,45 @@ function _renderResultadosBusqueda() {
     info.innerHTML = `Mostrando: <strong>${piezas.length}</strong> pieza(s) en patio`;
   }
 
-  // Agrupar SOLO por familia (todas las piezas de una familia juntas)
+  // Agrupar SOLO por familia (todas las piezas de una familia juntas).
+  // EXCEPCIÓN: en Arneses se agrupa por ZONA del cuarto (Tubo principal, Pared 1...)
+  // para que Raúl los vea igual que están colgados en la pared.
+  const agruparPorZona = (_filtroFamilia === 'arneses');
   const grupos = {};
   piezas.forEach(p => {
-    if (!grupos[p.familia]) grupos[p.familia] = { familia: p.familia, piezas: [] };
-    grupos[p.familia].piezas.push(p);
+    let clave = p.familia, titulo = null;
+    if (agruparPorZona) {
+      const z = (p.extras && p.extras.zonaArnes) || '';
+      clave = 'zona::' + z;
+      titulo = '📍 ' + (z ? nombreZonaArnes(z) : 'Sin zona asignada');
+    }
+    if (!grupos[clave]) grupos[clave] = { familia: p.familia, zona: agruparPorZona ? ((p.extras && p.extras.zonaArnes) || '') : null, titulo: titulo, piezas: [] };
+    grupos[clave].piezas.push(p);
   });
 
   const cont = document.getElementById('resultados-busqueda');
   if (Object.keys(grupos).length === 0) {
-    cont.innerHTML = '<div class="info-bar">No hay piezas con ese filtro.</div>';
+    // La familia Arneses arranca vacía: se ofrece traerlos del sistema viejo.
+    const sinArneses = agruparPorZona && _filtroArnesZona === null && _filtroArnesTipo === null &&
+      !DATA.piezas.some(p => p.familia === 'arneses');
+    cont.innerHTML = sinArneses
+      ? '<div class="card" style="padding:18px; text-align:center;">' +
+          '<div style="font-size:17px; font-weight:800; margin-bottom:6px;">Todavía no hay arneses aquí</div>' +
+          '<div style="font-size:14px; color:#666; margin-bottom:14px;">Están en el sistema viejo del taller. Con un toque se copian todos a este inventario (el sistema viejo no se toca).</div>' +
+          '<button id="btn-importar-arneses" onclick="importarArnesesViejos()" style="padding:13px 20px; border:none; border-radius:8px; background:#8a4a20; color:#fff; font-size:15px; font-weight:800; cursor:pointer;">📥 Importar los arneses del sistema viejo</button>' +
+        '</div>'
+      : '<div class="info-bar">No hay piezas con ese filtro.</div>';
     return;
   }
 
   // Ordenar familias por orden en FAMILIAS array
   const ordenFamilias = FAMILIAS.map(f => f.id);
+  const ordenZonas = ARNES_ZONAS.map(z => z.id);
   const gruposOrdenados = Object.values(grupos).sort((a,b) => {
+    if (agruparPorZona) {
+      const ia = ordenZonas.indexOf(a.zona), ib = ordenZonas.indexOf(b.zona);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);   // "sin zona" siempre al final
+    }
     return ordenFamilias.indexOf(a.familia) - ordenFamilias.indexOf(b.familia);
   });
 
@@ -4758,14 +4906,16 @@ function _renderResultadosBusqueda() {
           <div style="display:flex; align-items:center; gap:10px;">
             ${flecha}
             <div>
-              <div class="card-title">${f?.nombre || g.familia}</div>
+              <div class="card-title">${g.titulo || f?.nombre || g.familia}</div>
               <div class="card-meta">${g.piezas.length} pieza(s)${esFamiliaReparacion(g.familia) ? (function(){ const r=g.piezas.filter(x=>estadoIny(x)==='reconstruido').length, co=g.piezas.filter(x=>estadoIny(x)==='core').length, re=g.piezas.filter(x=>estadoIny(x)==='reparacion').length; return ` · <span onclick="event.stopPropagation();filtrarEstadoIny('reconstruido')" style="cursor:pointer;color:#2e7d46;font-weight:700;text-decoration:${_filtroEstadoIny==='reconstruido'?'underline':'none'}">${r} en venta</span> · <span onclick="event.stopPropagation();filtrarEstadoIny('core')" style="cursor:pointer;color:#c9a24b;font-weight:700;text-decoration:${_filtroEstadoIny==='core'?'underline':'none'}">${co} core(s)</span> · <span onclick="event.stopPropagation();filtrarEstadoIny('reparacion')" style="cursor:pointer;color:#2980b9;font-weight:700;text-decoration:${_filtroEstadoIny==='reparacion'?'underline':'none'}">${re} en reparación</span> <span style="color:#999;font-weight:400;font-size:11px;">👆 toca para filtrar</span>`; })() : ''}${modoAcordeon && !abierto ? ' · <span style="color:#c0392b; font-weight:700;">toca para ver</span>' : ''}</div>
             </div>
           </div>
           <span class="badge badge-count">${g.piezas.length}</span>
         </div>
         ${abierto ? `<div class="piezas-list" style="padding:14px;">
-          ${(esFamiliaReparacion(g.familia) && _filtroEstadoIny ? g.piezas.filter(p => estadoIny(p) === _filtroEstadoIny) : g.piezas).sort((a,b) => (b.fechaRegistro||0) - (a.fechaRegistro||0)).map(p => {
+          ${(esFamiliaReparacion(g.familia) && _filtroEstadoIny ? g.piezas.filter(p => estadoIny(p) === _filtroEstadoIny) : g.piezas).sort((a,b) => agruparPorZona
+            ? ((parseInt((a.extras&&a.extras.numeroArnes)||0,10)||0) - (parseInt((b.extras&&b.extras.numeroArnes)||0,10)||0))
+            : ((b.fechaRegistro||0) - (a.fechaRegistro||0))).map(p => {
             const camion = DATA.camiones.find(c => c.id === p.camionId);
             const extras = formatExtras(p.extras, p.modelo);
             const precio = precioBadge(p) ? " " + precioBadge(p) : "";
@@ -4783,7 +4933,7 @@ function _renderResultadosBusqueda() {
             } else {
               cuerpoPieza = `
                 <div style="flex:1;">
-                  <div style="font-size:20px; font-weight:900; color:#1a1a1a; letter-spacing:-0.3px;">${escapeHtml(p.modelo || '')} ${precio}${estadoInyBadge(p)}</div>
+                  <div style="font-size:20px; font-weight:900; color:#1a1a1a; letter-spacing:-0.3px;">${numeroArnesBadge(p)}${escapeHtml(p.modelo || '')} ${precio}${estadoInyBadge(p)}</div>
                   <div style="font-size:13px; color:#777; margin-top:3px;">
                     ${p.motor ? `Motor ${escapeHtml(p.motor)}` : ''}${extras ? (p.motor ? ' · ' : '') + extras : ''}
                   </div>
@@ -4829,6 +4979,7 @@ function setFiltro(id) {
   _filtroEstadoIny = null;
   // Al cambiar de familia, resetear los filtros de chasis.
   if (id !== 'chasis') { _filtroChasisConsec = null; _filtroChasisBaja = null; }
+  if (id !== 'arneses') { _filtroArnesZona = null; _filtroArnesTipo = null; }
   _acordeonesAbiertos.clear();
   renderBusqueda();
 }
