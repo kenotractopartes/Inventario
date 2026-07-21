@@ -204,6 +204,7 @@
   <button data-view="buscar">🔧 Piezas</button>
   <button data-view="estatus">🔗 Maura</button>
   <button data-view="ventas">💵 Ventas</button>
+  <button data-view="web">🌐 Web</button>
   <button data-view="salidas">📤 Salidas</button>
   <button data-view="admin">📝 Administrar</button>
   <button data-view="exportar">⚙️ Exportar</button>
@@ -283,6 +284,22 @@
     <button class="btn btn-mini" style="margin-top:8px;" onclick="document.getElementById('ventas-desde').value='';document.getElementById('ventas-hasta').value='';renderVentas()">Limpiar filtro</button>
   </div>
   <div id="ventas-lista"></div>
+</section>
+
+<!-- CAMBIOS PARA LA PÁGINA WEB (para quien la actualiza en Leadway) -->
+<section class="view" id="view-web">
+  <h2>🌐 Cambios para la página web</h2>
+  <div class="info-bar">Lista de trabajo para quien actualiza <strong>tractopartes.com</strong>: qué hay que <strong>bajar</strong> porque ya se vendió y qué hay que <strong>subir</strong> porque acaba de entrar. Se saca solo del inventario — nadie tiene que avisar nada.</div>
+  <div style="display:flex; gap:8px; align-items:center; margin:14px 0; flex-wrap:wrap;">
+    <span style="font-size:14px; font-weight:700; color:#555;">Movimientos desde:</span>
+    <input type="date" id="web-desde" onchange="renderWeb()" style="padding:9px 12px; border:2px solid #d8d2c6; border-radius:8px; font-size:15px;">
+    <button class="btn btn-mini" onclick="webRango(7)">7 días</button>
+    <button class="btn btn-mini" onclick="webRango(30)">30 días</button>
+    <button class="btn btn-mini" onclick="webRango(90)">3 meses</button>
+    <button class="btn btn-mini" onclick="webRango(0)">Todo</button>
+    <button class="btn btn-mini" style="background:#2e7d46; color:#fff; border-color:#2e7d46;" onclick="exportarWebExcel()">⬇️ Bajar en Excel</button>
+  </div>
+  <div id="web-lista"></div>
 </section>
 
 <!-- SALIDAS A REPARACIÓN -->
@@ -1724,6 +1741,7 @@ function refrescarVistaActual() {
     else if (activa.id === 'view-buscar') renderBusqueda();
     else if (activa.id === 'view-admin' && typeof renderAdmin === 'function') renderAdmin();
     else if (activa.id === 'view-salidas') renderSalidas();
+    else if (activa.id === 'view-web') renderWeb();
   } else { renderCamiones(); }
   if (typeof actualizarBannerHuerfanos === 'function') actualizarBannerHuerfanos();
   // FIX jul 2026: recalcular también el aviso de "faltantes". Antes solo se
@@ -1800,6 +1818,7 @@ function showView(name) {
   if (name === 'ventas') renderVentas();
   if (name === 'exportar') poblarBotonesFamilia();
   if (name === 'salidas') renderSalidas();
+  if (name === 'web') renderWeb();
   if (name === 'estatus') { var _mv = document.querySelector('#view-estatus .mtab.active'); if (typeof showMauraTab === 'function') showMauraTab(_mv ? _mv.dataset.mtab : 'chasis'); else if (window.estatusRender) window.estatusRender(); }
   window.scrollTo(0,0);
 }
@@ -4303,6 +4322,135 @@ function renderApartados(){
       <div style="font-size:16px; font-weight:900; color:#7e57c2; margin-bottom:10px;">🔖 Productos Apartados (${apartadas.length})</div>
       ${filas}
     </div>`;
+}
+
+// ============================================================
+// CAMBIOS PARA LA PÁGINA WEB
+// ============================================================
+// Lista de trabajo para quien mantiene tractopartes.com (la agencia): qué
+// BAJAR (ya se vendió) y qué SUBIR (acaba de entrar). Sale solo del inventario,
+// así nadie tiene que avisarle nada por WhatsApp. Es solo lectura: esta vista
+// no escribe nada, así que se puede ver igual en modo "Solo Ver".
+function webRango(dias){
+  const inp = document.getElementById('web-desde');
+  if (!dias) { inp.value = ''; }
+  else {
+    const d = new Date(); d.setDate(d.getDate() - dias);
+    inp.value = d.toISOString().slice(0,10);
+  }
+  renderWeb();
+}
+
+// Datos que le sirven a quien publica (los mismos que ya van a la ficha pública).
+function _webDatos(p){
+  const ex = p.extras || {};
+  const partes = [];
+  if (p.marca || p.camionMarca) partes.push(escapeHtml(p.marca || p.camionMarca));
+  if (p.motor)     partes.push('Motor ' + escapeHtml(p.motor));
+  if (ex.hp)       partes.push(escapeHtml(ex.hp) + ' HP');
+  if (p['año'] || p.camionAño) partes.push(escapeHtml(p['año'] || p.camionAño));
+  if (ex.estado || ex.estadoMotor) partes.push(escapeHtml(ex.estado || ex.estadoMotor));
+  if (ex.serie)    partes.push('Serie ' + escapeHtml(ex.serie));
+  return partes.join(' · ');
+}
+
+function _webFila(p, tipo){
+  const f = FAMILIAS.find(x => x.id === p.familia);
+  const fotos = mediaDePieza(p.id).length;
+  const fecha = tipo === 'baja' ? p.fechaVenta : p.fechaRegistro;
+  const datos = _webDatos(p);
+  // El link a la ficha pública trae las fotos en alta y los datos técnicos:
+  // es lo que esa persona necesita para publicar sin pedirle nada a nadie.
+  const link = fotos ? PUB_URL_BASE + encodeURIComponent(p.id) : '';
+  return '<div style="display:flex; gap:12px; align-items:flex-start; padding:12px 14px; border-bottom:1px solid #eee; flex-wrap:wrap;">' +
+    '<div style="flex:1; min-width:200px;">' +
+      '<div style="font-size:16px; font-weight:800; color:#1a1a1a;">' +
+        (p.folioInterno ? '<span style="font-family:ui-monospace,monospace; background:#17140f; color:#f2efe9; padding:1px 7px; border-radius:5px; font-size:13px; margin-right:8px;">' + escapeHtml(p.folioInterno) + '</span>' : '') +
+        escapeHtml((f && f.nombreSingular) || p.familia) + ': ' + escapeHtml(p.modelo || '') +
+      '</div>' +
+      (datos ? '<div style="font-size:13px; color:#777; margin-top:3px;">' + datos + '</div>' : '') +
+      '<div style="font-size:12px; color:#aaa; margin-top:4px;">' +
+        (fecha ? fechaCorta(fecha) : 'sin fecha') +
+        (p.precioWeb ? ' · <span style="color:#185FA5; font-weight:700;">🌐 ' + fmtDinero(p.precioWeb) + '</span>' : '') +
+        (tipo === 'alta' ? (fotos ? ' · <span style="color:#2e7d46; font-weight:700;">' + fotos + ' foto(s)</span>' : ' · <span style="color:#c0392b; font-weight:700;">SIN FOTOS</span>') : '') +
+      '</div>' +
+    '</div>' +
+    (link ? '<a href="' + link + '" target="_blank" rel="noopener" class="btn btn-mini" style="flex:none; text-decoration:none; background:#185FA5; color:#fff; border-color:#185FA5;">Ver fotos y datos ↗</a>' : '') +
+  '</div>';
+}
+
+let _webIniciado = false;
+function renderWeb(){
+  // La primera vez arranca en los últimos 30 días: es el periodo que de verdad
+  // le sirve a quien actualiza la web, no todo el historial.
+  if (!_webIniciado) {
+    _webIniciado = true;
+    const d = new Date(); d.setDate(d.getDate() - 30);
+    const inp = document.getElementById('web-desde');
+    if (inp && !inp.value) { inp.value = d.toISOString().slice(0,10); }
+  }
+  const desdeStr = (document.getElementById('web-desde') || {}).value || '';
+  const desde = desdeStr ? new Date(desdeStr + 'T00:00:00').getTime() : 0;
+
+  // BAJAR: vendidas dentro del rango. SUBIR: en patio y registradas en el rango.
+  const bajar = DATA.piezas.filter(p => p.vendida && (p.fechaVenta || 0) >= desde)
+    .sort((a,b) => (b.fechaVenta||0) - (a.fechaVenta||0));
+  const subir = DATA.piezas.filter(p => !p.vendida && !p.noWeb && (p.fechaRegistro || 0) >= desde)
+    .sort((a,b) => (b.fechaRegistro||0) - (a.fechaRegistro||0));
+  const subirConFoto = subir.filter(p => mediaDePieza(p.id).length > 0);
+  const subirSinFoto = subir.filter(p => mediaDePieza(p.id).length === 0);
+
+  const cajita = (titulo, sub, color, fondo, lista, vacio) =>
+    '<div class="card" style="padding:0; overflow:hidden; margin-bottom:16px; border:2px solid ' + color + ';">' +
+      '<div style="background:' + fondo + '; padding:14px 16px;">' +
+        '<div style="font-size:17px; font-weight:900; color:' + color + ';">' + titulo + ' (' + lista.length + ')</div>' +
+        '<div style="font-size:13px; color:#666; margin-top:2px;">' + sub + '</div>' +
+      '</div>' +
+      (lista.length ? lista.map(p => _webFila(p, titulo.indexOf('BAJAR') !== -1 ? 'baja' : 'alta')).join('')
+                    : '<div style="padding:20px; text-align:center; color:#999; font-size:14px;">' + vacio + '</div>') +
+    '</div>';
+
+  document.getElementById('web-lista').innerHTML =
+    '<div style="font-size:14px; color:#666; margin-bottom:12px;">' +
+      (desdeStr ? 'Movimientos del <strong>' + desdeStr + '</strong> a hoy.' : 'Mostrando <strong>todo el historial</strong>.') +
+    '</div>' +
+    cajita('❌ BAJAR de la web', 'Ya se vendieron — quitarlas de tractopartes.com', '#c0392b', '#fdecea', bajar, 'No se ha vendido nada en este periodo.') +
+    cajita('✅ SUBIR a la web', 'Entraron al inventario y ya tienen fotos — listas para publicar', '#2e7d46', '#eaf7ef', subirConFoto, 'No entró nada nuevo con fotos en este periodo.') +
+    (subirSinFoto.length
+      ? cajita('📷 Faltan fotos', 'Entraron nuevas pero nadie les ha tomado foto — todavía no se pueden publicar', '#c9a24b', '#fdf6e3', subirSinFoto, '')
+      : '');
+}
+
+function exportarWebExcel(){
+  const desdeStr = (document.getElementById('web-desde') || {}).value || '';
+  const desde = desdeStr ? new Date(desdeStr + 'T00:00:00').getTime() : 0;
+  const heads = ['Acción','Folio Interno','Familia','Modelo/Tipo','Marca','Motor','HP','Año','Estado','N° Serie','Precio Web','Fotos','Fecha','Link con fotos y datos'];
+  const fila = (p, accion, fecha) => {
+    const ex = p.extras || {};
+    const f = FAMILIAS.find(x => x.id === p.familia);
+    const fotos = mediaDePieza(p.id).length;
+    return [accion, p.folioInterno || '', (f && f.nombreSingular) || p.familia, p.modelo || '',
+      p.marca || p.camionMarca || '', p.motor || '', ex.hp || '', p['año'] || p.camionAño || '',
+      ex.estado || ex.estadoMotor || '', ex.serie || '', p.precioWeb || '', fotos,
+      fecha ? new Date(fecha).toLocaleDateString('es-MX') : '',
+      fotos ? PUB_URL_BASE + p.id : ''];
+  };
+  const filas = [heads];
+  DATA.piezas.filter(p => p.vendida && (p.fechaVenta || 0) >= desde)
+    .sort((a,b) => (b.fechaVenta||0) - (a.fechaVenta||0))
+    .forEach(p => filas.push(fila(p, 'BAJAR (vendida)', p.fechaVenta)));
+  DATA.piezas.filter(p => !p.vendida && !p.noWeb && (p.fechaRegistro || 0) >= desde)
+    .sort((a,b) => (b.fechaRegistro||0) - (a.fechaRegistro||0))
+    .forEach(p => filas.push(fila(p, mediaDePieza(p.id).length ? 'SUBIR' : 'SUBIR (falta foto)', p.fechaRegistro)));
+  if (filas.length === 1) { toast('No hay movimientos en ese periodo', 'error'); return; }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(filas);
+  ws['!cols'] = [{wch:18},{wch:13},{wch:18},{wch:22},{wch:14},{wch:12},{wch:7},{wch:8},{wch:14},{wch:16},{wch:12},{wch:7},{wch:12},{wch:52}];
+  ws['!autofilter'] = { ref: 'A1:N1' };
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+  XLSX.utils.book_append_sheet(wb, ws, 'Cambios web');
+  XLSX.writeFile(wb, 'Cambios_Web_TPM_' + new Date().toISOString().slice(0,10) + '.xlsx');
+  toast('Excel descargado', 'success');
 }
 
 // ============================================================
