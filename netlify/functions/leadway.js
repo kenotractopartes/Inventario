@@ -179,7 +179,12 @@ exports.handler = async (event) => {
             collectionIds: antes.collectionIds,
             seo: antes.seo,
             slug: antes.slug,
-            taxInclusive: antes.taxInclusive,
+            // false = "el precio NO incluye la tasa", puesto a fuerzas y no
+            // heredado de la configuración global. Los 271 productos viejos
+            // están así; si este quedara en "según la global", cambiaría solo
+            // el día que alguien toque esa configuración y quedarían dos
+            // comportamientos distintos en la misma tienda.
+            taxInclusive: false,
             isTaxesEnabled: true,
             taxes: [taxId]
           })
