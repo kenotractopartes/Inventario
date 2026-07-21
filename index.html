@@ -306,6 +306,7 @@
       <button class="btn btn-mini" style="background:#c9a24b; color:#17140f; border-color:#c9a24b; font-weight:800;" onclick="exportarLeadway(3)">🧪 Prueba con 3</button>
       <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="exportarLeadway(0)">⬇️ CSV para Leadway</button>
       <button class="btn btn-mini" id="btn-reenviar-web" style="display:none;" onclick="reenviarALeadway()">↺ Volver a mandar</button>
+      <button class="btn btn-mini" onclick="probarLeadway()" title="Confirma que la conexión directa con Leadway funciona (solo lee, no toca nada)">🔌 Probar conexión</button>
       <span id="web-leadway-info" style="font-size:13px; color:#5a7fa5;"></span>
     </div>
   </div>
@@ -2089,6 +2090,43 @@ function compartirImagenQR(){
 var PUB = {};            // fichas_publicas por pieza (datos + puntero al modelo)
 var MEDIA_MODELO = {};   // fotos/videos COMPARTIDOS por modelo
 var PUB_URL_BASE = 'https://fotonas.tractopartes.com/motor.html?id=';
+
+// ── PUENTE CON LEADWAY ─────────────────────────────────────────────────────
+// El token de la API de Leadway NO puede vivir aquí (este archivo lo ve
+// cualquiera). Vive en Netlify, y esta piecita es la que habla con él.
+// La función pide la sesión de Firebase, así que solo funciona con login.
+var LEADWAY_FN = 'https://gleaming-dolphin-832596.netlify.app/.netlify/functions/leadway';
+
+function llamarLeadway(accion, datos){
+  var u = firebase.auth().currentUser;
+  if(!u) return Promise.reject(new Error('Entra con tu cuenta para usar la conexión con la tienda.'));
+  return u.getIdToken().then(function(idToken){
+    return fetch(LEADWAY_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ accion: accion, idToken: idToken }, datos || {}))
+    });
+  }).then(function(r){
+    return r.json().then(function(j){
+      if(!r.ok) throw new Error(j.error || ('Error ' + r.status));
+      return j;
+    });
+  });
+}
+
+// Prueba de vida: confirma que el token de Leadway sirve y cuántos productos ve.
+function probarLeadway(){
+  toast('Conectando con Leadway…', 'success');
+  llamarLeadway('ping').then(function(r){
+    alert('✅ CONEXIÓN CON LEADWAY FUNCIONANDO\n\n' +
+      'Entró como: ' + (r.correo || '—') + '\n' +
+      'Productos que ve en tu tienda: ' + (r.totalProductos != null ? r.totalProductos : '—') + '\n\n' +
+      'Por ahora solo puede LEER. Todavía no modifica nada.');
+  }).catch(function(e){
+    alert('❌ No se pudo conectar con Leadway\n\n' + (e.message || e) +
+      '\n\nSi dice algo de token, revisa que LEADWAY_TOKEN esté bien puesto en Netlify.');
+  });
+}
 
 function linkFichaPieza(id){ return PUB_URL_BASE + encodeURIComponent(id); }
 
