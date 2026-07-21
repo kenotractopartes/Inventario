@@ -301,7 +301,7 @@
   </div>
   <div class="card" style="background:#eef6ff; border:2px solid #b8d4f0; padding:14px; margin-bottom:16px;">
     <div style="font-size:15px; font-weight:900; color:#185FA5;">📦 Archivo para Leadway</div>
-    <div style="font-size:13px; color:#5a7fa5; margin:6px 0 11px;">Genera el CSV que se sube en <strong>Leadway → Pagos → Productos → Importar como CSV</strong>. Da de alta las piezas nuevas con su foto, su precio y sus datos.<br><strong style="color:#b03a2e;">Solo sirve para ALTAS.</strong> Leadway rechaza el archivo completo si trae un producto que ya existe, así que las bajas y los cambios de precio se hacen a mano en su panel.</div>
+    <div style="font-size:13px; color:#5a7fa5; margin:6px 0 11px;">Genera el CSV que se sube en <strong>Leadway → Pagos → Productos → Importar como CSV</strong>. Da de alta las piezas nuevas con su foto, su precio y sus datos.<br><strong style="color:#b03a2e;">Solo sirve para ALTAS.</strong> Leadway rechaza el archivo completo si trae un producto que ya existe, así que las bajas y los cambios de precio se hacen a mano en su panel.<br><strong style="color:#b03a2e;">⚠️ Y después de subirlos:</strong> abre cada producto en Leadway y palomea <strong>«Adjuntar tasas impositivas → IVA (16%)»</strong>. El CSV no puede mandar el impuesto y sin eso se venden sin IVA.</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
       <button class="btn btn-mini" style="background:#c9a24b; color:#17140f; border-color:#c9a24b; font-weight:800;" onclick="exportarLeadway(3)">🧪 Prueba con 3</button>
       <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="exportarLeadway(0)">⬇️ CSV para Leadway</button>
@@ -4729,6 +4729,10 @@ function exportarLeadway(limite){
   // se diera cuenta.
   const msg = '✅ Archivo descargado: ' + subir.length + ' producto(s) NUEVOS\n\n' +
     'Súbelo en Leadway → Pagos → Productos → Importar como CSV.\n\n' +
+    '⚠️ NO OLVIDES EL IVA\n' +
+    'El CSV no puede mandar el impuesto. Después de subirlos, abre cada producto\n' +
+    'en Leadway y palomea "Adjuntar tasas impositivas → IVA (16%)".\n' +
+    'Si no, se venden SIN IVA y te comes el 16%.\n\n' +
     '━━━━━━━━━━━━━━━━━━━━━━━━\n' +
     'NO contestes todavía si apenas lo vas a subir.\n' +
     'Dale CANCELAR, súbelo, y si quedó bien vuelve a generar y ahí sí acepta.\n' +
