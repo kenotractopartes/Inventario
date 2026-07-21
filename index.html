@@ -307,6 +307,7 @@
       <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="exportarLeadway(0)">⬇️ CSV para Leadway</button>
       <button class="btn btn-mini" id="btn-reenviar-web" style="display:none;" onclick="reenviarALeadway()">↺ Volver a mandar</button>
       <button class="btn btn-mini" onclick="probarLeadway()" title="Confirma que la conexión directa con Leadway funciona (solo lee, no toca nada)">🔌 Probar conexión</button>
+      <button class="btn btn-mini" onclick="diagnosticoLeadway()" title="Enseña cómo se ve un producto por dentro (solo lee)">🔍 Ver un producto</button>
       <span id="web-leadway-info" style="font-size:13px; color:#5a7fa5;"></span>
     </div>
   </div>
@@ -2111,6 +2112,36 @@ function llamarLeadway(accion, datos){
       if(!r.ok) throw new Error(j.error || ('Error ' + r.status));
       return j;
     });
+  });
+}
+
+// Trae UN producto completo tal como lo manda Leadway y lo enseña para poder
+// copiarlo. Sirve para ver con qué nombre se llaman de verdad los campos
+// (disponible en tienda, precios, fotos, impuestos) ANTES de escribir la parte
+// que modifica. Solo lee: no toca nada.
+function diagnosticoLeadway(){
+  toast('Pidiendo un producto a Leadway…', 'success');
+  llamarLeadway('listar', { limite: 100 }).then(function(r){
+    var lista = r.productos || [];
+    if(!lista.length) throw new Error('Leadway no devolvió productos.');
+    // Preferimos uno de los que subimos nosotros: son los que vamos a manejar.
+    var elegido = lista.find(function(p){ return /^tpm-/.test(p.handle || ''); }) || lista[0];
+    return llamarLeadway('ver', { productoId: elegido.id }).then(function(d){
+      return { total: r.total, cuantos: lista.length, elegido: elegido, crudo: d.producto };
+    });
+  }).then(function(info){
+    var texto = JSON.stringify(info.crudo, null, 2);
+    document.getElementById('modal-precios-title').textContent = 'Cómo se ve un producto en Leadway';
+    document.getElementById('modal-precios-body').innerHTML =
+      '<div style="font-size:14px; margin-bottom:10px;">Tu tienda tiene <strong>' + (info.total != null ? info.total : '?') +
+        '</strong> producto(s). Este es <strong>' + escapeHtml(info.elegido.nombre || '') + '</strong> tal como lo manda Leadway:</div>' +
+      '<textarea readonly style="width:100%; height:44vh; font-family:ui-monospace,monospace; font-size:11px; border:2px solid #ccc; border-radius:8px; padding:10px;">' +
+        escapeHtml(texto) + '</textarea>' +
+      '<button onclick="(function(){var t=document.querySelector(\'#modal-precios-body textarea\'); t.select(); document.execCommand(\'copy\'); toast(\'Copiado\',\'success\');})()" ' +
+        'style="width:100%; margin-top:12px; padding:13px; border:none; border-radius:8px; background:#185FA5; color:#fff; font-size:15px; font-weight:800; cursor:pointer;">📋 Copiar todo</button>';
+    openModal('modal-precios');
+  }).catch(function(e){
+    alert('No se pudo: ' + (e.message || e));
   });
 }
 
