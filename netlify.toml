@@ -7,8 +7,8 @@
 #
 # El token NUNCA va en el código. Se pone en Netlify:
 #   Site configuration → Environment variables
-#     LEADWAY_TOKEN        = el token del portal de Leadway
-#     LEADWAY_LOCATION_ID  = X5IvuUwUt1zHBGlNSCNF
+#     LEADWAY_TOKEN        = el token del portal de Leadway (marcado como secreto)
+#     LEADWAY_LOCATION_ID  = el id de la cuenta de Leadway
 #     FIREBASE_API_KEY     = la del inventario (es pública, no es secreta)
 #     EMAILS_PERMITIDOS    = correos que pueden usarla, separados por coma
 # ============================================================
@@ -18,6 +18,18 @@
   publish = "netlify_publico"
   functions = "netlify/functions"
   command = "echo 'sin build: solo funciones'"
+
+  [build.environment]
+    # Netlify revisa que los valores de las variables no anden sueltos por el
+    # repo, y tumba el deploy si los encuentra. Estos TRES sí están a la vista
+    # a propósito y no son secretos:
+    #   FIREBASE_API_KEY    → Firebase la publica en el HTML por diseño; lo que
+    #                         protege la base son sus reglas, no esconder la llave.
+    #   EMAILS_PERMITIDOS   → el correo de acceso ya sale en la pantalla de login.
+    #   LEADWAY_LOCATION_ID → es el id de la cuenta, sale en la URL del portal.
+    # LEADWAY_TOKEN NO se omite NUNCA: ese sí es secreto de verdad y queremos
+    # que Netlify siga vigilando que no se nos escape al repo.
+    SECRETS_SCAN_OMIT_KEYS = "FIREBASE_API_KEY,EMAILS_PERMITIDOS,LEADWAY_LOCATION_ID"
 
 [functions]
   node_bundler = "esbuild"
