@@ -305,6 +305,7 @@
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
       <button class="btn btn-mini" style="background:#c9a24b; color:#17140f; border-color:#c9a24b; font-weight:800;" onclick="exportarLeadway(3)">🧪 Prueba con 3</button>
       <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="exportarLeadway(0)">⬇️ CSV para Leadway</button>
+      <button class="btn btn-mini" id="btn-reenviar-web" style="display:none;" onclick="reenviarALeadway()">↺ Volver a mandar</button>
       <span id="web-leadway-info" style="font-size:13px; color:#5a7fa5;"></span>
     </div>
   </div>
@@ -4423,9 +4424,13 @@ function renderWeb(){
       vistos[k] = true; return true;
     }).length;
     const bajas = DATA.piezas.filter(p => p.enWeb && p.vendida).length;
-    info.innerHTML = listas || bajas
-      ? '<strong>' + listas + '</strong> por subir · <strong>' + bajas + '</strong> por bajar'
-      : 'Nada pendiente por ahora.';
+    const yaMandadas = DATA.piezas.filter(p => p.enWeb && !p.vendida).length;
+    info.innerHTML = (listas || bajas
+        ? '<strong>' + listas + '</strong> por subir · <strong>' + bajas + '</strong> por bajar'
+        : 'Nada pendiente por ahora.') +
+      (yaMandadas ? ' <span style="color:#888;">· ' + yaMandadas + ' ya marcadas como publicadas</span>' : '');
+    const btnRe = document.getElementById('btn-reenviar-web');
+    if (btnRe) btnRe.style.display = yaMandadas ? '' : 'none';
   }
 
   const cajita = (titulo, sub, color, fondo, lista, vacio) =>
@@ -4506,6 +4511,23 @@ function _descLeadway(p){
   return (filas.length ? '<ul>' + filas.join('') + '</ul>' : '') +
     '<p>Refacción disponible en Tracto Partes Magaña, Col. Argentina, Monterrey. ' +
     'Más de 30 años surtiendo refacciones para camión.</p>';
+}
+
+// Quita la marca de "ya publicada" para que las piezas vuelvan a salir en el
+// próximo archivo. Sirve para dos casos: (1) se marcaron por error sin haberlas
+// subido, y (2) les cambiaron el precio o el folio y hay que reenviarlas.
+function reenviarALeadway(){
+  if (typeof esEditor === 'function' && !esEditor()) { alert('Entra como Editor para volver a mandarlas.'); return; }
+  const marcadas = DATA.piezas.filter(p => p.enWeb && !p.vendida);
+  if (!marcadas.length) { alert('No hay piezas marcadas como publicadas.'); return; }
+  if (!confirm('Hay ' + marcadas.length + ' pieza(s) marcadas como "ya publicadas en Leadway".\n\n' +
+      'Si las desmarcas, vuelven a salir en el próximo archivo.\n\n' +
+      'Úsalo si te marcaste de más sin haberlas subido, o si les cambiaste precio o folio y las quieres reenviar.\n\n' +
+      '¿Las desmarco?')) return;
+  marcadas.forEach(p => { delete p.enWeb; });
+  guardar();
+  renderWeb();
+  toast(marcadas.length + ' pieza(s) listas para volver a mandarse', 'success');
 }
 
 function exportarLeadway(limite){
@@ -4601,8 +4623,12 @@ function exportarLeadway(limite){
     '  • ' + subir.length + ' para SUBIR\n' +
     '  • ' + bajar.length + ' para BAJAR de la tienda\n\n' +
     'Ahora súbelo en Leadway → Pagos → Productos → Importar como CSV.\n\n' +
-    'Cuando YA lo hayas subido y se vea bien, vuelve y dale "Aceptar" aquí abajo para que el sistema las marque como publicadas y no te las vuelva a pedir.\n\n' +
-    '¿Ya lo subiste y quedó bien?';
+    '━━━━━━━━━━━━━━━━━━━━━━━━\n' +
+    'NO contestes todavía si apenas lo vas a subir.\n' +
+    'Dale CANCELAR, súbelo, y si quedó bien vuelve a generar y ahí sí acepta.\n' +
+    '(Si te equivocas, el botón "↺ Volver a mandar" lo deshace.)\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
+    '¿YA lo subiste a Leadway y quedó bien?';
   setTimeout(function(){
     if (!confirm(msg)) { toast('Archivo listo. Márcalas cuando lo hayas subido.', 'success'); return; }
     if (typeof esEditor === 'function' && !esEditor()) { alert('Se descargó el archivo, pero para marcarlas como publicadas hay que entrar como Editor.'); return; }
