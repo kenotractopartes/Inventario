@@ -254,6 +254,38 @@ exports.handler = async (event) => {
         }, origen);
       }
 
+      // Diagnóstico de la paginación: recorre TODA la tienda y reporta cuántos
+      // productos DISTINTOS logró ver. Si la API ignorara el "offset", siempre
+      // devolvería los mismos y aquí se notaría (únicos << total).
+      case 'listarSlugs': {
+        let salto = 0, vueltas = 0;
+        const vistos = new Map();
+        let totalDicho = null;
+        for (; vueltas < 30; vueltas++) {
+          const r = await leadway('/products/?locationId=' + encodeURIComponent(locationId) +
+            '&limit=100&offset=' + salto);
+          if (totalDicho === null && r.total != null) totalDicho = r.total;
+          const lote = r.products || [];
+          if (!lote.length) break;
+          lote.forEach(p => {
+            const id = p._id || p.id;
+            if (!vistos.has(id)) vistos.set(id, { slug: p.slug || '', nombre: p.name || '' });
+          });
+          salto += lote.length;
+          if (totalDicho != null && salto >= totalDicho) break;
+        }
+        const todos = Array.from(vistos.values());
+        return respuesta(200, {
+          ok: true,
+          totalQueDiceLaApi: totalDicho,
+          productosDistintosVistos: todos.length,
+          vueltas: vueltas + 1,
+          paginacionSospechosa: (totalDicho != null && todos.length < totalDicho),
+          slugsTpm: todos.filter(x => /^tpm-/i.test(x.slug)).map(x => x.slug + '  →  ' + x.nombre),
+          muestraDeSlugs: todos.slice(0, 15).map(x => x.slug)
+        }, origen);
+      }
+
       default:
         return respuesta(400, { error: 'Acción desconocida: ' + peticion.accion }, origen);
     }

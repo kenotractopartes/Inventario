@@ -308,6 +308,7 @@
       <button class="btn btn-mini" id="btn-reenviar-web" style="display:none;" onclick="reenviarALeadway()">↺ Volver a mandar</button>
       <button class="btn btn-mini" onclick="probarLeadway()" title="Confirma que la conexión directa con Leadway funciona (solo lee, no toca nada)">🔌 Probar conexión</button>
       <button class="btn btn-mini" onclick="diagnosticoLeadway()" title="Enseña cómo se ve un producto por dentro (solo lee)">🔍 Ver un producto</button>
+      <button class="btn btn-mini" onclick="diagnosticoSlugs()" title="Recorre toda la tienda y dice qué encuentra (solo lee)">🩺 Diagnóstico</button>
       <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="ponerIvaEnLeadway()" title="Le pone el IVA 16% a los productos que subiste por CSV">💰 Ponerles el IVA</button>
       <button class="btn btn-mini" style="background:#fdf6e3; border-color:#c9a24b; color:#8a6d3b; font-weight:800;" onclick="abrirPruebaApi()" title="Estrena el IVA y la baja de tienda contra el producto de mentiras">🧪 Banco de pruebas</button>
       <span id="web-leadway-info" style="font-size:13px; color:#5a7fa5;"></span>
@@ -2245,6 +2246,28 @@ function verPublicadasEnLeadway(){
       }).join('') +
     '</div>';
   openModal('modal-precios');
+}
+
+// Diagnóstico: recorre TODA la tienda y enseña qué encontró. Sirve para saber
+// por qué no halla una pieza — si es que no existe, o si la paginación de la
+// API nos está devolviendo siempre los mismos productos.
+function diagnosticoSlugs(){
+  toast('Recorriendo toda la tienda… tarda unos segundos', 'success');
+  llamarLeadway('listarSlugs').then(function(r){
+    var txt =
+      'Total que dice la API: ' + r.totalQueDiceLaApi + '\n' +
+      'Productos DISTINTOS que alcanzó a ver: ' + r.productosDistintosVistos + '\n' +
+      'Vueltas de paginación: ' + r.vueltas + '\n' +
+      (r.paginacionSospechosa ? '\n⚠️ PAGINACIÓN ROTA: vio menos productos de los que dice tener.\n' : '\n✅ Paginación bien.\n') +
+      '\nProductos con folio nuestro (tpm-): ' + r.slugsTpm.length + '\n' +
+      (r.slugsTpm.length ? r.slugsTpm.map(function(s){ return '  · ' + s; }).join('\n') : '  (ninguno)') +
+      '\n\nMuestra de slugs que sí ve:\n' + r.muestraDeSlugs.map(function(s){ return '  · ' + s; }).join('\n');
+    document.getElementById('modal-precios-title').textContent = 'Diagnóstico de la tienda';
+    document.getElementById('modal-precios-body').innerHTML =
+      '<textarea readonly style="width:100%; height:52vh; font-family:ui-monospace,monospace; font-size:12px; border:2px solid #ccc; border-radius:8px; padding:10px;">' +
+      escapeHtml(txt) + '</textarea>';
+    openModal('modal-precios');
+  }).catch(function(e){ alert('Falló: ' + (e.message || e)); });
 }
 
 // ── BANCO DE PRUEBAS ───────────────────────────────────────────────────────
