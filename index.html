@@ -2222,6 +2222,31 @@ function ponerIvaEnLeadway(){
   });
 }
 
+// Lista las piezas que ESTE sistema subió a Leadway y siguen en el patio. Son
+// las que están en los dos lados: si se venden, se bajan solas de la tienda.
+function verPublicadasEnLeadway(){
+  var lista = DATA.piezas.filter(function(p){ return p.enWeb && !p.vendida; })
+    .sort(function(a,b){ return String(a.folioInterno||'').localeCompare(String(b.folioInterno||'')); });
+  if(!lista.length){ alert('Ninguna pieza está publicada en Leadway por este sistema.'); return; }
+
+  document.getElementById('modal-precios-title').textContent = 'Publicadas en Leadway (' + lista.length + ')';
+  document.getElementById('modal-precios-body').innerHTML =
+    '<div style="font-size:13px; color:#666; margin-bottom:12px;">Estas piezas están en el patio <strong>y</strong> en la tienda. Cuando marques una como vendida, <strong>se baja sola</strong> de Leadway.</div>' +
+    '<div style="max-height:52vh; overflow-y:auto; border:1px solid #e5ded0; border-radius:8px;">' +
+      lista.map(function(p){
+        var f = FAMILIAS.find(function(x){ return x.id === p.familia; });
+        return '<div style="padding:11px 14px; border-bottom:1px solid #eee;">' +
+          '<div style="font-size:15px; font-weight:800;">' +
+            (p.folioInterno ? '<span style="font-family:ui-monospace,monospace; background:#17140f; color:#f2efe9; padding:1px 7px; border-radius:5px; font-size:12px; margin-right:8px;">' + escapeHtml(p.folioInterno) + '</span>' : '') +
+            escapeHtml(((f && f.nombreSingular) || p.familia) + ': ' + (p.modelo || '')) + '</div>' +
+          '<div style="font-size:12px; color:#888; margin-top:3px;">En la tienda como <span style="font-family:ui-monospace,monospace; color:#185FA5;">' + escapeHtml(_handleDe(p)) + '</span>' +
+            (p.precioWeb ? ' · 🌐 ' + fmtDinero(p.precioWeb) : '') + '</div>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+  openModal('modal-precios');
+}
+
 // ── BANCO DE PRUEBAS ───────────────────────────────────────────────────────
 // Todo lo que MODIFICA la tienda se estrena aquí, contra un producto de
 // mentiras llamado "PRUEBA API". Así se comprueba que poner el IVA y bajar de
@@ -4642,7 +4667,8 @@ function renderWeb(){
     info.innerHTML = (listas || bajas
         ? '<strong>' + listas + '</strong> por subir' + (bajas ? ' · <strong>' + bajas + '</strong> por quitar a mano' : '')
         : 'Nada pendiente por ahora.') +
-      (yaMandadas ? ' <span style="color:#888;">· ' + yaMandadas + ' ya marcadas como publicadas</span>' : '');
+      (yaMandadas ? ' · <span onclick="verPublicadasEnLeadway()" style="color:#185FA5; font-weight:700; cursor:pointer; text-decoration:underline;">' +
+        yaMandadas + ' ya publicadas 👆</span>' : '');
     const btnRe = document.getElementById('btn-reenviar-web');
     if (btnRe) btnRe.style.display = yaMandadas ? '' : 'none';
   }
