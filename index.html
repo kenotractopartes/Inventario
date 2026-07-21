@@ -299,6 +299,15 @@
     <button class="btn btn-mini" onclick="webRango(0)">Todo</button>
     <button class="btn btn-mini" style="background:#2e7d46; color:#fff; border-color:#2e7d46;" onclick="exportarWebExcel()">⬇️ Bajar en Excel</button>
   </div>
+  <div class="card" style="background:#eef6ff; border:2px solid #b8d4f0; padding:14px; margin-bottom:16px;">
+    <div style="font-size:15px; font-weight:900; color:#185FA5;">📦 Archivo para Leadway</div>
+    <div style="font-size:13px; color:#5a7fa5; margin:6px 0 11px;">Genera el CSV que se sube en <strong>Leadway → Pagos → Productos → Importar como CSV</strong>. Sube las nuevas con su foto y su precio, y baja de la tienda las que ya se vendieron.</div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <button class="btn btn-mini" style="background:#c9a24b; color:#17140f; border-color:#c9a24b; font-weight:800;" onclick="exportarLeadway(3)">🧪 Prueba con 3</button>
+      <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="exportarLeadway(0)">⬇️ CSV para Leadway</button>
+      <span id="web-leadway-info" style="font-size:13px; color:#5a7fa5;"></span>
+    </div>
+  </div>
   <div id="web-lista"></div>
 </section>
 
@@ -4395,10 +4404,29 @@ function renderWeb(){
   // BAJAR: vendidas dentro del rango. SUBIR: en patio y registradas en el rango.
   const bajar = DATA.piezas.filter(p => p.vendida && (p.fechaVenta || 0) >= desde)
     .sort((a,b) => (b.fechaVenta||0) - (a.fechaVenta||0));
-  const subir = DATA.piezas.filter(p => !p.vendida && !p.noWeb && (p.fechaRegistro || 0) >= desde)
+  const subir = DATA.piezas.filter(p => !p.vendida && !p.noWeb && !p.enWeb && (p.fechaRegistro || 0) >= desde)
     .sort((a,b) => (b.fechaRegistro||0) - (a.fechaRegistro||0));
-  const subirConFoto = subir.filter(p => mediaDePieza(p.id).length > 0);
-  const subirSinFoto = subir.filter(p => mediaDePieza(p.id).length === 0);
+  // Para irse a Leadway una pieza necesita foto Y precio web. Se separan para
+  // que se vea CLARO qué le falta a cada una en vez de un montón indistinto.
+  const subirConFoto  = subir.filter(p => mediaDePieza(p.id).length > 0 && p.precioWeb > 0);
+  const subirSinPrecio = subir.filter(p => mediaDePieza(p.id).length > 0 && !(p.precioWeb > 0));
+  const subirSinFoto  = subir.filter(p => mediaDePieza(p.id).length === 0);
+
+  // Contador del bloque de Leadway (cuenta piezas idénticas como una sola).
+  const info = document.getElementById('web-leadway-info');
+  if (info) {
+    const vistos = {};
+    const listas = subirConFoto.filter(p => {
+      const k = _modelKey(p);
+      if (!k) return true;
+      if (vistos[k]) return false;
+      vistos[k] = true; return true;
+    }).length;
+    const bajas = DATA.piezas.filter(p => p.enWeb && p.vendida).length;
+    info.innerHTML = listas || bajas
+      ? '<strong>' + listas + '</strong> por subir · <strong>' + bajas + '</strong> por bajar'
+      : 'Nada pendiente por ahora.';
+  }
 
   const cajita = (titulo, sub, color, fondo, lista, vacio) =>
     '<div class="card" style="padding:0; overflow:hidden; margin-bottom:16px; border:2px solid ' + color + ';">' +
@@ -4415,10 +4443,154 @@ function renderWeb(){
       (desdeStr ? 'Movimientos del <strong>' + desdeStr + '</strong> a hoy.' : 'Mostrando <strong>todo el historial</strong>.') +
     '</div>' +
     cajita('❌ BAJAR de la web', 'Ya se vendieron — quitarlas de tractopartes.com', '#c0392b', '#fdecea', bajar, 'No se ha vendido nada en este periodo.') +
-    cajita('✅ SUBIR a la web', 'Entraron al inventario y ya tienen fotos — listas para publicar', '#2e7d46', '#eaf7ef', subirConFoto, 'No entró nada nuevo con fotos en este periodo.') +
+    cajita('✅ SUBIR a la web', 'Tienen foto y precio web — listas para irse a Leadway', '#2e7d46', '#eaf7ef', subirConFoto, 'No hay nada listo para subir en este periodo.') +
+    (subirSinPrecio.length
+      ? cajita('💲 Falta precio web', 'Ya tienen foto, pero sin precio web no se pueden vender en línea', '#185FA5', '#eef6ff', subirSinPrecio, '')
+      : '') +
     (subirSinFoto.length
       ? cajita('📷 Faltan fotos', 'Entraron nuevas pero nadie les ha tomado foto — todavía no se pueden publicar', '#c9a24b', '#fdf6e3', subirSinFoto, '')
       : '');
+}
+
+// ── CSV PARA LEADWAY (GoHighLevel) ─────────────────────────────────────────
+// Leadway usa GoHighLevel, que copió el formato de CSV de Shopify. Tres
+// columnas nos resuelven todo:
+//   Handle  → el identificador del producto. Le metemos el FOLIO INTERNO de
+//             Raúl, así cada producto de la web queda amarrado a su pieza.
+//   Included in Online Store → TRUE/FALSE. Para dar de baja lo vendido NO hay
+//             que borrar: se manda FALSE y se sale solo de la tienda.
+//   Image Src → la foto ya vive en Firebase con dirección pública, se manda tal cual.
+// El orden de las columnas es EXACTAMENTE el del CSV de muestra de Leadway.
+const LEADWAY_COLS = ['Handle','Title','Body (HTML)','Included in Online Store','Image Src',
+  'Option1 Name','Option1 Value','Option2 Name','Option2 Value','Option3 Name','Option3 Value',
+  'Variant Price','Variant Compare At Price','Track Inventory','Allow Out of Stock Purchases',
+  'Available Quantity','SKU','Weight Value','Weight Unit','Dimension Length','Dimension Width',
+  'Dimension Height','Dimension Unit','Product Label Enable','Label Title','Label Start Date',
+  'Label End Date','SEO Title','SEO Description'];
+
+function _csvCampo(v){
+  const s = String(v == null ? '' : v);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+// El Handle tiene que ser estable y sin acentos ni espacios: es la llave que
+// amarra el producto de la web con la pieza del inventario para siempre.
+function _handleDe(p){
+  const base = p.folioInterno ? String(p.folioInterno) : String(p.id);
+  return 'tpm-' + base.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+}
+
+function _tituloLeadway(p){
+  const f = FAMILIAS.find(x => x.id === p.familia);
+  const partes = [(f && f.nombreSingular) || p.familia];
+  if (p.marca || p.camionMarca) partes.push(p.marca || p.camionMarca);
+  if (p.modelo) partes.push(p.modelo);
+  const ex = p.extras || {};
+  if (ex.estado || ex.estadoMotor) partes.push('—', ex.estado || ex.estadoMotor);
+  return partes.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function _descLeadway(p){
+  const ex = p.extras || {};
+  const filas = [];
+  const add = (k, v) => { if (v) filas.push('<li><strong>' + k + ':</strong> ' + escapeHtml(String(v)) + '</li>'); };
+  add('Marca', p.marca || p.camionMarca);
+  add('Motor', p.motor);
+  add('Caballaje', ex.hp ? ex.hp + ' HP' : '');
+  add('Año', p['año'] || p.camionAño);
+  add('Condición', ex.estado || ex.estadoMotor);
+  add('N° de serie', ex.serie);
+  add('CPL', ex.cpl);
+  add('Terminación', (ex.terminacion && ex.terminacion !== p.modelo) ? ex.terminacion : '');
+  add('Detalle', ex.fichaExtra);
+  return (filas.length ? '<ul>' + filas.join('') + '</ul>' : '') +
+    '<p>Refacción disponible en Tracto Partes Magaña, Col. Argentina, Monterrey. ' +
+    'Más de 30 años surtiendo refacciones para camión.</p>';
+}
+
+function exportarLeadway(limite){
+  // Cuántas piezas iguales hay (los inyectores del mismo modelo son idénticos).
+  const contarIguales = (p) => {
+    const k = _modelKey(p);
+    if (!k) return 1;
+    return DATA.piezas.filter(x => !x.vendida && _modelKey(x) === k).length;
+  };
+
+  // SUBIR: con foto, con precio web, no vendidas, no excluidas y que no se
+  // hayan mandado antes. BAJAR: las que sí mandamos y ya se vendieron.
+  let subir = DATA.piezas.filter(p => !p.vendida && !p.noWeb && !p.enWeb &&
+    p.precioWeb > 0 && mediaDePieza(p.id).length > 0);
+  // De piezas idénticas (mismo modelo) solo va UNA, con la cantidad correcta:
+  // si no, la tienda mostraría 8 inyectores repetidos.
+  const vistos = {};
+  subir = subir.filter(p => {
+    const k = _modelKey(p);
+    if (!k) return true;
+    if (vistos[k]) return false;
+    vistos[k] = true; return true;
+  });
+  subir.sort((a,b) => (b.fechaRegistro||0) - (a.fechaRegistro||0));
+  const bajar = DATA.piezas.filter(p => p.enWeb && p.vendida);
+
+  if (limite > 0) subir = subir.slice(0, limite);
+  if (!subir.length && !bajar.length) {
+    alert('No hay nada que mandar a Leadway.\n\nPara que una pieza salga aquí necesita:\n  • foto\n  • precio web\n  • no estar vendida\n  • no estar marcada como "no publicar en web"\n\nRevisa la pestaña 🌐 Web para ver cuáles están a medias.');
+    return;
+  }
+
+  const filas = [LEADWAY_COLS.join(',')];
+  const arma = (p, enTienda) => {
+    const media = mediaDePieza(p.id).filter(m => m && m.t !== 'video');
+    const foto = media.length ? (media[0].web || media[0].url || '') : '';
+    const cant = contarIguales(p);
+    const fila = {
+      'Handle': _handleDe(p),
+      'Title': _tituloLeadway(p),
+      'Body (HTML)': _descLeadway(p),
+      'Included in Online Store': enTienda ? 'TRUE' : 'FALSE',
+      'Image Src': foto,
+      'Variant Price': p.precioWeb || '',
+      'Track Inventory': 'TRUE',
+      'Allow Out of Stock Purchases': 'FALSE',
+      'Available Quantity': enTienda ? cant : 0,
+      'SKU': p.folioInterno || '',
+      'SEO Title': _tituloLeadway(p) + ' · Tracto Partes Magaña',
+      'SEO Description': _tituloLeadway(p) + ' disponible en Monterrey. Refacciones para camión con más de 30 años de experiencia.'
+    };
+    filas.push(LEADWAY_COLS.map(c => _csvCampo(fila[c] !== undefined ? fila[c] : '')).join(','));
+  };
+  subir.forEach(p => arma(p, true));
+  bajar.forEach(p => arma(p, false));
+
+  // SIN BOM a propósito. El que lee este archivo es el importador de Leadway,
+  // no Excel: si le llega el BOM, la primera columna se le llamaría "﻿Handle"
+  // en vez de "Handle" y no reconocería el identificador del producto.
+  const blob = new Blob([filas.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Leadway_TPM_' + new Date().toISOString().slice(0,10) + (limite ? '_PRUEBA' : '') + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+
+  // Marcar como publicadas SOLO cuando Eugenio confirme que la subida salió
+  // bien. Si se marcaran solas y Leadway fallara, esas piezas ya nunca
+  // volverían a salir en la lista y quedarían fuera de la web sin que nadie
+  // se diera cuenta.
+  const msg = '✅ Archivo descargado: ' + (subir.length + bajar.length) + ' producto(s)\n' +
+    '  • ' + subir.length + ' para SUBIR\n' +
+    '  • ' + bajar.length + ' para BAJAR de la tienda\n\n' +
+    'Ahora súbelo en Leadway → Pagos → Productos → Importar como CSV.\n\n' +
+    'Cuando YA lo hayas subido y se vea bien, vuelve y dale "Aceptar" aquí abajo para que el sistema las marque como publicadas y no te las vuelva a pedir.\n\n' +
+    '¿Ya lo subiste y quedó bien?';
+  setTimeout(function(){
+    if (!confirm(msg)) { toast('Archivo listo. Márcalas cuando lo hayas subido.', 'success'); return; }
+    if (typeof esEditor === 'function' && !esEditor()) { alert('Se descargó el archivo, pero para marcarlas como publicadas hay que entrar como Editor.'); return; }
+    subir.forEach(p => { p.enWeb = true; });
+    bajar.forEach(p => { delete p.enWeb; });
+    guardar();
+    renderWeb();
+    toast('Marcadas como publicadas', 'success');
+  }, 600);
 }
 
 function exportarWebExcel(){
