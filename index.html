@@ -4494,32 +4494,80 @@ function _handleDe(p){
   return 'tpm-' + base.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 }
 
+// Título al estilo de los productos que ya tienen en Leadway: nombre de la
+// pieza + marca + modelo, sin la condición (esa va como variante) y sin guiones
+// largos. Ej: "Motor Cummins ISX CM570".
 function _tituloLeadway(p){
   const f = FAMILIAS.find(x => x.id === p.familia);
   const partes = [(f && f.nombreSingular) || p.familia];
-  if (p.marca || p.camionMarca) partes.push(p.marca || p.camionMarca);
+  const marca = p.marca || p.camionMarca || '';
+  if (marca) partes.push(marca);
+  if (p.motor && p.motor !== marca && p.motor !== p.modelo) partes.push(p.motor);
   if (p.modelo) partes.push(p.modelo);
-  const ex = p.extras || {};
-  if (ex.estado || ex.estadoMotor) partes.push('—', ex.estado || ex.estadoMotor);
   return partes.join(' ').replace(/\s+/g, ' ').trim();
 }
 
+function _condicionDe(p){
+  const ex = p.extras || {};
+  return ex.estado || ex.estadoMotor || 'Usado';
+}
+
+// Texto legal que Tracto Partes ya usa en TODOS sus productos de Leadway
+// (fotos ilustrativas, responsabilidad, garantía de 1 mes y reclamaciones).
+// Va idéntico para que las piezas nuevas se lean igual que las de siempre.
+const LEADWAY_LEGAL =
+  '<p>Las fotos publicadas son únicamente ilustrativas y sirven como referencia visual de las piezas. ' +
+  'Es posible que la pieza entregada no sea exactamente la de la imagen, pero se garantiza que será del mismo modelo ' +
+  'y compatible con el tractocamión correspondiente. Contamos con un amplio stock para cubrir tus necesidades.</p>' +
+  '<p>Es responsabilidad del comprador verificar la compatibilidad de la pieza con su unidad. ' +
+  'No se ofrece asesoría sobre si la pieza es adecuada para un modelo específico.</p>' +
+  '<p>Garantía: TractoPartes Magaña ofrece 1 (un) mes de garantía a partir de la fecha de compra, ' +
+  'aplicable únicamente bajo revisión y validación del producto. Para cualquier reclamación, ' +
+  'la pieza deberá presentarse para inspección.</p>' +
+  '<p>En caso de reclamación por cambio o garantía, si durante la revisión la pieza no es reconocida como vendida ' +
+  'por TractoPartes Magaña (por no coincidir con el producto originalmente vendido), no procederá el cambio ni la garantía. ' +
+  'En ese supuesto, el cliente deberá acudir físicamente a recoger la pieza presentada.</p>' +
+  '<p>Atentamente, TractoPartes Magaña</p>';
+
 function _descLeadway(p){
   const ex = p.extras || {};
+  const cond = _condicionDe(p).toLowerCase();
+  // Primera línea: la del producto, como las que ya escriben ellos.
+  let intro = _tituloLeadway(p) + ' ' + cond + ', probado y listo para instalar.';
+
+  // Ficha técnica corta, solo con lo que la pieza tenga.
   const filas = [];
   const add = (k, v) => { if (v) filas.push('<li><strong>' + k + ':</strong> ' + escapeHtml(String(v)) + '</li>'); };
-  add('Marca', p.marca || p.camionMarca);
-  add('Motor', p.motor);
   add('Caballaje', ex.hp ? ex.hp + ' HP' : '');
   add('Año', p['año'] || p.camionAño);
-  add('Condición', ex.estado || ex.estadoMotor);
   add('N° de serie', ex.serie);
   add('CPL', ex.cpl);
   add('Terminación', (ex.terminacion && ex.terminacion !== p.modelo) ? ex.terminacion : '');
   add('Detalle', ex.fichaExtra);
-  return (filas.length ? '<ul>' + filas.join('') + '</ul>' : '') +
-    '<p>Refacción disponible en Tracto Partes Magaña, Col. Argentina, Monterrey. ' +
-    'Más de 30 años surtiendo refacciones para camión.</p>';
+
+  // Link a nuestra ficha pública: ahí están TODAS las fotos en alta y el video.
+  // Resuelve de paso que por CSV solo se pueda mandar una foto.
+  const media = mediaDePieza(p.id);
+  const hayVideo = media.some(m => m && m.t === 'video');
+  const link = '<p><a href="' + PUB_URL_BASE + encodeURIComponent(p.id) + '"><strong>' +
+    (hayVideo ? '¡DALE CLICK AQUI PARA VER EL VIDEO!' : '¡DALE CLICK AQUI PARA VER TODAS LAS FOTOS!') +
+    '</strong></a></p>';
+
+  return '<p>' + escapeHtml(intro) + '</p>' + link +
+    (filas.length ? '<ul>' + filas.join('') + '</ul>' : '') +
+    LEADWAY_LEGAL;
+}
+
+// SEO al estilo de los suyos: "Motor ISX con EGR VGT Usado – Probado y Listo
+// para Trabajar". Se recorta a los límites que marca Leadway (70 y 155).
+function _seoTituloLeadway(p){
+  const base = _tituloLeadway(p) + ' ' + _condicionDe(p) + ' – Probado y Listo para Trabajar';
+  return base.length <= 70 ? base : (_tituloLeadway(p) + ' ' + _condicionDe(p)).slice(0, 70);
+}
+function _seoDescLeadway(p){
+  const t = _tituloLeadway(p) + ' ' + _condicionDe(p).toLowerCase() +
+    ' y probado, ideal para aplicaciones de tracto camión y trabajo pesado. Monterrey.';
+  return t.slice(0, 155);
 }
 
 // Quita la marca de "ya publicada" para que las piezas vuelvan a salir en el
@@ -4618,19 +4666,30 @@ function exportarLeadway(limite){
     const media = mediaDePieza(p.id).filter(m => m && m.t !== 'video');
     const foto = media.length ? (media[0].web || media[0].url || '') : '';
     const cant = contarIguales(p);
+    // Variantes al estilo de sus productos actuales: Compatibilidad, Condicion
+    // y Marca. Solo se mandan las que la pieza realmente tenga.
+    const ex = p.extras || {};
+    const marca = p.marca || p.camionMarca || '';
+    const compat = [marca, p.motor, p.modelo].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
     const fila = {
       'Handle': _handleDe(p),
       'Title': _tituloLeadway(p),
       'Body (HTML)': _descLeadway(p),
       'Included in Online Store': enTienda ? 'TRUE' : 'FALSE',
       'Image Src': foto,
+      'Option1 Name': compat ? 'Compatibilidad' : '',
+      'Option1 Value': compat,
+      'Option2 Name': 'Condicion',
+      'Option2 Value': _condicionDe(p),
+      'Option3 Name': marca ? 'Marca' : '',
+      'Option3 Value': marca,
       'Variant Price': p.precioWeb || '',
       'Track Inventory': 'TRUE',
       'Allow Out of Stock Purchases': 'FALSE',
       'Available Quantity': enTienda ? cant : 0,
       'SKU': p.folioInterno || '',
-      'SEO Title': _tituloLeadway(p) + ' · Tracto Partes Magaña',
-      'SEO Description': _tituloLeadway(p) + ' disponible en Monterrey. Refacciones para camión con más de 30 años de experiencia.'
+      'SEO Title': _seoTituloLeadway(p),
+      'SEO Description': _seoDescLeadway(p)
     };
     filas.push(LEADWAY_COLS.map(c => _csvCampo(fila[c] !== undefined ? fila[c] : '')).join(','));
   };
@@ -4903,7 +4962,7 @@ function editarPieza(id) {
     <div class="field" style="background:#eef6ff; border:1px solid #b8d4f0; border-radius:8px; padding:12px;">
       <label style="color:#185FA5;">🌐 Precio para la PÁGINA WEB</label>
       <input type="number" inputmode="numeric" id="edit-precio-web" placeholder="Déjalo vacío para que diga 'Cotizar por WhatsApp'" value="${p.precioWeb || ''}">
-      <div style="font-size:12px; color:#5a7fa5; margin-top:6px;">Este es <strong>aparte</strong> del de arriba. El de arriba es el de mostrador y nunca se publica; este es el que ve el cliente en internet (aquí ya le cargas la comisión de Mercado Pago).</div>
+      <div style="font-size:12px; color:#5a7fa5; margin-top:6px;">Este es <strong>aparte</strong> del de arriba. El de arriba es el de mostrador y nunca se publica; este es el que ve el cliente en internet (aquí ya le cargas la comisión de Mercado Pago).<br><strong style="color:#b03a2e;">Ponlo SIN IVA:</strong> Leadway le suma el 16% encima, así está configurada tu tienda.</div>
       <label style="display:flex; align-items:center; gap:8px; margin-top:10px; cursor:pointer; font-weight:600; color:#c0392b;">
         <input type="checkbox" id="edit-no-web" ${p.noWeb ? 'checked' : ''} style="width:18px; height:18px;">
         No publicar esta pieza en la página web
