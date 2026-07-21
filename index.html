@@ -4710,6 +4710,18 @@ function exportarLeadway(limite){
       'SEO Description': _seoDescLeadway(p)
     };
     filas.push(LEADWAY_COLS.map(c => _csvCampo(fila[c] !== undefined ? fila[c] : '')).join(','));
+
+    // FOTOS EXTRA: en el formato de Shopify (que es el que copió Leadway), las
+    // demás fotos del producto van en renglones aparte con el MISMO Handle y
+    // solo la columna Image Src llena. Si Leadway no lo entiende así, lo peor
+    // que pasa es que ignore esos renglones o cree variantes de más — por eso
+    // conviene probarlo con "Prueba con 3" antes de mandar un lote grande.
+    media.slice(1, 8).forEach(function(m){
+      const url = m.web || m.url || '';
+      if (!url) return;
+      const extra = { 'Handle': _handleDe(p), 'Image Src': url };
+      filas.push(LEADWAY_COLS.map(c => _csvCampo(extra[c] !== undefined ? extra[c] : '')).join(','));
+    });
   };
   subir.forEach(p => arma(p, true));
 
