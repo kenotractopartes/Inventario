@@ -65,6 +65,19 @@ async function verificarSesion(idToken) {
 }
 
 // Llamada a la API de Leadway con los headers que pide su documentación.
+// Leadway a veces manda el total como número y a veces como objeto
+// ({total: 272}). Esto lo deja siempre en número, o null si no vino.
+function _total(r) {
+  if (r == null) return null;
+  const t = r.total;
+  if (typeof t === 'number') return t;
+  if (t && typeof t === 'object') {
+    const n = t.total != null ? t.total : t.count;
+    return typeof n === 'number' ? n : null;
+  }
+  return null;
+}
+
 async function leadway(ruta, opciones = {}) {
   const token = process.env.LEADWAY_TOKEN;
   if (!token) throw new Error('Falta configurar LEADWAY_TOKEN en Netlify');
@@ -115,7 +128,7 @@ exports.handler = async (event) => {
         return respuesta(200, {
           ok: true,
           correo: sesion.correo,
-          totalProductos: (r.total !== undefined ? r.total : (r.products || []).length),
+          totalProductos: (_total(r) != null ? _total(r) : (r.products || []).length),
           mensaje: 'Conexión con Leadway funcionando'
         }, origen);
       }
@@ -135,7 +148,7 @@ exports.handler = async (event) => {
           fotos: (p.medias || []).length,
           actualizado: p.updatedAt
         }));
-        return respuesta(200, { ok: true, total: r.total, productos }, origen);
+        return respuesta(200, { ok: true, total: _total(r), productos }, origen);
       }
 
       // Devuelve el producto tal cual lo manda Leadway. Sirve para ver qué
@@ -239,7 +252,8 @@ exports.handler = async (event) => {
           if (!lote.length) break;
           encontrado = lote.find(p => String(p.slug || '').toLowerCase() === objetivo) || null;
           salto += lote.length;
-          if (r.total != null && salto >= r.total) break;
+          const tot = _total(r);
+          if (tot != null && salto >= tot) break;
         }
         return respuesta(200, {
           ok: true,
@@ -264,7 +278,7 @@ exports.handler = async (event) => {
         for (; vueltas < 30; vueltas++) {
           const r = await leadway('/products/?locationId=' + encodeURIComponent(locationId) +
             '&limit=100&offset=' + salto);
-          if (totalDicho === null && r.total != null) totalDicho = r.total;
+          if (totalDicho === null) totalDicho = _total(r);
           const lote = r.products || [];
           if (!lote.length) break;
           lote.forEach(p => {
