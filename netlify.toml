@@ -1,0 +1,23 @@
+# ============================================================
+# NETLIFY — solo para las funciones que hablan con Leadway
+# ============================================================
+# La página del inventario NO se publica aquí: sigue viviendo en
+# GitHub Pages (fotonas.tractopartes.com). Netlify solo hospeda la
+# piecita que guarda el token de Leadway y hace las llamadas a su API.
+#
+# El token NUNCA va en el código. Se pone en Netlify:
+#   Site configuration → Environment variables
+#     LEADWAY_TOKEN        = el token del portal de Leadway
+#     LEADWAY_LOCATION_ID  = X5IvuUwUt1zHBGlNSCNF
+#     FIREBASE_API_KEY     = la del inventario (es pública, no es secreta)
+#     EMAILS_PERMITIDOS    = correos que pueden usarla, separados por coma
+# ============================================================
+
+[build]
+  # Carpeta con una página vacía: no queremos publicar el inventario aquí.
+  publish = "netlify_publico"
+  functions = "netlify/functions"
+  command = "echo 'sin build: solo funciones'"
+
+[functions]
+  node_bundler = "esbuild"
