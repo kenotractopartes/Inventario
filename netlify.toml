@@ -31,5 +31,13 @@
     # que Netlify siga vigilando que no se nos escape al repo.
     SECRETS_SCAN_OMIT_KEYS = "FIREBASE_API_KEY,EMAILS_PERMITIDOS,LEADWAY_LOCATION_ID"
 
+    # Netlify tiene un SEGUNDO guardia que caza cualquier texto con pinta de
+    # llave de Google ("AIza..."), aunque no sea ninguna variable declarada.
+    # En index.html hay dos, las dos públicas a propósito: la del inventario y
+    # la de Maura (de ahí lee sus ventas). Se omiten esas DOS exactas y nada
+    # más, para que el guardia siga vigilando por si algún día se nos escapa
+    # una llave de verdad. NO se apaga la detección completa.
+    SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyB8MRNvbAhk7tJa731DolvnnFr_1S9imLk,AIzaSyAzr0B8M-8PeJwK0XAaHDapyLPzsvmTThY"
+
 [functions]
   node_bundler = "esbuild"
