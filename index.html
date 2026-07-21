@@ -301,7 +301,7 @@
   </div>
   <div class="card" style="background:#eef6ff; border:2px solid #b8d4f0; padding:14px; margin-bottom:16px;">
     <div style="font-size:15px; font-weight:900; color:#185FA5;">📦 Archivo para Leadway</div>
-    <div style="font-size:13px; color:#5a7fa5; margin:6px 0 11px;">Genera el CSV que se sube en <strong>Leadway → Pagos → Productos → Importar como CSV</strong>. Sube las nuevas con su foto y su precio, y baja de la tienda las que ya se vendieron.</div>
+    <div style="font-size:13px; color:#5a7fa5; margin:6px 0 11px;">Genera el CSV que se sube en <strong>Leadway → Pagos → Productos → Importar como CSV</strong>. Da de alta las piezas nuevas con su foto, su precio y sus datos.<br><strong style="color:#b03a2e;">Solo sirve para ALTAS.</strong> Leadway rechaza el archivo completo si trae un producto que ya existe, así que las bajas y los cambios de precio se hacen a mano en su panel.</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
       <button class="btn btn-mini" style="background:#c9a24b; color:#17140f; border-color:#c9a24b; font-weight:800;" onclick="exportarLeadway(3)">🧪 Prueba con 3</button>
       <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="exportarLeadway(0)">⬇️ CSV para Leadway</button>
@@ -4405,6 +4405,10 @@ function renderWeb(){
   // BAJAR: vendidas dentro del rango. SUBIR: en patio y registradas en el rango.
   const bajar = DATA.piezas.filter(p => p.vendida && (p.fechaVenta || 0) >= desde)
     .sort((a,b) => (b.fechaVenta||0) - (a.fechaVenta||0));
+  // De las vendidas, las que ESTE sistema subió a Leadway (p.enWeb) son las
+  // únicas que sabemos con certeza que están allá y hay que quitar. Las demás
+  // se cargaron a mano y no tenemos forma de saber cómo se llaman en su panel.
+  const pendientesBaja = DATA.piezas.filter(p => p.enWeb && p.vendida);
   const subir = DATA.piezas.filter(p => !p.vendida && !p.noWeb && !p.enWeb && (p.fechaRegistro || 0) >= desde)
     .sort((a,b) => (b.fechaRegistro||0) - (a.fechaRegistro||0));
   // Para irse a Leadway una pieza necesita foto Y precio web. Se separan para
@@ -4423,21 +4427,22 @@ function renderWeb(){
       if (vistos[k]) return false;
       vistos[k] = true; return true;
     }).length;
-    const bajas = DATA.piezas.filter(p => p.enWeb && p.vendida).length;
+    const bajas = pendientesBaja.length;
     const yaMandadas = DATA.piezas.filter(p => p.enWeb && !p.vendida).length;
     info.innerHTML = (listas || bajas
-        ? '<strong>' + listas + '</strong> por subir · <strong>' + bajas + '</strong> por bajar'
+        ? '<strong>' + listas + '</strong> por subir' + (bajas ? ' · <strong>' + bajas + '</strong> por quitar a mano' : '')
         : 'Nada pendiente por ahora.') +
       (yaMandadas ? ' <span style="color:#888;">· ' + yaMandadas + ' ya marcadas como publicadas</span>' : '');
     const btnRe = document.getElementById('btn-reenviar-web');
     if (btnRe) btnRe.style.display = yaMandadas ? '' : 'none';
   }
 
-  const cajita = (titulo, sub, color, fondo, lista, vacio) =>
+  const cajita = (titulo, sub, color, fondo, lista, vacio, extra) =>
     '<div class="card" style="padding:0; overflow:hidden; margin-bottom:16px; border:2px solid ' + color + ';">' +
       '<div style="background:' + fondo + '; padding:14px 16px;">' +
         '<div style="font-size:17px; font-weight:900; color:' + color + ';">' + titulo + ' (' + lista.length + ')</div>' +
         '<div style="font-size:13px; color:#666; margin-top:2px;">' + sub + '</div>' +
+        (extra || '') +
       '</div>' +
       (lista.length ? lista.map(p => _webFila(p, titulo.indexOf('BAJAR') !== -1 ? 'baja' : 'alta')).join('')
                     : '<div style="padding:20px; text-align:center; color:#999; font-size:14px;">' + vacio + '</div>') +
@@ -4447,7 +4452,11 @@ function renderWeb(){
     '<div style="font-size:14px; color:#666; margin-bottom:12px;">' +
       (desdeStr ? 'Movimientos del <strong>' + desdeStr + '</strong> a hoy.' : 'Mostrando <strong>todo el historial</strong>.') +
     '</div>' +
-    cajita('❌ BAJAR de la web', 'Ya se vendieron — quitarlas de tractopartes.com', '#c0392b', '#fdecea', bajar, 'No se ha vendido nada en este periodo.') +
+    cajita('❌ BAJAR de la web', 'Ya se vendieron — hay que quitarlas <strong>a mano</strong> en Leadway (su importador de CSV no acepta bajas)', '#c0392b', '#fdecea', bajar, 'No se ha vendido nada en este periodo.',
+      pendientesBaja.length
+        ? '<div style="margin-top:10px;"><button class="btn btn-mini" style="background:#c0392b; color:#fff; border-color:#c0392b; font-weight:800;" onclick="marcarBajadasLeadway()">✓ Ya quité ' + pendientesBaja.length + ' de Leadway</button>' +
+          '<div style="font-size:12px; color:#8a4034; margin-top:5px;">De las de abajo, <strong>' + pendientesBaja.length + '</strong> las subió este sistema, así que sí están en Leadway y hay que quitarlas.</div></div>'
+        : '') +
     cajita('✅ SUBIR a la web', 'Tienen foto y precio web — listas para irse a Leadway', '#2e7d46', '#eaf7ef', subirConFoto, 'No hay nada listo para subir en este periodo.') +
     (subirSinPrecio.length
       ? cajita('💲 Falta precio web', 'Ya tienen foto, pero sin precio web no se pueden vender en línea', '#185FA5', '#eef6ff', subirSinPrecio, '')
@@ -4516,6 +4525,22 @@ function _descLeadway(p){
 // Quita la marca de "ya publicada" para que las piezas vuelvan a salir en el
 // próximo archivo. Sirve para dos casos: (1) se marcaron por error sin haberlas
 // subido, y (2) les cambiaron el precio o el folio y hay que reenviarlas.
+// Leadway no acepta bajas por CSV (rechaza todo el archivo si el Handle ya
+// existe), así que las vendidas se quitan a mano en su panel. Este botón sirve
+// para decirle al sistema "ya las quité", y así dejan de aparecer en la lista.
+function marcarBajadasLeadway(){
+  if (typeof esEditor === 'function' && !esEditor()) { alert('Entra como Editor para marcarlas.'); return; }
+  const pend = DATA.piezas.filter(p => p.enWeb && p.vendida);
+  if (!pend.length) { alert('No hay piezas pendientes de quitar en Leadway.'); return; }
+  if (!confirm('¿Ya quitaste estas ' + pend.length + ' pieza(s) de Leadway a mano?\n\n' +
+      'Si le das Aceptar, dejo de recordártelas.\n\n' +
+      'Ojo: esto NO las quita de Leadway — eso hay que hacerlo allá, en su panel.')) return;
+  pend.forEach(p => { delete p.enWeb; });
+  guardar();
+  renderWeb();
+  toast(pend.length + ' pieza(s) dadas por quitadas', 'success');
+}
+
 function reenviarALeadway(){
   if (typeof esEditor === 'function' && !esEditor()) { alert('Entra como Editor para volver a mandarlas.'); return; }
   const marcadas = DATA.piezas.filter(p => p.enWeb && !p.vendida);
@@ -4538,8 +4563,9 @@ function exportarLeadway(limite){
     return DATA.piezas.filter(x => !x.vendida && _modelKey(x) === k).length;
   };
 
-  // SUBIR: con foto, con precio web, no vendidas, no excluidas y que no se
-  // hayan mandado antes. BAJAR: las que sí mandamos y ya se vendieron.
+  // SUBIR: con foto, con precio web, no vendidas, no excluidas y —muy importante—
+  // que NO se hayan mandado antes: si una ya está en Leadway, su Handle repetido
+  // tumbaría toda la importación.
   let subir = DATA.piezas.filter(p => !p.vendida && !p.noWeb && !p.enWeb &&
     p.precioWeb > 0 && mediaDePieza(p.id).length > 0);
   // De piezas idénticas (mismo modelo) solo va UNA, con la cantidad correcta:
@@ -4552,7 +4578,13 @@ function exportarLeadway(limite){
     vistos[k] = true; return true;
   });
   subir.sort((a,b) => (b.fechaRegistro||0) - (a.fechaRegistro||0));
-  const bajar = DATA.piezas.filter(p => p.enWeb && p.vendida);
+  // OJO (probado el 21 jul 2026): Leadway RECHAZA EL ARCHIVO COMPLETO si trae un
+  // Handle que ya existe ("Handle is already used for another product at row 2").
+  // No lo salta ni lo duplica: no entra NADA. Por eso el CSV es SOLO PARA ALTAS.
+  // Las vendidas NO se pueden incluir con "Included in Online Store = FALSE"
+  // porque ya existen allá y tumbarían toda la importación. Se bajan a mano con
+  // la lista ❌ BAJAR de esta misma pantalla.
+  const bajar = [];
 
   if (limite > 0) subir = subir.slice(0, limite);
 
@@ -4576,8 +4608,8 @@ function exportarLeadway(limite){
     }
   }
 
-  if (!subir.length && !bajar.length) {
-    alert('No hay nada que mandar a Leadway.\n\nPara que una pieza salga aquí necesita:\n  • foto\n  • precio web\n  • no estar vendida\n  • no estar marcada como "no publicar en web"\n\nRevisa la pestaña 🌐 Web para ver cuáles están a medias.');
+  if (!subir.length) {
+    alert('No hay piezas NUEVAS que mandar a Leadway.\n\nPara que una pieza salga en el archivo necesita:\n  • foto\n  • precio web\n  • no estar vendida\n  • no estar marcada como "no publicar en web"\n  • no haberse mandado antes\n\nRecuerda: este archivo es SOLO PARA DAR DE ALTA productos nuevos.\nLas vendidas se quitan a mano en Leadway (mira la lista ❌ BAJAR de abajo).');
     return;
   }
 
@@ -4603,7 +4635,6 @@ function exportarLeadway(limite){
     filas.push(LEADWAY_COLS.map(c => _csvCampo(fila[c] !== undefined ? fila[c] : '')).join(','));
   };
   subir.forEach(p => arma(p, true));
-  bajar.forEach(p => arma(p, false));
 
   // SIN BOM a propósito. El que lee este archivo es el importador de Leadway,
   // no Excel: si le llega el BOM, la primera columna se le llamaría "﻿Handle"
@@ -4619,10 +4650,8 @@ function exportarLeadway(limite){
   // bien. Si se marcaran solas y Leadway fallara, esas piezas ya nunca
   // volverían a salir en la lista y quedarían fuera de la web sin que nadie
   // se diera cuenta.
-  const msg = '✅ Archivo descargado: ' + (subir.length + bajar.length) + ' producto(s)\n' +
-    '  • ' + subir.length + ' para SUBIR\n' +
-    '  • ' + bajar.length + ' para BAJAR de la tienda\n\n' +
-    'Ahora súbelo en Leadway → Pagos → Productos → Importar como CSV.\n\n' +
+  const msg = '✅ Archivo descargado: ' + subir.length + ' producto(s) NUEVOS\n\n' +
+    'Súbelo en Leadway → Pagos → Productos → Importar como CSV.\n\n' +
     '━━━━━━━━━━━━━━━━━━━━━━━━\n' +
     'NO contestes todavía si apenas lo vas a subir.\n' +
     'Dale CANCELAR, súbelo, y si quedó bien vuelve a generar y ahí sí acepta.\n' +
@@ -4633,7 +4662,6 @@ function exportarLeadway(limite){
     if (!confirm(msg)) { toast('Archivo listo. Márcalas cuando lo hayas subido.', 'success'); return; }
     if (typeof esEditor === 'function' && !esEditor()) { alert('Se descargó el archivo, pero para marcarlas como publicadas hay que entrar como Editor.'); return; }
     subir.forEach(p => { p.enWeb = true; });
-    bajar.forEach(p => { delete p.enWeb; });
     guardar();
     renderWeb();
     toast('Marcadas como publicadas', 'success');
