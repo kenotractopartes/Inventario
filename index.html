@@ -308,6 +308,7 @@
       <button class="btn btn-mini" id="btn-reenviar-web" style="display:none;" onclick="reenviarALeadway()">↺ Volver a mandar</button>
       <button class="btn btn-mini" onclick="probarLeadway()" title="Confirma que la conexión directa con Leadway funciona (solo lee, no toca nada)">🔌 Probar conexión</button>
       <button class="btn btn-mini" onclick="diagnosticoLeadway()" title="Enseña cómo se ve un producto por dentro (solo lee)">🔍 Ver un producto</button>
+      <button class="btn btn-mini" style="background:#fdf6e3; border-color:#c9a24b; color:#8a6d3b; font-weight:800;" onclick="abrirPruebaApi()" title="Estrena el IVA y la baja de tienda contra el producto de mentiras">🧪 Banco de pruebas</button>
       <span id="web-leadway-info" style="font-size:13px; color:#5a7fa5;"></span>
     </div>
   </div>
@@ -2143,6 +2144,66 @@ function diagnosticoLeadway(){
   }).catch(function(e){
     alert('No se pudo: ' + (e.message || e));
   });
+}
+
+// ── BANCO DE PRUEBAS ───────────────────────────────────────────────────────
+// Todo lo que MODIFICA la tienda se estrena aquí, contra un producto de
+// mentiras llamado "PRUEBA API". Así se comprueba que poner el IVA y bajar de
+// la tienda funcionan sin romper nada, antes de soltarlo con los reales.
+var _pruebaApi = null;
+
+function abrirPruebaApi(){
+  toast('Buscando el producto de prueba…', 'success');
+  llamarLeadway('listar', { limite: 100 }).then(function(r){
+    var p = (r.productos || []).find(function(x){ return /prueba\s*api/i.test(x.nombre || ''); });
+    if(!p) throw new Error('No encontré ningún producto que se llame "PRUEBA API".\n\nCréalo en Leadway con ese nombre y vuelve a intentar.');
+    _pruebaApi = p;
+    _pintarPruebaApi();
+    openModal('modal-precios');
+  }).catch(function(e){ alert(e.message || e); });
+}
+
+function _pintarPruebaApi(){
+  var p = _pruebaApi;
+  var si = function(v){ return v ? '<span style="color:#2e7d46; font-weight:800;">SÍ</span>'
+                                 : '<span style="color:#c0392b; font-weight:800;">NO</span>'; };
+  document.getElementById('modal-precios-title').textContent = 'Banco de pruebas · Leadway';
+  document.getElementById('modal-precios-body').innerHTML =
+    '<div style="background:#fdf6e3; border:1px solid #e8d9b0; border-radius:8px; padding:12px; margin-bottom:14px; font-size:13px; color:#8a6d3b;">' +
+      'Esto <strong>sí modifica</strong> la tienda, pero solo este producto de mentiras. ' +
+      'Sirve para comprobar que funciona antes de tocar los reales.' +
+    '</div>' +
+    '<div style="font-size:17px; font-weight:900; margin-bottom:4px;">' + escapeHtml(p.nombre || '') + '</div>' +
+    '<div style="font-size:12px; color:#999; font-family:ui-monospace,monospace; margin-bottom:14px;">' + escapeHtml(p.handle || '(sin slug)') + '</div>' +
+    '<div style="border:1px solid #e5ded0; border-radius:8px; overflow:hidden; margin-bottom:16px;">' +
+      '<div style="display:flex; justify-content:space-between; padding:11px 14px; border-bottom:1px solid #eee;"><span>Tiene IVA</span>' + si(p.conIva) + '</div>' +
+      '<div style="display:flex; justify-content:space-between; padding:11px 14px;"><span>Está en la tienda</span>' + si(p.enTienda) + '</div>' +
+    '</div>' +
+    '<button onclick="_accionPrueba(\'ponerIva\')" style="width:100%; padding:13px; margin-bottom:9px; border:none; border-radius:8px; background:#185FA5; color:#fff; font-size:15px; font-weight:800; cursor:pointer;">💰 Ponerle el IVA</button>' +
+    '<button onclick="_accionPrueba(\'bajarDeTienda\')" style="width:100%; padding:13px; border:none; border-radius:8px; background:#c0392b; color:#fff; font-size:15px; font-weight:800; cursor:pointer;">❌ Bajarlo de la tienda</button>' +
+    '<div style="font-size:12px; color:#888; margin-top:12px; text-align:center;">Bajarlo <strong>no lo borra</strong>: solo lo saca del escaparate.</div>';
+}
+
+function _accionPrueba(accion){
+  if(!_pruebaApi) return;
+  var nombres = { ponerIva: 'ponerle el IVA', bajarDeTienda: 'bajarlo de la tienda' };
+  if(!confirm('¿' + (nombres[accion] || accion) + ' a "' + _pruebaApi.nombre + '"?\n\nEsto sí modifica la tienda.')) return;
+  toast('Mandando…', 'success');
+  llamarLeadway(accion, { productoId: _pruebaApi.id }).then(function(r){
+    if(r.sinCambios){ alert('ℹ️ ' + r.mensaje); }
+    else if(accion === 'ponerIva'){
+      alert('✅ IVA aplicado a "' + r.nombre + '"\n\nAntes: ' + (r.ivaAntes ? 'con IVA' : 'SIN IVA') +
+            '\nAhora: ' + (r.ivaAhora ? 'CON IVA' : 'sin IVA'));
+    } else {
+      alert('✅ "' + r.nombre + '" fuera de la tienda\n\nAntes: ' + (r.enTiendaAntes ? 'en la tienda' : 'fuera') +
+            '\nAhora: ' + (r.enTiendaAhora ? 'en la tienda' : 'FUERA'));
+    }
+    // Se vuelve a leer para que la pantalla enseñe cómo quedó de verdad.
+    return llamarLeadway('listar', { limite: 100 }).then(function(l){
+      var p = (l.productos || []).find(function(x){ return x.id === _pruebaApi.id; });
+      if(p){ _pruebaApi = p; _pintarPruebaApi(); }
+    });
+  }).catch(function(e){ alert('❌ Falló: ' + (e.message || e)); });
 }
 
 // Prueba de vida: confirma que el token de Leadway sirve y cuántos productos ve.

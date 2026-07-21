@@ -131,6 +131,7 @@ exports.handler = async (event) => {
           nombre: p.name,
           handle: p.slug || p.handle || '',
           enTienda: p.availableInStore,
+          conIva: !!p.isTaxesEnabled,
           fotos: (p.medias || []).length,
           actualizado: p.updatedAt
         }));
