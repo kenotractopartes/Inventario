@@ -146,6 +146,108 @@ exports.handler = async (event) => {
         return respuesta(200, { ok: true, producto: r }, origen);
       }
 
+      // ── DE AQUÍ PARA ABAJO SÍ MODIFICA LA TIENDA ────────────────────────
+      // Todas trabajan sobre UN producto a la vez y devuelven qué cambió, para
+      // que la app pueda enseñarlo antes y después. Nada actúa en lote a ciegas.
+
+      // Le pega el IVA a un producto. Es lo que el CSV no puede mandar y que
+      // hoy se palomea a mano; sin esto los productos nuevos se venden sin IVA.
+      case 'ponerIva': {
+        if (!peticion.productoId) return respuesta(400, { error: 'Falta el id del producto' }, origen);
+        const taxId = process.env.LEADWAY_TAX_ID;
+        if (!taxId) return respuesta(500, { error: 'Falta configurar LEADWAY_TAX_ID en Netlify' }, origen);
+
+        const antes = await leadway('/products/' + encodeURIComponent(peticion.productoId) +
+          '?locationId=' + encodeURIComponent(locationId));
+        if (antes.isTaxesEnabled && (antes.taxes || []).includes(taxId)) {
+          return respuesta(200, { ok: true, sinCambios: true, nombre: antes.name,
+            mensaje: 'Ese producto ya tenía el IVA puesto' }, origen);
+        }
+        // Leadway pide el objeto completo en el PUT: si solo mandas el campo
+        // que cambia, borra lo demás. Por eso se manda lo que ya tenía + el IVA.
+        const r = await leadway('/products/' + encodeURIComponent(peticion.productoId), {
+          method: 'PUT',
+          body: JSON.stringify({
+            locationId,
+            name: antes.name,
+            description: antes.description,
+            productType: antes.productType,
+            availableInStore: antes.availableInStore,
+            medias: antes.medias,
+            variants: antes.variants,
+            collectionIds: antes.collectionIds,
+            seo: antes.seo,
+            slug: antes.slug,
+            taxInclusive: antes.taxInclusive,
+            isTaxesEnabled: true,
+            taxes: [taxId]
+          })
+        });
+        return respuesta(200, { ok: true, nombre: antes.name,
+          ivaAntes: !!antes.isTaxesEnabled, ivaAhora: !!r.isTaxesEnabled }, origen);
+      }
+
+      // Saca un producto de la tienda cuando la pieza ya se vendió. NO lo
+      // borra: queda guardado por si vuelve a entrar una igual.
+      case 'bajarDeTienda': {
+        if (!peticion.productoId) return respuesta(400, { error: 'Falta el id del producto' }, origen);
+        const antes = await leadway('/products/' + encodeURIComponent(peticion.productoId) +
+          '?locationId=' + encodeURIComponent(locationId));
+        if (antes.availableInStore === false) {
+          return respuesta(200, { ok: true, sinCambios: true, nombre: antes.name,
+            mensaje: 'Ese producto ya estaba fuera de la tienda' }, origen);
+        }
+        const r = await leadway('/products/' + encodeURIComponent(peticion.productoId), {
+          method: 'PUT',
+          body: JSON.stringify({
+            locationId,
+            name: antes.name,
+            description: antes.description,
+            productType: antes.productType,
+            medias: antes.medias,
+            variants: antes.variants,
+            collectionIds: antes.collectionIds,
+            seo: antes.seo,
+            slug: antes.slug,
+            taxInclusive: antes.taxInclusive,
+            isTaxesEnabled: antes.isTaxesEnabled,
+            taxes: antes.taxes,
+            availableInStore: false
+          })
+        });
+        return respuesta(200, { ok: true, nombre: antes.name,
+          enTiendaAntes: antes.availableInStore, enTiendaAhora: r.availableInStore }, origen);
+      }
+
+      // Busca un producto por su slug (el "tpm-0189" que le ponemos). Sirve
+      // para encontrar en Leadway la pieza que se acaba de vender en el patio.
+      case 'buscarPorSlug': {
+        if (!peticion.slug) return respuesta(400, { error: 'Falta el slug' }, origen);
+        const objetivo = String(peticion.slug).toLowerCase();
+        let salto = 0, encontrado = null;
+        // La API pagina de 100 en 100; se recorre hasta hallarlo o acabarse.
+        for (let vuelta = 0; vuelta < 20 && !encontrado; vuelta++) {
+          const r = await leadway('/products/?locationId=' + encodeURIComponent(locationId) +
+            '&limit=100&offset=' + salto);
+          const lote = r.products || [];
+          if (!lote.length) break;
+          encontrado = lote.find(p => String(p.slug || '').toLowerCase() === objetivo) || null;
+          salto += lote.length;
+          if (r.total != null && salto >= r.total) break;
+        }
+        return respuesta(200, {
+          ok: true,
+          encontrado: !!encontrado,
+          producto: encontrado ? {
+            id: encontrado._id || encontrado.id,
+            nombre: encontrado.name,
+            slug: encontrado.slug,
+            enTienda: encontrado.availableInStore,
+            conIva: !!encontrado.isTaxesEnabled
+          } : null
+        }, origen);
+      }
+
       default:
         return respuesta(400, { error: 'Acción desconocida: ' + peticion.accion }, origen);
     }
