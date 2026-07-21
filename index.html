@@ -308,6 +308,7 @@
       <button class="btn btn-mini" id="btn-reenviar-web" style="display:none;" onclick="reenviarALeadway()">↺ Volver a mandar</button>
       <button class="btn btn-mini" onclick="probarLeadway()" title="Confirma que la conexión directa con Leadway funciona (solo lee, no toca nada)">🔌 Probar conexión</button>
       <button class="btn btn-mini" onclick="diagnosticoLeadway()" title="Enseña cómo se ve un producto por dentro (solo lee)">🔍 Ver un producto</button>
+      <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="ponerIvaEnLeadway()" title="Le pone el IVA 16% a los productos que subiste por CSV">💰 Ponerles el IVA</button>
       <button class="btn btn-mini" style="background:#fdf6e3; border-color:#c9a24b; color:#8a6d3b; font-weight:800;" onclick="abrirPruebaApi()" title="Estrena el IVA y la baja de tienda contra el producto de mentiras">🧪 Banco de pruebas</button>
       <span id="web-leadway-info" style="font-size:13px; color:#5a7fa5;"></span>
     </div>
@@ -2143,6 +2144,81 @@ function diagnosticoLeadway(){
     openModal('modal-precios');
   }).catch(function(e){
     alert('No se pudo: ' + (e.message || e));
+  });
+}
+
+// Cuando Raúl marca una pieza como vendida, si esa pieza estaba publicada en
+// la tienda se baja sola de Leadway. NUNCA tumba la venta: si algo falla
+// (sin internet, token vencido, no la encuentra) la venta ya quedó guardada y
+// solo se avisa para quitarla a mano. Bajar NO borra: solo la saca del
+// escaparate, por si vuelve a entrar una igual.
+function bajarDeLeadwayAlVender(p){
+  try {
+    if (!p || !p.enWeb) return;                       // nunca se subió: nada que bajar
+    if (typeof llamarLeadway !== 'function') return;   // puente no disponible
+    var slug = _handleDe(p);
+    var nombre = _tituloLeadway(p);
+    llamarLeadway('buscarPorSlug', { slug: slug }).then(function(r){
+      if (!r.encontrado) {
+        throw new Error('No la encontré en la tienda (buscaba "' + slug + '")');
+      }
+      if (r.producto.enTienda === false) {
+        // Ya estaba fuera: se limpia la marca y no se molesta a nadie.
+        delete p.enWeb; guardar();
+        return null;
+      }
+      return llamarLeadway('bajarDeTienda', { productoId: r.producto.id });
+    }).then(function(res){
+      delete p.enWeb;
+      guardar();
+      if (res) toast('🌐 "' + nombre + '" se bajó de la tienda', 'success');
+      if (typeof renderWeb === 'function' && document.getElementById('view-web')) {
+        try { renderWeb(); } catch(e){}
+      }
+    }).catch(function(e){
+      // La venta NO se toca. Solo se avisa que la web quedó pendiente.
+      console.error('bajar de Leadway:', e);
+      alert('⚠️ La venta quedó registrada, pero NO pude bajarla de la tienda.\n\n' +
+        (e.message || e) + '\n\n' +
+        'Quítala a mano en Leadway (busca "' + slug + '").\n' +
+        'La vas a seguir viendo en la lista ❌ BAJAR de la pestaña 🌐 Web.');
+    });
+  } catch(e) { console.error('bajar de Leadway:', e); }
+}
+
+// Le pone el IVA a los productos que subimos por CSV. El archivo no puede
+// mandar el impuesto, así que sin esto se venderían sin IVA. Va de uno en uno
+// para no atragantar a Leadway, y cuenta cuántos quedaron.
+function ponerIvaEnLeadway(){
+  var pendientes = DATA.piezas.filter(function(p){ return p.enWeb && !p.vendida && p.folioInterno; });
+  if(!pendientes.length){ alert('No hay piezas marcadas como publicadas en Leadway.'); return; }
+  if(!confirm('Voy a revisar ' + pendientes.length + ' pieza(s) publicadas y ponerles el IVA 16% en Leadway.\n\n' +
+      'A las que ya lo tengan no les toco nada.\n\n¿Le sigo?')) return;
+
+  var listos = 0, yaTenian = 0, fallaron = [];
+  toast('Revisando ' + pendientes.length + ' producto(s)…', 'success');
+
+  // En cadena, no todos a la vez: así se ve el avance y no se satura la API.
+  var cadena = Promise.resolve();
+  pendientes.forEach(function(p){
+    cadena = cadena.then(function(){
+      var slug = _handleDe(p);
+      return llamarLeadway('buscarPorSlug', { slug: slug }).then(function(r){
+        if(!r.encontrado){ fallaron.push(_tituloLeadway(p) + ' (no está en la tienda)'); return; }
+        if(r.producto.conIva){ yaTenian++; return; }
+        return llamarLeadway('ponerIva', { productoId: r.producto.id }).then(function(){ listos++; });
+      }).catch(function(e){
+        fallaron.push(_tituloLeadway(p) + ' — ' + (e.message || e));
+      });
+    });
+  });
+
+  cadena.then(function(){
+    alert('✅ Listo\n\n' +
+      '  IVA puesto: ' + listos + '\n' +
+      '  Ya lo tenían: ' + yaTenian + '\n' +
+      (fallaron.length ? '\n⚠️ No se pudo con ' + fallaron.length + ':\n  · ' + fallaron.slice(0,8).join('\n  · ') +
+        (fallaron.length > 8 ? '\n  · …y ' + (fallaron.length - 8) + ' más' : '') : ''));
   });
 }
 
@@ -4106,6 +4182,10 @@ function confirmarVenta() {
   if (typeof PUB !== 'undefined' && PUB[p.id]) {
     try { publicarFicha(p); } catch(e){ console.error('sync ficha venta:', e); }
   }
+  // Si esta pieza estaba publicada en la tienda, se baja SOLA de Leadway.
+  // Va después de guardar y sin bloquear: la venta ya quedó registrada aunque
+  // internet falle. Si no se logra, se avisa para hacerlo a mano.
+  bajarDeLeadwayAlVender(p);
   playDing(); toast('Venta registrada', 'success');
   closeModal('modal-venta');
   if (document.getElementById('modal-pieza')?.classList.contains('active') && p.camionId) closeModal('modal-pieza');
