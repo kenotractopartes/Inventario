@@ -4533,6 +4533,27 @@ function exportarLeadway(limite){
   const bajar = DATA.piezas.filter(p => p.enWeb && p.vendida);
 
   if (limite > 0) subir = subir.slice(0, limite);
+
+  // El Handle es PERMANENTE y suele ser también la dirección del producto en la
+  // web. Si la pieza no tiene folio interno cae al id de la base ("tpm-pza-
+  // 1784138883459-scuex-0"): feo para el cliente, malo para Google, y si
+  // después le ponen folio, Leadway lo vería como OTRO producto y se duplicaría.
+  // Por eso se avisa ANTES de generar, en vez de inventarlo en silencio.
+  const sinFolio = subir.filter(p => !p.folioInterno);
+  if (sinFolio.length) {
+    const cuales = sinFolio.slice(0, 8).map(p => '  · ' + ((FAMILIAS.find(x => x.id === p.familia) || {}).nombreSingular || p.familia) + ' ' + (p.modelo || '')).join('\n');
+    const seguir = confirm(
+      '⚠️ ' + sinFolio.length + ' pieza(s) NO tienen folio interno:\n\n' + cuales +
+      (sinFolio.length > 8 ? '\n  · …y ' + (sinFolio.length - 8) + ' más' : '') +
+      '\n\nSin folio, su dirección en la web queda fea y PERMANENTE (algo como\n"tpm-pza-1784138883459-scuex-0"), y la columna SKU va vacía.\n\n' +
+      'Lo mejor: cancela, ponles folio interno en Editar, y vuelve.\n\n' +
+      '¿Aun así quieres generarlo con esas piezas incluidas?');
+    if (!seguir) {
+      toast('Ponles folio interno y vuelve a intentar', 'error');
+      return;
+    }
+  }
+
   if (!subir.length && !bajar.length) {
     alert('No hay nada que mandar a Leadway.\n\nPara que una pieza salga aquí necesita:\n  • foto\n  • precio web\n  • no estar vendida\n  • no estar marcada como "no publicar en web"\n\nRevisa la pestaña 🌐 Web para ver cuáles están a medias.');
     return;
