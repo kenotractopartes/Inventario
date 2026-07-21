@@ -4497,14 +4497,32 @@ function _handleDe(p){
 // Título al estilo de los productos que ya tienen en Leadway: nombre de la
 // pieza + marca + modelo, sin la condición (esa va como variante) y sin guiones
 // largos. Ej: "Motor Cummins ISX CM570".
+// Pega los pedazos SIN repetir: en muchas piezas el motor y el modelo dicen lo
+// mismo ("N14 Celect Plus"), y pegarlos a lo bruto daba "N14 Celect Plus N14
+// Celect Plus". Compara sin acentos ni mayúsculas para cachar también "isx"/"ISX".
+function _pegarSinRepetir(partes){
+  const vistos = [], out = [];
+  const dentro = (chico, grande) => (' ' + grande + ' ').indexOf(' ' + chico + ' ') !== -1;
+  partes.forEach(function(v){
+    v = String(v == null ? '' : v).trim();
+    if (!v) return;
+    const k = v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+    // Ya est\u00e1, o ya viene incluido en algo anterior ("ISX" cuando ya hay "ISX 15").
+    if (vistos.some(function(x){ return dentro(k, x); })) return;
+    // Al rev\u00e9s: si lo nuevo se come a algo anterior ("ISX 15" cuando ya est\u00e1
+    // "ISX"), se queda el m\u00e1s espec\u00edfico y se tira el corto.
+    for (let i = vistos.length - 1; i >= 0; i--) {
+      if (dentro(vistos[i], k)) { vistos.splice(i, 1); out.splice(i, 1); }
+    }
+    vistos.push(k); out.push(v);
+  });
+  return out.join(' ').replace(/\s+/g, ' ').trim();
+}
+
 function _tituloLeadway(p){
   const f = FAMILIAS.find(x => x.id === p.familia);
-  const partes = [(f && f.nombreSingular) || p.familia];
-  const marca = p.marca || p.camionMarca || '';
-  if (marca) partes.push(marca);
-  if (p.motor && p.motor !== marca && p.motor !== p.modelo) partes.push(p.motor);
-  if (p.modelo) partes.push(p.modelo);
-  return partes.join(' ').replace(/\s+/g, ' ').trim();
+  return _pegarSinRepetir([(f && f.nombreSingular) || p.familia,
+    p.marca || p.camionMarca || '', p.motor, p.modelo]);
 }
 
 function _condicionDe(p){
@@ -4670,7 +4688,7 @@ function exportarLeadway(limite){
     // y Marca. Solo se mandan las que la pieza realmente tenga.
     const ex = p.extras || {};
     const marca = p.marca || p.camionMarca || '';
-    const compat = [marca, p.motor, p.modelo].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    const compat = _pegarSinRepetir([marca, p.motor, p.modelo]);
     const fila = {
       'Handle': _handleDe(p),
       'Title': _tituloLeadway(p),
