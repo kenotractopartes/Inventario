@@ -715,7 +715,9 @@ function _pintarModalPrecios(){
       '<input type="checkbox" onchange="_togglePrecioSel(\'' + id + '\', this.checked)"' + marcado + ' style="width:20px; height:20px; flex:none;">' +
       '<span style="flex:1; min-width:0; font-size:14px;"><strong>' + num + escapeHtml(p.modelo || '') + '</strong>' +
         (p.folioInterno ? ' <span style="color:#999; font-family:ui-monospace,monospace;">' + escapeHtml(p.folioInterno) + '</span>' : '') +
-        '<br><span style="font-size:12px; color:#888;">' + actual + '</span></span>' +
+        '<br><span style="font-size:12px; color:#888;">' + actual +
+          (p.precioWeb ? ' · <span style="color:#185FA5; font-weight:700;">🌐 ' + _fmtMx(p.precioWeb) + '</span>' : '') +
+          (p.noWeb ? ' · <span style="color:#c0392b;">no va a la web</span>' : '') + '</span></span>' +
     '</label>';
   }).join('');
 
@@ -728,6 +730,17 @@ function _pintarModalPrecios(){
           '<input type="number" id="bp-max" inputmode="numeric" placeholder="Ej. 4500" style="width:100%; padding:10px; border:2px solid #ccc; border-radius:6px; font-size:16px;"></div>' +
       '</div>' +
       '<div style="font-size:12px; color:#8a6d3b; margin-top:8px;">Si dejas uno en blanco, ese no se toca. Puedes poner solo el mínimo, solo el máximo, o los dos.</div>' +
+    '</div>' +
+    '<div style="background:#eef6ff; border:1px solid #b8d4f0; border-radius:8px; padding:12px; margin-bottom:14px;">' +
+      '<div style="font-size:13px; font-weight:800; color:#185FA5; margin-bottom:8px;">🌐 Precio para la PÁGINA WEB <span style="font-weight:400; color:#5a7fa5;">(opcional, va aparte)</span></div>' +
+      '<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">' +
+        '<div style="flex:1; min-width:130px;"><label style="font-size:12px; font-weight:700; color:#555;">Precio web</label>' +
+          '<input type="number" id="bp-web" inputmode="numeric" placeholder="Ej. 4200" style="width:100%; padding:10px; border:2px solid #b8d4f0; border-radius:6px; font-size:16px;"></div>' +
+        '<div style="flex:1; min-width:170px;"><label style="font-size:12px; font-weight:700; color:#555;">…o mejor: mínimo de cada pieza + %</label>' +
+          '<input type="number" id="bp-pct" inputmode="numeric" placeholder="Ej. 20" style="width:100%; padding:10px; border:2px solid #b8d4f0; border-radius:6px; font-size:16px;"></div>' +
+      '</div>' +
+      '<div style="font-size:12px; color:#5a7fa5; margin-top:8px;">Usa <strong>uno u otro</strong>. El precio fijo le pone lo mismo a todas; el <strong>%</strong> le calcula a cada pieza su propio precio web sobre su mínimo de mostrador (ej. 20% → una de $3,000 queda en $3,600 y una de $10,000 en $12,000).</div>' +
+      '<div style="font-size:12px; color:#5a7fa5; margin-top:6px;">El de arriba es el de <strong>mostrador</strong> y nunca se publica. Si dejas los dos vacíos, el precio web no se toca; si la pieza no tiene precio web, en internet dice <strong>"Cotizar por WhatsApp"</strong>.</div>' +
     '</div>' +
     '<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;">' +
       '<button onclick="_selPrecios(true)" style="padding:6px 11px; font-size:12px; font-weight:700; border:1px solid #ccc; border-radius:5px; background:#fff; cursor:pointer;">Palomear todas</button>' +
@@ -761,16 +774,41 @@ function aplicarPrecioMasivo(){
 
   const rawMin = (document.getElementById('bp-min').value || '').trim();
   const rawMax = (document.getElementById('bp-max').value || '').trim();
-  if (!rawMin && !rawMax) { alert('Escribe al menos un precio (mínimo o máximo).'); return; }
+  const rawWeb = (document.getElementById('bp-web').value || '').trim();
+  const rawPct = (document.getElementById('bp-pct').value || '').trim();
+  if (!rawMin && !rawMax && !rawWeb && !rawPct) { alert('Escribe al menos un precio (mostrador o web).'); return; }
+  if (rawWeb && rawPct) { alert('Para el precio web usa UNO de los dos: o el precio fijo, o el porcentaje. No los dos.'); return; }
   const min = rawMin ? Number(rawMin) : null;
   const max = rawMax ? Number(rawMax) : null;
-  if ((min !== null && (!isFinite(min) || min < 0)) || (max !== null && (!isFinite(max) || max < 0))) { alert('Los precios tienen que ser números positivos.'); return; }
+  const web = rawWeb ? Number(rawWeb) : null;
+  const pct = rawPct ? Number(rawPct) : null;
+  if ((min !== null && (!isFinite(min) || min < 0)) || (max !== null && (!isFinite(max) || max < 0)) ||
+      (web !== null && (!isFinite(web) || web < 0)) || (pct !== null && (!isFinite(pct) || pct <= -100))) {
+    alert('Los precios tienen que ser números positivos.'); return;
+  }
   if (min !== null && max !== null && max < min) { alert('El máximo no puede ser menor que el mínimo.'); return; }
+
+  // Con el %, cada pieza saca su propio precio web de su mínimo de mostrador.
+  // Si una pieza no tiene mínimo (ni se le está poniendo), no hay de dónde
+  // calcularlo: se avisa en vez de dejarla en cero sin que nadie se entere.
+  let sinBase = 0;
+  if (pct !== null) {
+    ids.forEach(function(id){
+      const p = DATA.piezas.find(function(x){ return x.id === id; });
+      if (p && !(min !== null ? min : p.precioSugerido)) sinBase++;
+    });
+  }
 
   // 1ª confirmación: resumen de lo que va a pasar.
   const resumen = 'Le vas a poner precio a ' + ids.length + ' pieza(s):\n\n' +
+    'MOSTRADOR (interno)\n' +
     (min !== null ? '  Mínimo:  ' + _fmtMx(min) + '\n' : '  Mínimo:  (no se toca)\n') +
     (max !== null ? '  Máximo:  ' + _fmtMx(max) + '\n' : '  Máximo:  (no se toca)\n') +
+    '\nPÁGINA WEB (lo que ve el cliente)\n' +
+    (web !== null ? '  Precio web:  ' + _fmtMx(web) + '\n'
+      : pct !== null ? '  Precio web:  el mínimo de cada pieza ' + (pct >= 0 ? '+' : '') + pct + '%\n'
+      : '  Precio web:  (no se toca)\n') +
+    (sinBase ? '\n⚠️ ' + sinBase + ' pieza(s) no tienen mínimo, así que a esas NO se les pondrá precio web.\n' : '') +
     '\nEsto PISA el precio que ya tuvieran.\n\n¿Le sigo?';
   if (!confirm(resumen)) return;
 
@@ -781,19 +819,32 @@ function aplicarPrecioMasivo(){
     return;
   }
 
-  let n = 0;
+  let n = 0, nWeb = 0;
+  const tocadas = [];
   ids.forEach(function(id){
     const p = DATA.piezas.find(function(x){ return x.id === id; });
     if (!p) return;
     if (min !== null) p.precioSugerido = min;
     if (max !== null) p.precioMax = max;
+    if (web !== null) {
+      if (web > 0) { p.precioWeb = web; } else { delete p.precioWeb; }
+      nWeb++;
+    } else if (pct !== null) {
+      const base = p.precioSugerido;   // ya trae el mínimo nuevo si se puso arriba
+      if (base) { p.precioWeb = Math.round(base * (1 + pct / 100)); nWeb++; }
+    }
+    tocadas.push(p);
     n++;
   });
 
   guardar();
+  // Las que ya tienen ficha pública (o sea, las que salen en la web) se
+  // republican para que el precio nuevo se vea al instante en el catálogo.
+  tocadas.forEach(function(p){ try { publicarFicha(p); } catch(e){ console.error('sync ficha precio:', e); } });
   closeModal('modal-precios');
   renderBusqueda();
-  alert('✅ Listo. Se le puso precio a ' + n + ' pieza(s).');
+  alert('✅ Listo. Se le puso precio a ' + n + ' pieza(s).' +
+    (nWeb ? '\n\nPrecio de página web puesto en ' + nWeb + ' de esas.' : ''));
 }
 
 // ── Importación única del sistema viejo de arneses del taller ──────────────
@@ -2084,6 +2135,16 @@ function datosPublicosDePieza(p){
     // Si la pieza ya se vendió, el QR pegado en el motor (que un cliente pudo
     // escanear meses después) lo dice claro en vez de ofrecer algo que ya no hay.
     vendida: !!p.vendida,
+    // ── Para el catálogo de la página web ──────────────────────────────────
+    // El precio del inventario es el de MOSTRADOR y NUNCA se publica. El de la
+    // web es un campo aparte (p.precioWeb) porque no son el mismo número: en la
+    // web pesan las comisiones de Mercado Pago. Vacío = "Cotizar por WhatsApp".
+    precioWeb: p.precioWeb ? Number(p.precioWeb) : 0,
+    familia: p.familia || '',
+    familiaNombre: (f && (f.nombreSingular || f.nombre)) || '',
+    apartada: !!p.apartada,
+    // false = esta pieza NO sale en el catálogo (pero su QR sigue vivo).
+    web: !p.noWeb,
     marca: p.marca || p.camionMarca || '',
     motor: p.motor || '',
     hp: ex.hp || '',
@@ -4444,6 +4505,15 @@ function editarPieza(id) {
       </details>
     </div>
     <div class="field"><label>Precio venta (puedes poner rango: 2000-3000)</label><input type="text" inputmode="text" class="precio-input" id="edit-precio" value="${p.precioSugerido ? (Number(p.precioSugerido).toLocaleString('es-MX') + (p.precioMax ? ' - ' + Number(p.precioMax).toLocaleString('es-MX') : '')) : ''}"></div>
+    <div class="field" style="background:#eef6ff; border:1px solid #b8d4f0; border-radius:8px; padding:12px;">
+      <label style="color:#185FA5;">🌐 Precio para la PÁGINA WEB</label>
+      <input type="number" inputmode="numeric" id="edit-precio-web" placeholder="Déjalo vacío para que diga 'Cotizar por WhatsApp'" value="${p.precioWeb || ''}">
+      <div style="font-size:12px; color:#5a7fa5; margin-top:6px;">Este es <strong>aparte</strong> del de arriba. El de arriba es el de mostrador y nunca se publica; este es el que ve el cliente en internet (aquí ya le cargas la comisión de Mercado Pago).</div>
+      <label style="display:flex; align-items:center; gap:8px; margin-top:10px; cursor:pointer; font-weight:600; color:#c0392b;">
+        <input type="checkbox" id="edit-no-web" ${p.noWeb ? 'checked' : ''} style="width:18px; height:18px;">
+        No publicar esta pieza en la página web
+      </label>
+    </div>
     <div class="field"><label>Notas</label><textarea id="edit-notas" rows="2">${escapeHtml(p.notas || '')}</textarea></div>
     <button class="btn btn-success btn-block" onclick="guardarEdicionPieza('${p.id}')">Guardar Cambios</button>
   `;
@@ -4477,6 +4547,16 @@ function guardarEdicionPieza(id) {
   p.precioSugerido = precioMin;
   p.precioMax = precioMax;
   p.notas = document.getElementById('edit-notas')?.value.trim() || '';
+
+  // Precio de la PÁGINA WEB: campo aparte del de mostrador (llevan comisión de
+  // Mercado Pago, así que no son el mismo número). Vacío = cotizar por WhatsApp.
+  if (document.getElementById('edit-precio-web')) {
+    const pw = Number((document.getElementById('edit-precio-web').value || '').trim());
+    if (pw > 0) p.precioWeb = pw; else delete p.precioWeb;
+  }
+  if (document.getElementById('edit-no-web')) {
+    if (document.getElementById('edit-no-web').checked) p.noWeb = true; else delete p.noWeb;
+  }
 
   const ex = p.extras || {};
   // Estado / Condición (Usado / Reconstruido / Nuevo)
@@ -5327,16 +5407,20 @@ function resetCatalogos() {
 // ============================================================
 // EXPORT EXCEL — helpers compartidos
 // ============================================================
-const EXCEL_HEADERS = ['Folio','Familia','Modelo/Tipo','Motor','Marca Camión','Modelo Camión','Año','Estado',
+// Columna A = FOLIO INTERNO (el número que Raúl le pone a cada pieza a mano).
+// La de camión se corrió a la B y se renombró "Folio Camión" para que no se
+// confundan — antes la A decía solo "Folio" y era la del camión. (jul 2026)
+const EXCEL_HEADERS = ['Folio Interno','Folio Camión','Familia','Modelo/Tipo','Motor','Marca Camión','Modelo Camión','Año','Estado',
   'Condición','CPL','HP','N° Serie o Parte','Libras','Marca Eje','Suspensión','Paso','VIN','N° Motor',
   'Ubicación','Precio Mín','Precio Máx','Link Drive','Notas','Estatus','Fecha Registro'];
-const EXCEL_ANCHOS = [{wch:12},{wch:18},{wch:20},{wch:14},{wch:14},{wch:14},{wch:8},{wch:14},{wch:14},{wch:8},{wch:8},{wch:14},{wch:10},{wch:14},{wch:16},{wch:12},{wch:16},{wch:14},{wch:16},{wch:12},{wch:12},{wch:28},{wch:24},{wch:12},{wch:14}];
+const EXCEL_ANCHOS = [{wch:13},{wch:12},{wch:18},{wch:20},{wch:14},{wch:14},{wch:14},{wch:8},{wch:14},{wch:14},{wch:8},{wch:8},{wch:14},{wch:10},{wch:14},{wch:16},{wch:12},{wch:16},{wch:14},{wch:16},{wch:12},{wch:12},{wch:28},{wch:24},{wch:12},{wch:14}];
 
 function excelFilaDe(p) {
   const ex = p.extras || {};
   const f = FAMILIAS.find(x => x.id === p.familia);
   const camion = DATA.camiones.find(c => c.id === p.camionId);
   return [
+    p.folioInterno || '',
     camion ? camion.folio : (p.camionFolio && p.camionFolio !== 'SUELTA' ? p.camionFolio : ''),
     f ? f.nombreSingular : p.familia, p.modelo || '', p.motor || '',
     (ex.fichaMarca || p.camionMarca || p.marca || ''), (ex.fichaModelo || p.camionModelo || ''),
@@ -5353,7 +5437,7 @@ function excelFilaDe(p) {
 // Serie, Libras, Marca Eje, Suspensión, Paso) y se agregan Consecutivo, Baja
 // federal y Extra para poder filtrarlos.
 // Quitadas también (jul 2026): Motor, N° Motor y Link Drive — no le sirven al chasis.
-const EXCEL_HEADERS_CHASIS = ['Folio','Modelo/Tipo','Marca Camión','Modelo Camión','Año',
+const EXCEL_HEADERS_CHASIS = ['Folio Interno','Folio Camión','Modelo/Tipo','Marca Camión','Modelo Camión','Año',
   'VIN','Consecutivo','Baja federal','Extra','Ubicación','Precio Mín','Precio Máx',
   'Notas','Estatus','Fecha Registro'];
 function excelFilaChasis(p) {
@@ -5361,6 +5445,7 @@ function excelFilaChasis(p) {
   const camion = DATA.camiones.find(c => c.id === p.camionId);
   const baja = ex.baja === 'SI' ? 'Sí' : (ex.baja === 'NO' ? 'No' : (ex.baja || ''));
   return [
+    p.folioInterno || '',
     camion ? camion.folio : (p.camionFolio && p.camionFolio !== 'SUELTA' ? p.camionFolio : ''),
     p.modelo || '',
     (ex.fichaMarca || p.camionMarca || p.marca || ''), (ex.fichaModelo || p.camionModelo || ''),
@@ -5704,7 +5789,10 @@ function importarMasivo_old(event) {
 
       const col = (nombre) => headers.findIndex(h => h.includes(nombre));
       const idx = {
-        folio: col('folio'), familia: col('familia'), modelo: col('modelo/tipo') !== -1 ? col('modelo/tipo') : col('modelo'),
+        // Ojo: la columna A ahora es "Folio Interno". La del camión se busca
+        // por "folio cami" primero; si no está (Excel viejo), cae en "folio".
+        folio: col('folio cami') !== -1 ? col('folio cami') : col('folio'),
+        familia: col('familia'), modelo: col('modelo/tipo') !== -1 ? col('modelo/tipo') : col('modelo'),
         motor: headers.findIndex(h => h === 'motor'), marcaCam: col('marca cami'), modeloCam: headers.findIndex(h => h.includes('modelo cami')),
         año: col('año'), estado: col('estado'), serie: col('serie'), parte: col('parte'),
         ubicacion: col('ubicaci'), precioMin: col('precio mín') !== -1 ? col('precio mín') : col('precio min'),
@@ -5837,7 +5925,12 @@ function leerPiezasDeExcel(arrayBuffer) {
   const headers = filas[headerIdx].map(h => String(h).toLowerCase().trim());
   const col = (nombre) => headers.findIndex(h => h.includes(nombre));
   const idx = {
-    folio: col('folio'), familia: col('familia'),
+    // Desde jul 2026 la columna A es "Folio Interno" y la del camión es "Folio
+    // Camión": hay que buscar esa PRIMERO, porque un simple .includes('folio')
+    // agarraría la A. En los Excel viejos solo existe "Folio" (= camión) y el
+    // respaldo de abajo lo sigue leyendo igual.
+    folio: col('folio cami') !== -1 ? col('folio cami') : col('folio'),
+    familia: col('familia'),
     modelo: col('modelo/tipo') !== -1 ? col('modelo/tipo') : col('modelo'),
     motor: headers.findIndex(h => h === 'motor'), marcaCam: col('marca cami'),
     modeloCam: headers.findIndex(h => h.includes('modelo cami')),

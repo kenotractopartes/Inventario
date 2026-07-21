@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Refacciones disponibles · Tracto Partes Magaña</title>
+<meta name="description" content="Refacciones para camión disponibles en Tracto Partes Magaña. Motores, inyectores, transmisiones y más. Col. Argentina, Monterrey.">
+<!-- Tarjetita que muestra WhatsApp/Facebook al pegar el link -->
+<meta property="og:title" content="Refacciones disponibles · Tracto Partes Magaña">
+<meta property="og:description" content="Mira lo que tenemos en existencia con fotos reales. Col. Argentina, Monterrey.">
+<meta property="og:site_name" content="Tracto Partes Magaña">
+<!-- ============================================================
+     CATÁLOGO PÚBLICO — Tracto Partes Magaña (jul 2026)
+     Lee SOLO el nodo público fichas_publicas de Firebase, el mismo
+     que ya alimenta las páginas de QR (motor.html). Se actualiza
+     solo: Raúl registra una pieza y aparece; le pica "Vendí" y
+     desaparece; Irving sube foto y la foto sale.
+
+     Qué se muestra: piezas CON FOTO, no vendidas, no apartadas y
+     que no estén marcadas como "no publicar en web".
+     Qué NUNCA se muestra: precio de mostrador, folio interno,
+     ubicación en el patio, notas ni de qué camión salió.
+
+     El precio que sale aquí es p.precioWeb — un campo APARTE del de
+     mostrador, porque no son el mismo número (aquí pesan las
+     comisiones de Mercado Pago). Si está vacío → "Cotizar".
+     ============================================================ -->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { font-family: Georgia, 'Times New Roman', serif; background: #17140f; color: #f2efe9; font-size: 16px; line-height: 1.5; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 14px 14px 40px; }
+
+  header { text-align: center; padding: 18px 0 14px; }
+  header .marca { font-size: 24px; font-weight: 900; letter-spacing: -0.3px; }
+  header .sub { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #c9a24b; margin-top: 3px; }
+  header .lema { font-size: 14px; color: #b3a98f; margin-top: 12px; }
+
+  .barra { position: sticky; top: 0; z-index: 20; background: #17140f; padding: 12px 0 10px; border-bottom: 1px solid #2c261e; margin-bottom: 4px; }
+  .buscador { width: 100%; padding: 13px 16px; font-size: 16px; font-family: Georgia, serif; background: #211c15; border: 2px solid #3a332a; border-radius: 10px; color: #f2efe9; }
+  .buscador:focus { outline: none; border-color: #c9a24b; }
+  .buscador::placeholder { color: #7d7466; }
+  .chips { display: flex; gap: 7px; overflow-x: auto; padding: 10px 0 2px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: 0 0 auto; padding: 7px 14px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; background: #211c15; border: 1px solid #3a332a; color: #b3a98f; border-radius: 20px; cursor: pointer; white-space: nowrap; }
+  .chip.activo { background: #c9a24b; border-color: #c9a24b; color: #17140f; }
+  .cuenta { font-size: 13px; color: #b3a98f; font-family: Arial, Helvetica, sans-serif; padding: 10px 2px 4px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 8px; }
+  .card { background: #211c15; border: 1px solid #3a332a; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+  .card-foto { position: relative; display: block; background: #000; aspect-ratio: 4 / 3; overflow: hidden; text-decoration: none; }
+  .card-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card-foto .mas { position: absolute; bottom: 8px; right: 9px; background: rgba(0,0,0,0.7); color: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 11px; padding: 3px 9px; border-radius: 11px; }
+  .card-body { padding: 13px 14px 14px; display: flex; flex-direction: column; flex: 1; }
+  .card-fam { font-family: Arial, Helvetica, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #c9a24b; }
+  .card-titulo { font-size: 18px; font-weight: 900; letter-spacing: -0.2px; margin-top: 3px; line-height: 1.25; }
+  .card-datos { font-size: 13px; color: #b3a98f; margin-top: 6px; line-height: 1.45; }
+  .card-stock { display: inline-block; font-family: Arial, Helvetica, sans-serif; font-size: 11px; font-weight: 700; color: #7fd6a8; background: rgba(29,158,117,0.14); border: 1px solid rgba(29,158,117,0.4); padding: 3px 9px; border-radius: 11px; margin-top: 8px; }
+  .card-precio { font-family: Arial, Helvetica, sans-serif; font-size: 21px; font-weight: 800; color: #f2efe9; margin-top: 11px; }
+  .card-precio .cotizar { font-size: 15px; font-weight: 700; color: #c9a24b; }
+  .card-precio .nota { display: block; font-size: 11px; font-weight: 400; color: #7d7466; margin-top: 2px; }
+  .card-btns { display: flex; gap: 7px; margin-top: 12px; }
+  .btn-wa { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 8px; background: #1D9E75; color: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; text-decoration: none; border-radius: 8px; }
+  .btn-wa:active { background: #0F6E56; }
+  .btn-ver { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 11px 13px; background: transparent; border: 1px solid #4a4235; color: #c9a24b; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; text-decoration: none; border-radius: 8px; }
+  .btn-ver:active { background: rgba(201,162,75,0.15); }
+
+  .estado { text-align: center; padding: 60px 20px; color: #b3a98f; font-size: 16px; }
+  .spinner { display: inline-block; width: 26px; height: 26px; border: 3px solid #3a332a; border-top-color: #c9a24b; border-radius: 50%; animation: gira 0.8s linear infinite; margin-bottom: 12px; }
+  @keyframes gira { to { transform: rotate(360deg); } }
+
+  .pie { text-align: center; margin-top: 40px; padding-top: 24px; border-top: 1px solid #2c261e; }
+  .pie-marca { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+  .pie-dir { display: block; font-size: 14px; color: #b3a98f; text-decoration: none; line-height: 1.5; padding: 4px 0; }
+  .pie-dir:active { color: #c9a24b; }
+  .pie-tel { display: inline-flex; align-items: center; gap: 12px; margin-top: 16px; padding: 13px 24px; background: #1D9E75; color: #fff; font-family: Arial, Helvetica, sans-serif; text-decoration: none; border-radius: 10px; box-shadow: 0 3px 12px rgba(0,0,0,0.4); text-align: left; }
+  .pie-tel .num { display: block; font-size: 19px; font-weight: 700; letter-spacing: 0.5px; }
+  .pie-tel .lbl { display: block; font-size: 11px; font-weight: 400; opacity: 0.9; margin-top: 1px; }
+  .pie-web { display: inline-flex; gap: 7px; margin-top: 18px; font-size: 15px; color: #6ab0f3; text-decoration: underline; text-underline-offset: 3px; font-family: Arial, Helvetica, sans-serif; }
+
+  @media (max-width: 520px) {
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .card-titulo { font-size: 15px; }
+    .card-precio { font-size: 18px; }
+    .card-body { padding: 10px 11px 12px; }
+    .btn-wa, .btn-ver { font-size: 12px; padding: 10px 6px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="marca">Tracto Partes Magaña</div>
+    <div class="sub">Refacciones · Monterrey</div>
+    <div class="lema">Lo que tenemos en existencia, con fotos reales.<br>Más de 30 años en la Col. Argentina.</div>
+  </header>
+
+  <div id="controles" style="display:none;">
+    <div class="barra">
+      <input class="buscador" id="q" type="search" placeholder="Busca: ISX, radiador, Cascadia, N14…" autocomplete="off">
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="cuenta" id="cuenta"></div>
+  </div>
+
+  <div id="contenido">
+    <div class="estado"><span class="spinner"></span><br>Cargando refacciones…</div>
+  </div>
+
+  <div class="pie">
+    <div class="pie-marca">Tracto Partes Magaña</div>
+    <a class="pie-dir" href="https://www.google.com/maps/search/?api=1&amp;query=Ing.%20Francisco%20Beltr%C3%A1n%203163%2C%20Argentina%2C%2064550%20Monterrey%2C%20N.L." target="_blank" rel="noopener">📍 Ing. Francisco Beltrán 3163, Argentina,<br>64550 Monterrey, N.L.</a>
+    <a class="pie-tel" href="tel:+528121529279">
+      <span style="font-size:24px">📱</span>
+      <span><span class="num">81 2152 9279</span><span class="lbl">Celular · toca para llamarnos</span></span>
+    </a>
+    <br>
+    <a class="pie-web" href="https://tractopartes.com" target="_blank" rel="noopener">🌐 tractopartes.com</a>
+  </div>
+</div>
+
+<script>
+var DB_URL = 'https://inventario-julio-26-default-rtdb.firebaseio.com';
+var WA = '528121529279';          // celular del mostrador, formato internacional
+var PIEZAS = [], FAMILIAS = [], filtroFam = '', q = '';
+
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function money(n){ return '$' + Number(n).toLocaleString('es-MX'); }
+
+// Búsqueda tolerante: ignora guiones, puntos y espacios, y pide que TODAS las
+// palabras aparezcan. Así "isx 15" y "isx15" encuentran lo mismo.
+function _limpio(s){ return String(s == null ? '' : s).toLowerCase().replace(/[\s\-_.\/]/g, ''); }
+function coincide(texto, consulta){
+  var c = String(consulta || '').toLowerCase().trim();
+  if(!c) return true;
+  var t = String(texto || '').toLowerCase(), tn = _limpio(t);
+  return c.split(/\s+/).every(function(w){
+    return !w || t.indexOf(w) !== -1 || tn.indexOf(_limpio(w)) !== -1;
+  });
+}
+
+function cargar(){
+  Promise.all([
+    fetch(DB_URL + '/fichas_publicas.json').then(function(r){ return r.json(); }),
+    fetch(DB_URL + '/media_modelo.json').then(function(r){ return r.json(); }).catch(function(){ return {}; })
+  ]).then(function(res){
+    var fichas = res[0] || {}, modelos = res[1] || {};
+    var lista = [];
+    Object.keys(fichas).forEach(function(id){
+      var f = fichas[id];
+      if(!f || typeof f !== 'object') return;
+      // Fuera: vendidas, apartadas y las marcadas como "no publicar en web".
+      // (web === undefined en las fichas viejas → sí se publican.)
+      if(f.vendida || f.apartada || f.web === false) return;
+      // Las fotos pueden estar en la ficha o compartidas en el modelo.
+      var media = (f.media && f.media.length) ? f.media
+                : (f.modelKey && modelos[f.modelKey] && modelos[f.modelKey].media) || [];
+      media = media.filter(function(m){ return m && (m.web || m.url); });
+      if(!media.length) return;   // sin foto no entra al catálogo
+      var fotos = media.filter(function(m){ return m.t !== 'video'; });
+      f.id = id;
+      f.portada = (fotos[0] || media[0]);
+      f.nFotos = media.length;
+      // El título viene como "Motor: ISX 15" → la familia es lo de antes del ":".
+      var corte = String(f.titulo || '').indexOf(': ');
+      f.fam = f.familiaNombre || (corte > 0 ? f.titulo.slice(0, corte) : 'Refacción');
+      f.nombre = corte > 0 ? f.titulo.slice(corte + 2) : (f.titulo || 'Refacción');
+      f.busca = [f.titulo, f.fam, f.marca, f.motor, f.hp, f['año'], f.serie, f.condicion, f.extra].join(' ');
+      lista.push(f);
+    });
+
+    lista.sort(function(a, b){ return (b.actualizado || 0) - (a.actualizado || 0); });
+
+    // Las piezas que comparten modelo (mismo modelKey) son idénticas entre sí:
+    // mismas fotos, mismos datos. Si tenemos 8 inyectores DDEC5 iguales, el
+    // cliente NO quiere ver 8 tarjetas repetidas — quiere una que diga
+    // "8 disponibles". Las que no declaran modelo se quedan cada una aparte,
+    // porque ahí sí cada pieza es distinta (usadas, con su propia serie).
+    var porModelo = {};
+    lista = lista.filter(function(f){
+      if(!f.modelKey) { f.cuantas = 1; return true; }
+      if(porModelo[f.modelKey]) { porModelo[f.modelKey].cuantas++; return false; }
+      porModelo[f.modelKey] = f; f.cuantas = 1; return true;
+    });
+    PIEZAS = lista;
+
+    var vistas = {};
+    lista.forEach(function(f){ vistas[f.fam] = (vistas[f.fam] || 0) + 1; });
+    FAMILIAS = Object.keys(vistas).sort(function(a, b){ return vistas[b] - vistas[a]; })
+      .map(function(k){ return { nombre: k, n: vistas[k] }; });
+
+    if(!PIEZAS.length){
+      document.getElementById('contenido').innerHTML =
+        '<div class="estado">🔧<br><br>Ahorita no tenemos piezas publicadas.<br>Márcanos y con gusto te decimos qué hay en existencia.</div>';
+      return;
+    }
+    document.getElementById('controles').style.display = '';
+    pintarChips();
+    render();
+  }).catch(function(){
+    document.getElementById('contenido').innerHTML =
+      '<div class="estado">📡<br><br>No se pudo cargar el catálogo.<br>Revisa tu conexión e intenta de nuevo.</div>';
+  });
+}
+
+function pintarChips(){
+  document.getElementById('chips').innerHTML =
+    '<div class="chip' + (filtroFam === '' ? ' activo' : '') + '" onclick="setFam(\'\')">Todo (' + PIEZAS.length + ')</div>' +
+    FAMILIAS.map(function(f){
+      return '<div class="chip' + (filtroFam === f.nombre ? ' activo' : '') + '" onclick="setFam(' +
+        JSON.stringify(f.nombre).replace(/"/g, '&quot;') + ')">' + esc(f.nombre) + ' (' + f.n + ')</div>';
+    }).join('');
+}
+function setFam(n){ filtroFam = n; pintarChips(); render(); }
+
+function render(){
+  var lista = PIEZAS.filter(function(f){
+    if(filtroFam && f.fam !== filtroFam) return false;
+    return coincide(f.busca, q);
+  });
+
+  document.getElementById('cuenta').textContent =
+    lista.length === 0 ? 'Nada con esa búsqueda' :
+    lista.length + (lista.length === 1 ? ' refacción disponible' : ' refacciones disponibles');
+
+  if(!lista.length){
+    document.getElementById('contenido').innerHTML =
+      '<div class="estado">🔍<br><br>No encontramos nada con eso.<br>Márcanos y te decimos si lo conseguimos.</div>';
+    return;
+  }
+
+  document.getElementById('contenido').innerHTML = '<div class="grid">' + lista.map(function(f){
+    var img = esc(f.portada.web || f.portada.url);
+    var datos = [];
+    if(f.marca)     datos.push(esc(f.marca));
+    if(f.motor)     datos.push('Motor ' + esc(f.motor));
+    if(f.hp)        datos.push(esc(f.hp) + ' HP');
+    if(f['año'])    datos.push(esc(f['año']));
+    if(f.condicion) datos.push(esc(f.condicion));
+
+    var precio = f.precioWeb > 0
+      ? money(f.precioWeb) + '<span class="nota">Precio en línea · IVA incluido</span>'
+      : '<span class="cotizar">Cotizar por WhatsApp</span><span class="nota">Te pasamos precio al momento</span>';
+
+    var msg = 'Hola, me interesa esta pieza que vi en su catálogo:\n\n' +
+      (f.titulo || 'Refacción') + '\n' +
+      location.origin + location.pathname.replace(/catalogo\.html$/, '') + 'motor.html?id=' + f.id;
+
+    return '<div class="card">' +
+      '<a class="card-foto" href="motor.html?id=' + esc(f.id) + '">' +
+        '<img src="' + img + '" alt="' + esc(f.titulo || 'Refacción') + '" loading="lazy">' +
+        (f.nFotos > 1 ? '<span class="mas">+' + (f.nFotos - 1) + ' foto(s)</span>' : '') +
+      '</a>' +
+      '<div class="card-body">' +
+        '<div class="card-fam">' + esc(f.fam) + '</div>' +
+        '<div class="card-titulo">' + esc(f.nombre) + '</div>' +
+        (datos.length ? '<div class="card-datos">' + datos.join(' · ') + '</div>' : '') +
+        (f.cuantas > 1 ? '<div class="card-stock">✔ ' + f.cuantas + ' disponibles</div>' : '') +
+        '<div style="flex:1;"></div>' +
+        '<div class="card-precio">' + precio + '</div>' +
+        '<div class="card-btns">' +
+          '<a class="btn-wa" href="https://wa.me/' + WA + '?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener">💬 Preguntar</a>' +
+          '<a class="btn-ver" href="motor.html?id=' + esc(f.id) + '">Ver más</a>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('') + '</div>';
+}
+
+document.getElementById('q').addEventListener('input', function(e){ q = e.target.value; render(); });
+cargar();
+</script>
+</body>
+</html>
