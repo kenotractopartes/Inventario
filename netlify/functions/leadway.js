@@ -145,7 +145,9 @@ exports.handler = async (event) => {
           handle: p.slug || p.handle || '',
           enTienda: p.availableInStore,
           conIva: !!p.isTaxesEnabled,
-          fotos: (p.medias || []).length,
+          // OJO: el LISTADO de Leadway no siempre incluye "medias" (el detalle
+          // sí). Si no viene, la portada ("image") al menos dice que hay algo.
+          fotos: Array.isArray(p.medias) ? p.medias.length : (p.image ? 1 : 0),
           actualizado: p.updatedAt
         }));
         return respuesta(200, { ok: true, total: _total(r), productos }, origen);
