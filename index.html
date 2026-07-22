@@ -7103,7 +7103,10 @@ setInterval(respaldoAutomatico, 60000); // reintenta cada minuto (por si no esta
 #estatus-root .emx-bita-item{padding:8px 12px;border-bottom:1px solid #f0ece3;font-family:Arial;font-size:13px}
 #estatus-root .emx-bita-t{color:#b03a2e;font-weight:700;font-size:11px;margin-right:8px}
 #estatus-root .emx-bita-vacia{padding:16px;text-align:center;color:#6b6459;font-family:Arial}
-#estatus-root .emx-wrap{overflow-x:auto;border:1px solid #e0dccf;border-radius:8px}
+/* La tabla vive en su propia ventana con scroll (máx. ~72% de la pantalla):
+   así los títulos pueden quedarse pegados arriba mientras bajas por los
+   registros, en vez de perderse con el scroll de toda la página. (jul 2026) */
+#estatus-root .emx-wrap{overflow:auto;max-height:72vh;border:1px solid #e0dccf;border-radius:8px}
 #estatus-root table.emx-tabla{border-collapse:collapse;width:100%;min-width:900px;background:#fff;font-size:14px}
 #estatus-root .emx-tabla th{background:#17140f;color:#fff;font-family:Arial;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:9px 8px;text-align:left}
 #estatus-root .emx-tabla th.baja{text-align:center;width:52px}
@@ -7152,8 +7155,11 @@ setInterval(respaldoAutomatico, 60000); // reintenta cada minuto (por si no esta
 #emx-menu .emx-menu-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid #f0ece3;white-space:normal;overflow-wrap:anywhere}
 #emx-menu .emx-menu-item:hover{background:#fff7e0}
 #emx-menu .emx-menu-vacio{padding:10px 12px;color:#6b6459}
-/* Neutraliza estilos globales del host que se filtran a esta tabla (Maura pone position:sticky a todo th) */
-#estatus-root .emx-tabla th{position:static;top:auto;z-index:auto}
+/* Títulos pegados: como la tabla ya tiene su propia ventana de scroll
+   (.emx-wrap con max-height), el sticky funciona controlado y ya no choca
+   con los estilos globales que antes obligaban a apagarlo. El fondo negro
+   del th es opaco, así que los renglones pasan por debajo sin transparentarse. */
+#estatus-root .emx-tabla th{position:sticky;top:0;z-index:5}
 #estatus-root .emx-tabla td{color:#17140f}
 /* Oculta la "portería"/barra de sección de Maura SOLO dentro del Estatus (en Raúl estas clases no existen) */
 body[data-seccion="estatus"] .barra-seccion-lateral,
