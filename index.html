@@ -2270,6 +2270,171 @@ function diagnosticoSlugs(){
   }).catch(function(e){ alert('Falló: ' + (e.message || e)); });
 }
 
+// ── TRAER FOTOS DE LA PÁGINA WEB ───────────────────────────────────────────
+// Muchos de los 271 productos viejos de Leadway tienen fotos que el inventario
+// no tiene. Este flujo las copia: buscas el producto, palomeas sus fotos, y
+// entran por el MISMO camino que las fotos del teléfono (se comprimen, se
+// guardan en HD en Firebase y alimentan el QR y la ficha pública). O sea:
+// quedan NUESTRAS, sin depender de que Leadway las siga hospedando.
+var _lwProductosCache = null;
+var _lwFotosSel = {};   // url -> true de las palomeadas
+
+function abrirFotosLeadway(){
+  if (!_piezaFotosId) return;
+  if (typeof llamarLeadway !== 'function') { alert('La conexión con la tienda no está disponible.'); return; }
+  document.getElementById('modal-precios-title').textContent = '🌐 Traer fotos de la página web';
+  document.getElementById('modal-precios-body').innerHTML =
+    '<p style="text-align:center; color:#888; padding:24px 0;">Cargando los productos de tu tienda…<br><span style="font-size:12px;">(tarda unos segundos la primera vez)</span></p>';
+  openModal('modal-precios');
+  _lwCargarProductos().then(function(lista){
+    _lwPintarBuscador(lista, '');
+  }).catch(function(e){
+    document.getElementById('modal-precios-body').innerHTML =
+      '<p style="color:#c0392b; text-align:center; padding:20px;">' + escapeHtml(e.message || String(e)) + '</p>';
+  });
+}
+
+// Baja la lista completa una sola vez por sesión (272 productos ≈ 3 páginas).
+function _lwCargarProductos(){
+  if (_lwProductosCache) return Promise.resolve(_lwProductosCache);
+  var acc = [], total = null, cadena = Promise.resolve();
+  [0, 100, 200, 300, 400].forEach(function(salto){
+    cadena = cadena.then(function(){
+      if (total != null && salto >= total) return;
+      return llamarLeadway('listar', { limite: 100, salto: salto }).then(function(r){
+        if (total == null && r.total != null) total = r.total;
+        (r.productos || []).forEach(function(p){ if (p.fotos > 0) acc.push(p); });
+      });
+    });
+  });
+  return cadena.then(function(){ _lwProductosCache = acc; return acc; });
+}
+
+function _lwPintarBuscador(lista, filtro){
+  var f = String(filtro || '');
+  var visibles = lista.filter(function(p){ return coincideBusqueda(p.nombre || '', f); });
+  document.getElementById('modal-precios-body').innerHTML =
+    '<div style="font-size:13px; color:#666; margin-bottom:10px;">Busca el producto de tu página que tiene las fotos de esta pieza:</div>' +
+    '<input type="search" id="lw-buscar" value="' + escapeHtml(f) + '" placeholder="Busca: mancuerna, ISX, cofre…" ' +
+      'style="width:100%; padding:11px 14px; font-size:16px; border:2px solid #d8d2c6; border-radius:8px; margin-bottom:10px;" ' +
+      'oninput="_lwFiltrar(this.value)">' +
+    '<div style="font-size:12px; color:#999; margin-bottom:6px;">' + visibles.length + ' producto(s) con fotos</div>' +
+    '<div style="max-height:46vh; overflow-y:auto; border:1px solid #e5ded0; border-radius:8px;">' +
+      (visibles.length ? visibles.slice(0, 60).map(function(p){
+        return '<div onclick="_lwVerFotos(\'' + p.id + '\')" style="padding:11px 14px; border-bottom:1px solid #eee; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
+          '<span style="font-size:14px; font-weight:700;">' + escapeHtml(p.nombre || '') + '</span>' +
+          '<span style="flex:none; font-size:12px; color:#185FA5; font-weight:800;">' + p.fotos + ' 📷</span>' +
+        '</div>';
+      }).join('') + (visibles.length > 60 ? '<div style="padding:10px; text-align:center; color:#999; font-size:12px;">…y más — afina la búsqueda</div>' : '')
+      : '<div style="padding:20px; text-align:center; color:#999;">Nada con ese nombre.</div>') +
+    '</div>';
+  var inp = document.getElementById('lw-buscar');
+  if (f && inp) { try { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } catch(e){} }
+}
+
+function _lwFiltrar(v){
+  if (_lwProductosCache) _lwPintarBuscador(_lwProductosCache, v);
+}
+
+function _lwVerFotos(productoId){
+  document.getElementById('modal-precios-body').innerHTML =
+    '<p style="text-align:center; color:#888; padding:24px 0;">Cargando las fotos…</p>';
+  llamarLeadway('ver', { productoId: productoId }).then(function(r){
+    var prod = r.producto || {};
+    var fotos = (prod.medias || []).filter(function(m){ return m && m.type === 'image' && m.url; });
+    if (!fotos.length){
+      document.getElementById('modal-precios-body').innerHTML =
+        '<p style="text-align:center; color:#999; padding:20px;">Ese producto no tiene fotos.</p>';
+      return;
+    }
+    _lwFotosSel = {};
+    fotos.forEach(function(m){ _lwFotosSel[m.url] = true; });   // todas palomeadas
+    document.getElementById('modal-precios-body').innerHTML =
+      '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;">' +
+        '<div style="font-size:14px; font-weight:800; flex:1; min-width:0;">' + escapeHtml(prod.name || '') + '</div>' +
+        '<button class="btn btn-mini" onclick="_lwPintarBuscador(_lwProductosCache, \'\')">← Otro producto</button>' +
+      '</div>' +
+      '<div style="font-size:13px; color:#666; margin-bottom:10px;">Toca una foto para quitarla o ponerla. Las palomeadas se copian a la pieza:</div>' +
+      '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:8px; margin-bottom:14px;">' +
+        fotos.map(function(m, i){
+          return '<div onclick="_lwToggleFoto(this, \'' + encodeURIComponent(m.url) + '\')" data-sel="1" ' +
+            'style="position:relative; cursor:pointer; border:3px solid #2e7d46; border-radius:8px; overflow:hidden;">' +
+            '<img src="' + escapeHtml(m.url) + '" style="width:100%; height:84px; object-fit:cover; display:block;" alt="">' +
+            '<span style="position:absolute; top:4px; right:4px; background:#2e7d46; color:#fff; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px;">✓</span>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+      '<button id="lw-traer" onclick="_lwTraerFotos()" style="width:100%; padding:14px; border:none; border-radius:8px; background:#2e7d46; color:#fff; font-size:16px; font-weight:800; cursor:pointer;">📥 Copiar ' + fotos.length + ' foto(s) a esta pieza</button>' +
+      '<div style="font-size:12px; color:#888; text-align:center; margin-top:8px;">Se guardan en tu inventario como si las hubieras subido del teléfono. Las de la página web no se tocan.</div>';
+  }).catch(function(e){
+    document.getElementById('modal-precios-body').innerHTML =
+      '<p style="color:#c0392b; text-align:center; padding:20px;">' + escapeHtml(e.message || String(e)) + '</p>';
+  });
+}
+
+function _lwToggleFoto(el, urlEnc){
+  var url = decodeURIComponent(urlEnc);
+  var sel = el.getAttribute('data-sel') === '1';
+  if (sel){
+    el.setAttribute('data-sel', '0');
+    el.style.borderColor = '#ccc';
+    el.querySelector('span').style.background = '#ccc';
+    el.querySelector('span').textContent = '';
+    delete _lwFotosSel[url];
+  } else {
+    el.setAttribute('data-sel', '1');
+    el.style.borderColor = '#2e7d46';
+    el.querySelector('span').style.background = '#2e7d46';
+    el.querySelector('span').textContent = '✓';
+    _lwFotosSel[url] = true;
+  }
+  var n = Object.keys(_lwFotosSel).length;
+  var btn = document.getElementById('lw-traer');
+  if (btn){
+    btn.textContent = n ? '📥 Copiar ' + n + ' foto(s) a esta pieza' : 'No hay fotos palomeadas';
+    btn.disabled = !n;
+    btn.style.background = n ? '#2e7d46' : '#ccc';
+  }
+}
+
+function _lwBase64AFile(b64, tipo, nombre){
+  var bin = atob(b64), arr = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new File([arr], nombre, { type: tipo || 'image/jpeg' });
+}
+
+// Descarga las palomeadas (a través del puente, una por una) y las mete al
+// MISMO flujo de subida que usa el teléfono. Si alguna falla, las demás siguen.
+function _lwTraerFotos(){
+  var urls = Object.keys(_lwFotosSel);
+  if (!urls.length) return;
+  var btn = document.getElementById('lw-traer');
+  if (btn){ btn.disabled = true; btn.textContent = '⏳ Trayendo 1 de ' + urls.length + '…'; }
+
+  var files = [], fallas = 0, cadena = Promise.resolve();
+  urls.forEach(function(url, i){
+    cadena = cadena.then(function(){
+      if (btn) btn.textContent = '⏳ Trayendo ' + (i + 1) + ' de ' + urls.length + '…';
+      return llamarLeadway('traerFoto', { url: url }).then(function(r){
+        var ext = (r.tipo || '').indexOf('png') >= 0 ? '.png' : '.jpg';
+        files.push(_lwBase64AFile(r.base64, r.tipo, 'pagina_web_' + (i + 1) + ext));
+      }).catch(function(e){ console.error('traerFoto:', e); fallas++; });
+    });
+  });
+
+  cadena.then(function(){
+    closeModal('modal-precios');
+    if (!files.length){
+      alert('No se pudo traer ninguna foto.' + (fallas ? '\n\nRevisa tu conexión e intenta de nuevo.' : ''));
+      return;
+    }
+    if (fallas) toast(fallas + ' foto(s) no se pudieron traer — las demás sí', 'error');
+    // De aquí en adelante es el flujo normal: comprime, sube a Firebase,
+    // actualiza la ficha pública y muestra el avance en el modal de fotos.
+    subirArchivosPieza(files);
+  });
+}
+
 // ── BANCO DE PRUEBAS ───────────────────────────────────────────────────────
 // Todo lo que MODIFICA la tienda se estrena aquí, contra un producto de
 // mentiras llamado "PRUEBA API". Así se comprueba que poner el IVA y bajar de
@@ -2554,6 +2719,7 @@ function renderModalFotos(){
     avisoModelo +
     galeria +
     '<button class="btn btn-block" style="background:#185FA5;color:#fff;border-color:#185FA5;font-weight:800;" onclick="document.getElementById(\'fotos-input\').click()">📷 Tomar o elegir fotos / video</button>' +
+    '<button class="btn btn-block" style="margin-top:8px; background:#fff; color:#185FA5; border:2px solid #185FA5; font-weight:800;" onclick="abrirFotosLeadway()">🌐 Traer fotos de mi página web</button>' +
     '<div style="font-size:12px; color:#999; text-align:center; margin-top:6px;">Se guardan en HD. En el teléfono puedes usar la cámara directo.</div>' +
     compartir;
 }

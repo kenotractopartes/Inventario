@@ -300,6 +300,35 @@ exports.handler = async (event) => {
         }, origen);
       }
 
+      // Descarga UNA foto de la tienda y la devuelve en base64. Existe porque
+      // el navegador no puede bajar imágenes del CDN de Leadway directamente
+      // (CORS); esta función sí. La app la usa para copiar al inventario las
+      // fotos que solo existen en la página web.
+      case 'traerFoto': {
+        let urlFoto;
+        try { urlFoto = new URL(String(peticion.url || '')); }
+        catch (e) { return respuesta(400, { error: 'URL inválida' }, origen); }
+        // Solo los servidores de fotos de Leadway/GoHighLevel. Sin esta lista,
+        // esto sería un descargador abierto de cualquier cosa de internet.
+        const HOSTS_OK = ['assets.cdn.filesafe.space', 'images.leadconnectorhq.com', 'storage.googleapis.com', 'cdn.filesafe.space'];
+        if (!HOSTS_OK.includes(urlFoto.host)) {
+          return respuesta(400, { error: 'Solo se pueden traer fotos de la tienda (' + urlFoto.host + ' no está permitido)' }, origen);
+        }
+        const rf = await fetch(urlFoto.href);
+        if (!rf.ok) return respuesta(502, { error: 'No se pudo descargar la foto (respondió ' + rf.status + ')' }, origen);
+        const buf = Buffer.from(await rf.arrayBuffer());
+        // Netlify no deja responder más de ~6MB; en base64 crece un tercio.
+        if (buf.length > 4.2 * 1024 * 1024) {
+          return respuesta(413, { error: 'Esa foto pesa demasiado para traerla por aquí. Descárgala de Leadway y súbela a mano.' }, origen);
+        }
+        return respuesta(200, {
+          ok: true,
+          base64: buf.toString('base64'),
+          tipo: rf.headers.get('content-type') || 'image/jpeg',
+          kb: Math.round(buf.length / 1024)
+        }, origen);
+      }
+
       default:
         return respuesta(400, { error: 'Acción desconocida: ' + peticion.accion }, origen);
     }
