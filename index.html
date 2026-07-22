@@ -220,6 +220,11 @@
   <button class="btn btn-mini" style="margin-left:10px; background:#b03a2e; color:#fff; border-color:#b03a2e;" onclick="verHuerfanosChasis()">🔎 Ver cuáles</button>
 </div>
 
+<div id="banner-desactualizados" style="display:none; background:#e8f4fd; border-bottom:2px solid #185FA5; color:#0C447C; padding:10px 16px; font-size:14px; font-weight:700; text-align:center;">
+  <span id="banner-desactualizados-txt"></span>
+  <button class="btn btn-mini solo-editor" style="margin-left:10px; background:#185FA5; color:#fff; border-color:#185FA5;" onclick="sincronizarChasisConMaura()">🔄 Actualizar con lo de Maura</button>
+</div>
+
 <main>
 
 <!-- INICIO + CAMIONES UNIFICADOS -->
@@ -1172,6 +1177,79 @@ function agregarFaltantesEstatus(){
   actualizarBannerFaltantes();
 }
 
+// ===== AVISO 🔄: chasis cuyos datos quedaron VIEJOS respecto a Maura ========
+// La importación del Estatus es de una sola vez. Si después Maura tramita la
+// baja federal (o cambia el consecutivo), la pieza del inventario se queda con
+// la foto vieja del dato. Esto detecta esas diferencias y deja igualarlas con
+// un botón. Maura MANDA en estos dos campos: ella lleva las facturas.
+function _estatusDeVin(vin){
+  const v = _serieNorm(_txtPlano(vin));
+  if(!v || v.length < 4) return null;
+  const datos = _estatusChasisData || {};
+  let contenido = null;
+  const ids = Object.keys(datos);
+  for(let i = 0; i < ids.length; i++){
+    const e = datos[ids[i]] || {};
+    const s = _serieNorm(_txtPlano(e.serie));
+    if(!s || s.length < 4) continue;
+    if(s === v) return e;                                            // exacta gana
+    if(!contenido && (v.indexOf(s) !== -1 || s.indexOf(v) !== -1)) contenido = e;
+  }
+  return contenido;   // o la contenida (Maura a veces abrevia la serie)
+}
+
+function _chasisDesactualizados(){
+  const out = [];
+  (DATA.piezas || []).forEach(function(p){
+    if(p.familia !== 'chasis' || p.vendida) return;
+    const ex = p.extras || {};
+    const e = _estatusDeVin(ex.fichaVin);
+    if(!e) return;
+    const cambios = [];
+    const bajaM = String(_txtPlano(e.baja) || '').trim().toUpperCase();
+    if((bajaM === 'SI' || bajaM === 'NO') && bajaM !== String(ex.baja || '').trim().toUpperCase()){
+      cambios.push({ campo:'baja', etiqueta:'Baja federal', de: ex.baja || '(sin dato)', a: bajaM });
+    }
+    const consM = String(_txtPlano(e.consecutivo) || '').trim();
+    if(consM && consM !== String(ex.consecutivo || '').trim()){
+      cambios.push({ campo:'consecutivo', etiqueta:'Consecutivo', de: ex.consecutivo || '(sin dato)', a: consM });
+    }
+    if(cambios.length) out.push({ p: p, cambios: cambios });
+  });
+  return out;
+}
+
+function actualizarBannerDesactualizados(){
+  const lista = _chasisDesactualizados();
+  const b = document.getElementById('banner-desactualizados'), t = document.getElementById('banner-desactualizados-txt');
+  if(!b || !t) return;
+  if(lista.length){
+    t.textContent = '🔄 ' + lista.length + ' chasis tienen la Baja federal o el Consecutivo distintos a lo que Maura comparte.';
+    b.style.display = 'block';
+  } else b.style.display = 'none';
+}
+
+function sincronizarChasisConMaura(){
+  if(typeof esEditor === 'function' && !esEditor()){ alert('Entra como Editor para actualizar.'); return; }
+  const lista = _chasisDesactualizados();
+  if(!lista.length){ toast('Todo al día con Maura', 'success'); return; }
+  const resumen = lista.slice(0, 10).map(function(x){
+    const vin = (x.p.extras && x.p.extras.fichaVin) || x.p.modelo || 'chasis';
+    return '· ' + vin + ':\n    ' + x.cambios.map(function(c){ return c.etiqueta + ': ' + c.de + ' → ' + c.a; }).join('\n    ');
+  }).join('\n');
+  if(!confirm('Maura es quien tramita las bajas y lleva el consecutivo, así que SUS datos mandan.\n\n' +
+      'Se van a actualizar ' + lista.length + ' chasis:\n\n' + resumen +
+      (lista.length > 10 ? '\n· …y ' + (lista.length - 10) + ' más' : '') + '\n\n¿Le sigo?')) return;
+  lista.forEach(function(x){
+    x.p.extras = x.p.extras || {};
+    x.cambios.forEach(function(c){ x.p.extras[c.campo] = c.a; });
+  });
+  guardar();
+  actualizarBannerDesactualizados();
+  refrescarVistaActual();
+  toast(lista.length + ' chasis actualizados con los datos de Maura', 'success');
+}
+
 // ===== AVISO 🚨: chasis en el inventario que NO están en el Estatus maestro de Maura =====
 function _serieNorm(s){ return String(s==null?'':s).toUpperCase().replace(/[^A-Z0-9]/g,''); }
 function _seriesEstatusSet(){
@@ -1765,6 +1843,7 @@ function refrescarVistaActual() {
   // nadie lo recalculaba y el aviso "N chasis NO están" se quedaba pegado
   // aunque ya estuviera todo. (Los datos siempre estuvieron bien.)
   if (typeof actualizarBannerFaltantes === 'function') actualizarBannerFaltantes();
+  if (typeof actualizarBannerDesactualizados === 'function') actualizarBannerDesactualizados();
   refrescarModalPiezaSiAbierto();
 }
 // Si el modal de piezas (Ver todas / Inyectores / piezas de un camión) está abierto, lo re-renderiza para que coincida
