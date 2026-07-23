@@ -213,6 +213,7 @@
 <div id="banner-faltantes" style="display:none; background:#fff3cd; border-bottom:2px solid #E8B339; color:#7A4A0E; padding:10px 16px; font-size:14px; font-weight:700; text-align:center;">
   <span id="banner-faltantes-txt"></span>
   <button class="btn btn-mini solo-editor" style="margin-left:10px; background:#2e7d46; color:#fff; border-color:#2e7d46;" onclick="agregarFaltantesEstatus()">📥 Agregar los que faltan</button>
+  <button class="btn btn-mini solo-editor" style="margin-left:6px; background:#fff; color:#7A4A0E; border-color:#E8B339;" onclick="verFaltantesEstatus()">🚫 No me sirven / elegir</button>
 </div>
 
 <div id="banner-huerfanos" style="display:none; background:#fdecea; border-bottom:2px solid #b03a2e; color:#7a1d13; padding:10px 16px; font-size:14px; font-weight:700; text-align:center;">
@@ -1198,6 +1199,59 @@ function agregarFaltantesEstatus(){
   if(typeof esEditor==='function' && !esEditor()){ alert('Entra como Editor (arriba a la derecha: “soy editor”) para agregar los chasis que faltan.'); return; }
   espejoChasisEstatus(_estatusChasisData);
   actualizarBannerFaltantes();
+}
+
+// Muestra los chasis del Estatus que Raúl aún no tiene, cada uno con dos
+// opciones: AGREGARLO al inventario, o marcarlo "No me sirve" (se ignora y deja
+// de contar en el aviso). Resuelve el caso de chasis que nunca se espejaron y
+// por eso no se podían borrar para ignorarlos.
+function verFaltantesEstatus(){
+  if(typeof esEditor==='function' && !esEditor()){ alert('Entra como Editor para esto.'); return; }
+  _pintarFaltantesEstatus();
+  openModal('modal-precios');
+}
+function _pintarFaltantesEstatus(){
+  const faltan = contarFaltantesEstatus();
+  document.getElementById('modal-precios-title').textContent = 'Chasis de Maura que no tienes';
+  if(!faltan.length){
+    document.getElementById('modal-precios-body').innerHTML =
+      '<div style="padding:24px; text-align:center; color:#2e7d46; font-weight:800;">✓ Ya no falta ninguno.</div>';
+    return;
+  }
+  document.getElementById('modal-precios-body').innerHTML =
+    '<div style="font-size:13px; color:#666; margin-bottom:12px;">Maura comparte estos chasis que tú no tienes. Para cada uno: <strong>agrégalo</strong> a tu inventario, o si <strong>no te sirve</strong> márcalo para que deje de aparecer en el aviso (en Maura no se toca).</div>' +
+    faltan.map(function(eid){
+      const ch = _estatusChasisData[eid] || {};
+      const marca = escapeHtml(_txtPlano(ch.marca) || 'Chasis');
+      const anio = escapeHtml(_txtPlano(ch.anio) || '');
+      const serie = escapeHtml(_txtPlano(ch.serie) || '');
+      return '<div style="display:flex; gap:10px; align-items:center; padding:11px 12px; border-bottom:1px solid #eee; flex-wrap:wrap;">' +
+        '<div style="flex:1; min-width:180px;">' +
+          '<div style="font-size:14px; font-weight:800;">' + marca + (anio ? ' · ' + anio : '') + '</div>' +
+          '<div style="font-size:12px; color:#888; font-family:ui-monospace,monospace;">' + serie + '</div>' +
+        '</div>' +
+        '<button class="btn btn-mini" style="background:#2e7d46; color:#fff; border-color:#2e7d46; flex:none;" onclick="_agregarUnoEstatus(\'' + eid + '\')">📥 Agregar</button>' +
+        '<button class="btn btn-mini" style="background:#fff; color:#c0392b; border-color:#c0392b; flex:none;" onclick="_ignorarUnoEstatus(\'' + eid + '\')">🚫 No me sirve</button>' +
+      '</div>';
+    }).join('');
+}
+function _agregarUnoEstatus(eid){
+  const uno = {}; uno[eid] = _estatusChasisData[eid];
+  espejoChasisEstatus(uno);
+  actualizarBannerFaltantes();
+  _pintarFaltantesEstatus();
+}
+function _ignorarUnoEstatus(eid){
+  const ch = _estatusChasisData[eid] || {};
+  const ig = _chasisIgnorados();
+  ig.ids[eid] = true;
+  const s = _serieNorm(_txtPlano(ch.serie));
+  if(s) ig.series[s] = true;
+  if(DATA.estatusChasisSync) delete DATA.estatusChasisSync[eid];
+  guardar();
+  actualizarBannerFaltantes();
+  _pintarFaltantesEstatus();
+  toast('🚫 Marcado como "no me sirve"', 'success');
 }
 
 // ===== AVISO 🔄: chasis cuyos datos quedaron VIEJOS respecto a Maura ========
