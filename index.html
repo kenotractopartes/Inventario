@@ -1110,6 +1110,24 @@ function dedupChasisEstatus(){
   if(quitados>0) DATA.piezas=limpias;
   return quitados;
 }
+// Chasis que Raúl NO quiere en su inventario aunque Maura los comparta (a
+// nosotros no nos sirven). Se guardan por su estatusId Y por su serie —así el
+// ignorado aguanta aunque Maura cambie el id del registro. Sin esto, borrar un
+// chasis del Estatus no servía: el espejo lo volvía a crear al siguiente refresh.
+function _chasisIgnorados(){
+  if(!DATA.chasisIgnorados) DATA.chasisIgnorados = { ids:{}, series:{} };
+  if(!DATA.chasisIgnorados.ids)    DATA.chasisIgnorados.ids = {};
+  if(!DATA.chasisIgnorados.series) DATA.chasisIgnorados.series = {};
+  return DATA.chasisIgnorados;
+}
+function _estatusIgnorado(eid, serie){
+  const ig = _chasisIgnorados();
+  if(eid && ig.ids[eid]) return true;
+  const s = _serieNorm(_txtPlano(serie));
+  if(s && ig.series[s]) return true;
+  return false;
+}
+
 function espejoChasisEstatus(data){
   if(!esEditor()) return;                       // solo el editor crea piezas
   if(!DATA.estatusChasisSync) DATA.estatusChasisSync={};
@@ -1121,6 +1139,8 @@ function espejoChasisEstatus(data){
   Object.keys(data||{}).forEach(eid=>{
     if(yaEn[eid]){ DATA.estatusChasisSync[eid]=true; return; }   // ya existe la pieza → NO crear otra
     const ch=data[eid]||{};
+    // Si Raúl lo marcó como "no me sirve", no se vuelve a crear.
+    if(_estatusIgnorado(eid, ch.serie)){ return; }
     const marca=_txtPlano(ch.marca), anio=_txtPlano(ch.anio), serie=_txtPlano(ch.serie);
     const extras={ estatusId:eid, origenEstatus:true };
     if(marca) extras.fichaMarca=marca;
@@ -1159,8 +1179,11 @@ function contarFaltantesEstatus(){
   });
   return Object.keys(_estatusChasisData||{}).filter(eid=>{
     if(yaEn[eid]) return false;
-    const s=_serieNorm(_txtPlano((_estatusChasisData[eid]||{}).serie));
+    const serie=(_estatusChasisData[eid]||{}).serie;
+    const s=_serieNorm(_txtPlano(serie));
     if(s && seriesPz[s]) return false;
+    // No cuentan los que Raúl marcó "no me sirve": no debe salir el aviso por ellos.
+    if(_estatusIgnorado(eid, serie)) return false;
     return true;
   });
 }
@@ -1814,6 +1837,10 @@ function normalizarData(obj) {
     catalogos: obj.catalogos || JSON.parse(JSON.stringify(CATALOGOS_DEFAULT)),
     familiasOverride: obj.familiasOverride || JSON.parse(JSON.stringify(FAMILIAS_OVERRIDE_DEFAULT)),
     estatusChasisSync: obj.estatusChasisSync || {},
+    // Chasis del Estatus que Raúl decidió NO tener (para que el espejo no los recree).
+    chasisIgnorados: (obj.chasisIgnorados && typeof obj.chasisIgnorados === 'object')
+      ? { ids: obj.chasisIgnorados.ids || {}, series: obj.chasisIgnorados.series || {} }
+      : { ids:{}, series:{} },
     salidas: Array.isArray(obj.salidas) ? obj.salidas : [],
     folioCounter: obj.folioCounter || 1
   };
@@ -5685,12 +5712,22 @@ function eliminarPieza(id) {
   pushUndo('Eliminar pieza');
   if (!confirm('¿Eliminar esta pieza permanentemente?')) return;
   const p = DATA.piezas.find(x => x.id === id);
+  // Si este chasis vino del Estatus de Maura, hay que marcarlo como IGNORADO;
+  // si no, el espejo lo vuelve a crear al siguiente refresh (por eso "reaparecían").
+  if (p && p.familia === 'chasis' && p.extras && (p.extras.origenEstatus || p.extras.estatusId)) {
+    const ig = _chasisIgnorados();
+    if (p.extras.estatusId) ig.ids[p.extras.estatusId] = true;
+    const s = _serieNorm(_txtPlano(p.extras.fichaVin));
+    if (s) ig.series[s] = true;
+    if (DATA.estatusChasisSync && p.extras.estatusId) delete DATA.estatusChasisSync[p.extras.estatusId];
+  }
   // ANTES de sacarla: ver si sus fotos son del modelo (compartidas) y si
   // quedan otras piezas del mismo modelo.
   const key = _modelKey(p);
   const mediaIndividual = (!key && PUB[id] && PUB[id].media) ? PUB[id].media.slice() : [];
   DATA.piezas = DATA.piezas.filter(x => x.id !== id);
   guardar();
+  if (typeof actualizarBannerFaltantes === 'function') actualizarBannerFaltantes();
   try {
     // Su propia ficha siempre se quita.
     firebase.database().ref('fichas_publicas/' + id).remove();
