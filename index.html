@@ -5019,7 +5019,7 @@ function renderWeb(){
   // que se vea CLARO qué le falta a cada una en vez de un montón indistinto.
   const subirConFoto  = subir.filter(p => mediaDePieza(p.id).length > 0 && p.precioWeb > 0);
   const subirSinPrecio = subir.filter(p => mediaDePieza(p.id).length > 0 && !(p.precioWeb > 0));
-  const subirSinFoto  = subir.filter(p => mediaDePieza(p.id).length === 0);
+  const subirSinFoto  = subir.filter(p => familiaLlevaFotos(p.familia) && mediaDePieza(p.id).length === 0);
 
   // Contador del bloque de Leadway (cuenta piezas idénticas como una sola).
   const info = document.getElementById('web-leadway-info');
@@ -5862,6 +5862,12 @@ let _filtroBajoPedido = false;
 let _filtroApartadas = false;
 let _filtroFotos = false;
 let _filtroSinFotos = false;
+
+// Familias que NUNCA llevarán fotos (ni individuales ni por modelo). Los 110
+// arneses del cuarto no se fotografían — sin esto inflaban el contador de
+// "Sin fotos" para siempre y parecía que faltaba un trabajo que no existe.
+const FAMILIAS_SIN_FOTOS = ['arneses'];
+function familiaLlevaFotos(famId){ return FAMILIAS_SIN_FOTOS.indexOf(famId) === -1; }
 let _filtroFotosTexto = '';
 // Filtros EXCLUSIVOS de Chasis (aparecen solo al ver la familia Chasis).
 // null = todos. Consecutivo: null=todos, ''=sin definir, o el texto exacto.
@@ -6004,7 +6010,9 @@ function actualizarContadorFotosInicio(){
   var con = 0, sin = 0;
   DATA.piezas.forEach(function(p){
     if(!p || p.vendida) return;
-    if(mediaDePieza(p.id).length > 0) con++; else sin++;
+    if(mediaDePieza(p.id).length > 0) con++;
+    // Los arneses nunca llevan fotos: no cuentan como "les falta".
+    else if(familiaLlevaFotos(p.familia)) sin++;
   });
   var a = document.getElementById('btn-fotos-count');
   if(a) a.textContent = con ? ' (' + con + ')' : '';
@@ -6036,7 +6044,7 @@ function renderBusqueda() {
   const nBajoPedido = DATA.piezas.filter(p => !p.vendida && p.bajoPedido).length;
   const nApartadas = DATA.piezas.filter(p => p.apartada && !p.vendida).length;
   const nFotos = DATA.piezas.filter(p => !p.vendida && mediaDePieza(p.id).length > 0).length;
-  const nSinFotos = DATA.piezas.filter(p => !p.vendida && mediaDePieza(p.id).length === 0).length;
+  const nSinFotos = DATA.piezas.filter(p => !p.vendida && familiaLlevaFotos(p.familia) && mediaDePieza(p.id).length === 0).length;
   // Si el buscador de fotos ya existe y tiene texto/foco (Raúl tecleando),
   // preservarlo aunque una sync de la nube dispare este re-render.
   const _busPrev = document.getElementById('buscador-fotos');
@@ -6098,7 +6106,7 @@ function _renderResultadosBusqueda() {
   if (_filtroBajoPedido) piezas = piezas.filter(p => p.bajoPedido);
   if (_filtroApartadas) piezas = piezas.filter(p => p.apartada);
   if (_filtroFotos) piezas = piezas.filter(p => mediaDePieza(p.id).length > 0);
-  if (_filtroSinFotos) piezas = piezas.filter(p => mediaDePieza(p.id).length === 0);
+  if (_filtroSinFotos) piezas = piezas.filter(p => familiaLlevaFotos(p.familia) && mediaDePieza(p.id).length === 0);
   if ((_filtroFotos || _filtroSinFotos) && _filtroFotosTexto) {
     piezas = piezas.filter(p => coincideBusqueda(textoBuscablePieza(p), _filtroFotosTexto));
   }
