@@ -2018,12 +2018,6 @@ function compartirPieza(id) {
     const max = p.precioMax ? ` - $${Number(p.precioMax).toLocaleString('es-MX')}` : '';
     lineas.push(`Precio: ${min}${max}`);
   }
-  // Link Drive
-  if (ex.driveLink) {
-    lineas.push('');
-    lineas.push('📷 Fotos y video:');
-    lineas.push(ex.driveLink);
-  }
 
   const mensaje = lineas.join('\n');
 
@@ -3383,9 +3377,7 @@ function renderCamiones() {
       // Si es Motor/Cabina/Chasis, usar formato tabla (igual que dentro del camión)
       // Quitar el título "Motor"/"Cabina"/"Chasis" interno porque ya está afuera como "SUELTA · ..."
       let lineasDetalle = detalleDePiezas([p]).join('');
-      const qrBtn = p.extras?.driveLink
-        ? `<button class="btn btn-small" style="padding:6px 10px; font-size:12px; min-height:30px;" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((f?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡 QR</button>`
-        : '';
+      const qrBtn = '';   // (QR de Drive viejo eliminado jul 2026)
 
       return `
         <div class="card" style="background:#fff; border:3px solid #e67e22; border-radius:8px;">
@@ -3533,7 +3525,7 @@ function detalleDePiezas(piezas) {
       const modeloEnTitulo = (p.modelo && p.modelo !== famSing) ? `: ${escapeHtml(p.modelo)}` : '';
       const tituloConPrecio = `<strong>${famSing}${modeloEnTitulo}</strong> ${precioBadge(p)}`;
       
-      const qrBtnTabla = ex.driveLink ? ` <button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(ex.driveLink)}', '${jsAttr(famSing + ' ' + (p.modelo||''))}')">📱🤡 QR</button>` : '';
+      const qrBtnTabla = '';   // (QR de Drive viejo eliminado jul 2026)
 
       if (filas.length === 0) {
         // Sin datos en tabla, solo título con precio
@@ -3561,7 +3553,7 @@ function detalleDePiezas(piezas) {
     else if (extras) textoSinPrecio = `<strong>${escapeHtml(famSing)}:</strong> ${escapeHtml(extras)}`;
     else textoSinPrecio = `<strong>${escapeHtml(famSing)}</strong>`;
 
-    const qrBtn = ex.driveLink ? ` <button class="btn btn-small" style="padding:3px 8px; font-size:11px; min-height:24px;" onclick="verQR('${encodeURIComponent(ex.driveLink)}', '${jsAttr(famSing + ' ' + (p.modelo||''))}')">📱🤡 QR</button>` : '';
+    const qrBtn = '';   // (QR de Drive viejo eliminado jul 2026)
 
     const notaHTML = p.notas ? `<div style="font-size:14px; color:#4a4a4a; background:#f7f3ea; border-left:3px solid #c9a24b; border-radius:2px; padding:7px 11px; margin-top:5px;">📝 ${escapeHtml(p.notas)}</div>` : '';
     const bpTag = p.bajoPedido ? ' <span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : '';
@@ -4058,16 +4050,6 @@ function seleccionarFamilia(famId) {
       </datalist>
     </div>
 
-    <div class="field" style="margin-top:10px;">
-      <details style="background:#fafafa; border:1px dashed #ccc; border-radius:6px; padding:8px 12px;">
-        <summary style="cursor:pointer; font-size:13px; color:#666; font-weight:600;">+ Agregar carpeta Google Drive (con QR) — opcional</summary>
-        <div style="margin-top:10px;">
-          <label style="font-size:12px;">Pega aquí el link de la carpeta de Google Drive</label>
-          <input type="text" id="pieza-drive-link" placeholder="https://drive.google.com/drive/folders/..." oninput="actualizarQRPreview('pieza-drive-link','pieza-qr-preview')" style="font-size:14px;">
-          <div id="pieza-qr-preview" style="margin-top:10px; text-align:center;"></div>
-        </div>
-      </details>
-    </div>
 
     <div class="field-row">
       <div class="field">
@@ -4266,8 +4248,6 @@ function guardarPieza() {
   }
 
   // Link Drive (con QR)
-  const driveLink = document.getElementById('pieza-drive-link')?.value.trim();
-  if (driveLink) baseExtras.driveLink = driveLink;
 
   // Ubicación en el patio
   const ubicacion = document.getElementById('pieza-ubicacion')?.value.trim();
@@ -4393,9 +4373,7 @@ function renderPiezaItem(p) {
   const f = FAMILIAS.find(x => x.id === p.familia);
   const extras = formatExtras(p.extras, p.modelo);
   const precio = precioBadge(p) ? " " + precioBadge(p) : "";
-  const qrBtn = p.extras?.driveLink
-    ? `<button class="btn btn-small" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((f?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡 QR</button>`
-    : '';
+  const qrBtn = '';   // (QR de Drive viejo eliminado jul 2026)
   return `
     <div class="pieza-item" style="${p.vendida ? 'opacity:0.55' : ''}">
       <div class="pieza-info">
@@ -4541,7 +4519,7 @@ function renderPiezaItemConCamion(p) {
                 : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`)}
           ${botonApartar(p)}
           ${botonFotos(p)}
-                    ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((f?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
+                    
           <button class="btn btn-small btn-mini solo-editor" onclick="toggleBajoPedido('${p.id}')" title="Sin existencia / bajo pedido">${p.bajoPedido ? '📦✓' : '📦'}</button>
           <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
         </div>
@@ -5604,16 +5582,6 @@ function editarPieza(id) {
         <option>Patio Diferenciales</option><option>Techo Patio</option><option>Techo</option><option>Bodega</option>
       </datalist>
     </div>
-    <div class="field" style="margin-top:10px;">
-      <details ${ex.driveLink ? 'open' : ''} style="background:#fafafa; border:1px dashed #ccc; border-radius:6px; padding:8px 12px;">
-        <summary style="cursor:pointer; font-size:13px; color:#666; font-weight:600;">${ex.driveLink ? 'Carpeta Google Drive (con QR)' : '+ Agregar carpeta Google Drive (con QR)'}</summary>
-        <div style="margin-top:10px;">
-          <label style="font-size:12px;">Link de la carpeta de Google Drive</label>
-          <input type="text" id="edit-drive-link" value="${escapeHtml(ex.driveLink || '')}" placeholder="https://drive.google.com/drive/folders/..." oninput="actualizarQRPreview('edit-drive-link','edit-qr-preview')" style="font-size:14px;">
-          <div id="edit-qr-preview" style="margin-top:10px; text-align:center;"></div>
-        </div>
-      </details>
-    </div>
     <div class="field"><label>Precio venta (puedes poner rango: 2000-3000)</label><input type="text" inputmode="text" class="precio-input" id="edit-precio" value="${p.precioSugerido ? (Number(p.precioSugerido).toLocaleString('es-MX') + (p.precioMax ? ' - ' + Number(p.precioMax).toLocaleString('es-MX') : '')) : ''}"></div>
     <div class="field" style="background:#eef6ff; border:1px solid #b8d4f0; border-radius:8px; padding:12px;">
       <label style="color:#185FA5;">🌐 Precio para la PÁGINA WEB</label>
@@ -5630,10 +5598,6 @@ function editarPieza(id) {
 
   document.getElementById('modal-pieza-body').innerHTML = html;
   openModal('modal-pieza');
-  // Si hay link Drive guardado, renderizar QR de inicio
-  if (ex.driveLink) {
-    setTimeout(() => actualizarQRPreview('edit-drive-link','edit-qr-preview'), 50);
-  }
 }
 
 function guardarEdicionPieza(id) {
@@ -5695,10 +5659,6 @@ function guardarEdicionPieza(id) {
   if (document.getElementById('edit-fichaExtra')) ex.fichaExtra = document.getElementById('edit-fichaExtra').value.trim();
   if (document.getElementById('edit-consecutivo')) ex.consecutivo = document.getElementById('edit-consecutivo').value.trim();
   if (document.getElementById('edit-baja')) ex.baja = document.getElementById('edit-baja').value.trim();
-  if (document.getElementById('edit-drive-link')) {
-    const dl = document.getElementById('edit-drive-link').value.trim();
-    if (dl) ex.driveLink = dl; else delete ex.driveLink;
-  }
   if (document.getElementById('edit-ubicacion')) {
     const ub = document.getElementById('edit-ubicacion').value.trim();
     if (ub) ex.ubicacion = ub; else delete ex.ubicacion;
@@ -6282,7 +6242,7 @@ function _renderResultadosBusqueda() {
                     ${(estadoIny(p) && estadoIny(p) !== 'reconstruido') ? '' : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
                     ${botonApartar(p)}
                     ${botonFotos(p)}
-                                        ${p.extras?.driveLink ? `<button class="btn btn-small btn-mini" onclick="verQR('${encodeURIComponent(p.extras.driveLink)}','${jsAttr((fam?.nombreSingular||'')+' '+(p.modelo||''))}')">📱🤡</button>` : ''}
+                                        
                     <button class="btn btn-small btn-mini solo-editor" onclick="toggleBajoPedido('${p.id}')" title="Sin existencia / bajo pedido">${p.bajoPedido ? '📦✓' : '📦'}</button>
                     <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
                     <button class="btn btn-small btn-mini btn-danger solo-editor" onclick="eliminarPieza('${p.id}')">🗑</button>
