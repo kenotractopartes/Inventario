@@ -5583,15 +5583,21 @@ function editarPieza(id) {
       </datalist>
     </div>
     <div class="field"><label>Precio venta (puedes poner rango: 2000-3000)</label><input type="text" inputmode="text" class="precio-input" id="edit-precio" value="${p.precioSugerido ? (Number(p.precioSugerido).toLocaleString('es-MX') + (p.precioMax ? ' - ' + Number(p.precioMax).toLocaleString('es-MX') : '')) : ''}"></div>
-    <div class="field" style="background:#eef6ff; border:1px solid #b8d4f0; border-radius:8px; padding:12px;">
-      <label style="color:#185FA5;">🌐 Precio para la PÁGINA WEB</label>
-      <input type="number" inputmode="numeric" id="edit-precio-web" placeholder="Déjalo vacío para que diga 'Cotizar por WhatsApp'" value="${p.precioWeb || ''}">
-      <div style="font-size:12px; color:#5a7fa5; margin-top:6px;">Este es <strong>aparte</strong> del de arriba. El de arriba es el de mostrador y nunca se publica; este es el que ve el cliente en internet (aquí ya le cargas la comisión de Mercado Pago).<br><strong style="color:#b03a2e;">Ponlo SIN IVA:</strong> Leadway le suma el 16% encima, así está configurada tu tienda.</div>
-      <label style="display:flex; align-items:center; gap:8px; margin-top:10px; cursor:pointer; font-weight:600; color:#c0392b;">
-        <input type="checkbox" id="edit-no-web" ${p.noWeb ? 'checked' : ''} style="width:18px; height:18px;">
-        No publicar esta pieza en la página web
-      </label>
-    </div>
+    <!-- Colapsado por default (pedido jul 2026): solo un renglón chiquito.
+         Si la pieza YA tiene precio web o está excluida, se abre solo para
+         que ese dato no quede escondido. Los inputs existen igual aunque esté
+         cerrado, así que el guardado no cambia en nada. -->
+    <details ${(p.precioWeb || p.noWeb) ? 'open' : ''} style="background:#eef6ff; border:1px solid #b8d4f0; border-radius:8px; padding:8px 12px; margin-top:10px;">
+      <summary style="cursor:pointer; font-size:13px; color:#185FA5; font-weight:800;">🌐 Precio página web${p.precioWeb ? ' · ' + fmtDinero(p.precioWeb) : ''}${p.noWeb ? ' · <span style="color:#c0392b;">NO publicar</span>' : ''} <span style="font-weight:400; color:#7da4c9;">(opcional)</span></summary>
+      <div style="margin-top:10px;">
+        <input type="number" inputmode="numeric" id="edit-precio-web" placeholder="Déjalo vacío para que diga 'Cotizar por WhatsApp'" value="${p.precioWeb || ''}">
+        <div style="font-size:12px; color:#5a7fa5; margin-top:6px;">Este es <strong>aparte</strong> del de arriba. El de arriba es el de mostrador y nunca se publica; este es el que ve el cliente en internet (aquí ya le cargas la comisión de Mercado Pago).<br><strong style="color:#b03a2e;">Ponlo SIN IVA:</strong> Leadway le suma el 16% encima, así está configurada tu tienda.</div>
+        <label style="display:flex; align-items:center; gap:8px; margin-top:10px; cursor:pointer; font-weight:600; color:#c0392b;">
+          <input type="checkbox" id="edit-no-web" ${p.noWeb ? 'checked' : ''} style="width:18px; height:18px;">
+          No publicar esta pieza en la página web
+        </label>
+      </div>
+    </details>
     <div class="field"><label>Notas</label><textarea id="edit-notas" rows="2">${escapeHtml(p.notas || '')}</textarea></div>
     <button class="btn btn-success btn-block" onclick="guardarEdicionPieza('${p.id}')">Guardar Cambios</button>
   `;
