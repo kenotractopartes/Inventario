@@ -307,15 +307,15 @@
   <div class="card" style="background:#eef6ff; border:2px solid #b8d4f0; padding:14px; margin-bottom:16px;">
     <div style="font-size:15px; font-weight:900; color:#185FA5;">📦 Archivo para Leadway</div>
     <div style="font-size:13px; color:#5a7fa5; margin:6px 0 11px;">Genera el CSV que se sube en <strong>Leadway → Pagos → Productos → Importar como CSV</strong>. Da de alta las piezas nuevas con su foto, su precio y sus datos.<br><strong style="color:#b03a2e;">Solo sirve para ALTAS.</strong> Leadway rechaza el archivo completo si trae un producto que ya existe, así que las bajas y los cambios de precio se hacen a mano en su panel.<br><strong style="color:#b03a2e;">⚠️ Y después de subirlos:</strong> abre cada producto en Leadway y palomea <strong>«Adjuntar tasas impositivas → IVA (16%)»</strong>. El CSV no puede mandar el impuesto y sin eso se venden sin IVA.</div>
+    <!-- Solo lo del DÍA A DÍA. Las herramientas de diagnóstico (probar
+         conexión, ver producto, banco de pruebas…) viven detrás del 🔧
+         para no marear con ocho botones que nadie recuerda. -->
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-      <button class="btn btn-mini" style="background:#c9a24b; color:#17140f; border-color:#c9a24b; font-weight:800;" onclick="exportarLeadway(3)">🧪 Prueba con 3</button>
-      <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="exportarLeadway(0)">⬇️ CSV para Leadway</button>
-      <button class="btn btn-mini" id="btn-reenviar-web" style="display:none;" onclick="reenviarALeadway()">↺ Volver a mandar</button>
-      <button class="btn btn-mini" onclick="probarLeadway()" title="Confirma que la conexión directa con Leadway funciona (solo lee, no toca nada)">🔌 Probar conexión</button>
-      <button class="btn btn-mini" onclick="diagnosticoLeadway()" title="Enseña cómo se ve un producto por dentro (solo lee)">🔍 Ver un producto</button>
-      <button class="btn btn-mini" onclick="diagnosticoSlugs()" title="Recorre toda la tienda y dice qué encuentra (solo lee)">🩺 Diagnóstico</button>
+      <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="exportarLeadway(0)" title="Genera el archivo con las piezas nuevas para subirlo en Leadway">⬇️ CSV para Leadway</button>
       <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="ponerIvaEnLeadway()" title="Le pone el IVA 16% a los productos que subiste por CSV">💰 Ponerles el IVA</button>
-      <button class="btn btn-mini" style="background:#fdf6e3; border-color:#c9a24b; color:#8a6d3b; font-weight:800;" onclick="abrirPruebaApi()" title="Estrena el IVA y la baja de tienda contra el producto de mentiras">🧪 Banco de pruebas</button>
+      <button class="btn btn-mini" style="background:#2e7d46; color:#fff; border-color:#2e7d46; font-weight:800;" onclick="compararFotosWebInv()" title="Compara producto por producto qué fotos tiene la página web y cuáles el inventario">📷 Fotos: web vs inventario</button>
+      <button class="btn btn-mini" id="btn-reenviar-web" style="display:none;" onclick="reenviarALeadway()">↺ Volver a mandar</button>
+      <button class="btn btn-mini" style="padding:6px 10px;" onclick="abrirHerramientasLeadway()" title="Herramientas de diagnóstico (rara vez se necesitan)">🔧</button>
       <span id="web-leadway-info" style="font-size:13px; color:#5a7fa5;"></span>
     </div>
   </div>
@@ -2347,6 +2347,127 @@ function diagnosticoSlugs(){
       escapeHtml(txt) + '</textarea>';
     openModal('modal-precios');
   }).catch(function(e){ alert('Falló: ' + (e.message || e)); });
+}
+
+// ── MENÚ DE HERRAMIENTAS (el 🔧) ───────────────────────────────────────────
+// Las herramientas de diagnóstico se usaron mucho al construir la conexión
+// con Leadway y casi nunca después. Viven aquí con su explicación, en vez de
+// ser ocho botones sueltos que nadie recuerda para qué eran.
+function abrirHerramientasLeadway(){
+  const item = (icono, nombre, desc, accion) =>
+    '<div onclick="closeModal(\'modal-precios\'); setTimeout(function(){' + accion + '}, 150);" ' +
+      'style="display:flex; gap:12px; align-items:flex-start; padding:13px 14px; border-bottom:1px solid #eee; cursor:pointer;">' +
+      '<span style="font-size:22px; flex:none;">' + icono + '</span>' +
+      '<span style="flex:1; min-width:0;"><strong style="font-size:15px;">' + nombre + '</strong>' +
+      '<br><span style="font-size:13px; color:#777;">' + desc + '</span></span>' +
+    '</div>';
+  document.getElementById('modal-precios-title').textContent = '🔧 Herramientas de Leadway';
+  document.getElementById('modal-precios-body').innerHTML =
+    '<div style="font-size:13px; color:#888; margin-bottom:10px;">Rara vez se necesitan — son para revisar que la conexión con la tienda esté sana.</div>' +
+    '<div style="border:1px solid #e5ded0; border-radius:8px; overflow:hidden;">' +
+      item('🔌', 'Probar conexión', 'Confirma que el puente y el token de Leadway funcionan. Solo lee, no toca nada.', 'probarLeadway()') +
+      item('🧪', 'CSV de prueba (3 piezas)', 'Genera un archivo chiquito con solo 3 piezas, para probar una subida sin arriesgar el lote completo.', 'exportarLeadway(3)') +
+      item('🩺', 'Diagnóstico de la tienda', 'Recorre todos los productos de Leadway y dice cuántos ve y cuáles traen tu folio (tpm-).', 'diagnosticoSlugs()') +
+      item('🔍', 'Ver un producto por dentro', 'Enseña un producto tal cual lo guarda Leadway, con todos sus campos. Para revisar detalles técnicos.', 'diagnosticoLeadway()') +
+      item('🧫', 'Banco de pruebas', 'Prueba ponerle IVA o bajar de la tienda al producto de mentiras "PRUEBA API", sin tocar los reales.', 'abrirPruebaApi()') +
+    '</div>';
+  openModal('modal-precios');
+}
+
+// ── COMPARADOR: FOTOS EN LA WEB vs FOTOS EN EL INVENTARIO ──────────────────
+// Responde la pregunta: "de los productos que están en LOS DOS lados, ¿cuáles
+// tienen foto en la página web pero no en el inventario?" — y deja jalarlas
+// ahí mismo con el flujo de copiar fotos que ya existe.
+// El empate es POR NOMBRE (los 271 productos viejos de Leadway no traen el
+// folio tpm-), así que es orientativo: bueno para encontrar, no infalible.
+var _stopComparador = { de:1, la:1, el:1, en:1, con:1, para:1, y:1, a:1, un:1, una:1,
+  usado:1, usada:1, usados:1, usadas:1, reconstruido:1, reconstruida:1, original:1,
+  mil:1, lbs:1, libras:1, paso:1, motor:1 };
+function _tokensNombre(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/,/g,'').replace(/[^a-z0-9 ]/g,' ').split(/\s+/)
+    .filter(function(w){ return w.length >= 2 && !_stopComparador[w]; });
+}
+function _scoreNombres(a, b){
+  const A = _tokensNombre(a), B = _tokensNombre(b);
+  if(!A.length || !B.length) return 0;
+  const setB = {};
+  B.forEach(function(w){ setB[w] = 1; });
+  let n = 0;
+  A.forEach(function(w){ if(setB[w]) n++; });
+  return n;
+}
+
+function compararFotosWebInv(){
+  toast('Comparando la tienda con el inventario…', 'success');
+  document.getElementById('modal-precios-title').textContent = '📷 Fotos: página web vs inventario';
+  document.getElementById('modal-precios-body').innerHTML =
+    '<p style="text-align:center; color:#888; padding:24px 0;">Cargando los productos de tu tienda…</p>';
+  openModal('modal-precios');
+
+  _lwCargarProductos().then(function(productos){
+    const piezas = (DATA.piezas || []).filter(function(p){ return !p.vendida; });
+    const traerFotosDe = [];   // web SÍ tiene, inventario NO
+    const alReves = [];        // inventario SÍ, web NO
+    let emparejados = 0, sinPareja = 0;
+
+    productos.forEach(function(prod){
+      let mejor = null, mejorScore = 0;
+      piezas.forEach(function(p){
+        const s = _scoreNombres(prod.nombre, _tituloLeadway(p));
+        if(s > mejorScore){ mejorScore = s; mejor = p; }
+      });
+      if(!mejor || mejorScore < 2){ sinPareja++; return; }
+      emparejados++;
+      const fotosInv = mediaDePieza(mejor.id).length;
+      const fotosWeb = prod.fotos || 0;
+      if(fotosWeb > 0 && fotosInv === 0) traerFotosDe.push({ prod: prod, pieza: mejor });
+      else if(fotosWeb === 0 && fotosInv > 0) alReves.push({ prod: prod, pieza: mejor });
+    });
+
+    const fila = function(x, botonTraer){
+      const folio = x.pieza.folioInterno ? '<span style="font-family:ui-monospace,monospace; background:#17140f; color:#f2efe9; padding:1px 6px; border-radius:4px; font-size:11px; margin-right:6px;">' + escapeHtml(x.pieza.folioInterno) + '</span>' : '';
+      return '<div style="display:flex; gap:10px; align-items:center; padding:11px 14px; border-bottom:1px solid #eee; flex-wrap:wrap;">' +
+        '<div style="flex:1; min-width:180px;">' +
+          '<div style="font-size:14px; font-weight:800;">' + escapeHtml(x.prod.nombre || '') + '</div>' +
+          '<div style="font-size:12px; color:#888; margin-top:2px;">↔ En el inventario: ' + folio + escapeHtml(_tituloLeadway(x.pieza)) + '</div>' +
+        '</div>' +
+        (botonTraer
+          ? '<button class="btn btn-mini" style="background:#2e7d46; color:#fff; border-color:#2e7d46; font-weight:800; flex:none;" ' +
+            'onclick="_traerDesdeComparador(\'' + x.pieza.id + '\',\'' + x.prod.id + '\')">📥 Traer fotos</button>'
+          : '<span style="flex:none; font-size:12px; color:#c9a24b; font-weight:700;">' + mediaDePieza(x.pieza.id).length + ' foto(s) solo aquí</span>') +
+      '</div>';
+    };
+
+    const caja = function(titulo, sub, color, lista, vacio, conBoton){
+      return '<div style="border:2px solid ' + color + '; border-radius:10px; overflow:hidden; margin-bottom:14px;">' +
+        '<div style="background:' + color + '18; padding:11px 14px;">' +
+          '<div style="font-size:15px; font-weight:900; color:' + color + ';">' + titulo + ' (' + lista.length + ')</div>' +
+          '<div style="font-size:12px; color:#777;">' + sub + '</div>' +
+        '</div>' +
+        (lista.length ? lista.map(function(x){ return fila(x, conBoton); }).join('')
+          : '<div style="padding:16px; text-align:center; color:#999; font-size:13px;">' + vacio + '</div>') +
+      '</div>';
+    };
+
+    document.getElementById('modal-precios-body').innerHTML =
+      '<div style="font-size:12px; color:#888; margin-bottom:12px;">Emparejé por NOMBRE los productos de tu tienda con las piezas del patio: ' +
+        '<strong>' + emparejados + '</strong> emparejados · ' + sinPareja + ' de la tienda sin pareja clara. Es orientativo — el empate por nombre no es infalible.</div>' +
+      caja('📥 La web SÍ tiene fotos, el inventario NO', 'Estas son las que puedes jalar ahorita mismo', '#2e7d46',
+        traerFotosDe, 'Ninguna — todo lo que está en ambos lados ya tiene foto en el inventario.', true) +
+      caja('🔄 Al revés: el inventario SÍ, la web NO', 'Estas podrías subirlas a Leadway (a mano o por CSV si es pieza nueva)', '#c9a24b',
+        alReves, 'Ninguna.', false);
+  }).catch(function(e){
+    document.getElementById('modal-precios-body').innerHTML =
+      '<p style="color:#c0392b; text-align:center; padding:20px;">' + escapeHtml(e.message || String(e)) + '</p>';
+  });
+}
+
+// Del comparador directo al flujo de copiar fotos: abre el modal de fotos de
+// ESA pieza y enseña las fotos de ESE producto, listas para palomear y traer.
+function _traerDesdeComparador(piezaId, productoId){
+  abrirFotosPieza(piezaId);
+  _lwVerFotos(productoId);
 }
 
 // ── TRAER FOTOS DE LA PÁGINA WEB ───────────────────────────────────────────
