@@ -3092,14 +3092,31 @@ function renderModalFotos(){
 // seguro, el borrado (de foto o de pieza) NO elimina un archivo de Storage si
 // otra pieza todavía lo usa (ver _urlUsadaPorOtraPieza).
 var _copiarSel = {};
-// Etiqueta legible que distingue una pieza de otra de la misma familia:
-// modelo + lo que Raúl escribió (notas suele traer "Motor ISX sin EGR"/"ISX870").
+// Etiqueta legible que distingue una pieza de otra de la misma familia. Como el
+// texto que las diferencia ("Motor ISX sin EGR" vs "ISX870") puede vivir en
+// distintos campos según cómo se capturó, se junta TODO el texto propio de la
+// pieza (campos de nivel superior + extras), quitando el ruido (ids, precios,
+// ubicación, etc.). Así el nombre distintivo siempre aparece.
 function _subnombrePieza(x){
   var f = FAMILIAS.find(function(y){ return y.id === x.familia; });
   var base = x.modelo || (f && f.nombreSingular) || 'Pieza';
-  var sub = (x.notas || '').trim();
-  if(!sub){ try { sub = (formatExtras(x.extras, x.modelo) || '').trim(); } catch(e){} }
-  return { base: base, sub: sub };
+  var ruido = { id:1, familia:1, modelo:1, familiaId:1, camionId:1, fechaRegistro:1, vendida:1,
+    apartada:1, bajoPedido:1, enWeb:1, noWeb:1, precioSugerido:1, precioMax:1, precioWeb:1,
+    folioInterno:1, camionFolio:1, ubicacion:1, numeroArnes:1, zonaArnes:1, tipoArnes:1 };
+  var vistos = {}; vistos[String(base).toLowerCase()] = 1;
+  var bits = [];
+  function add(v){
+    if(v == null) return;
+    v = String(v).trim();
+    if(!v || v.length > 60 || /^https?:/i.test(v)) return;
+    var k = v.toLowerCase();
+    if(vistos[k]) return;
+    vistos[k] = 1; bits.push(v);
+  }
+  Object.keys(x).forEach(function(k){ if(!ruido[k] && typeof x[k] === 'string') add(x[k]); });
+  var ex = x.extras || {};
+  Object.keys(ex).forEach(function(k){ if(!ruido[k] && typeof ex[k] === 'string') add(ex[k]); });
+  return { base: base, sub: bits.join(' · ') };
 }
 function abrirCopiarFotos(){
   var src = DATA.piezas.find(function(x){ return x.id === _piezaFotosId; });
