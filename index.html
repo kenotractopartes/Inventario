@@ -3067,9 +3067,11 @@ function renderModalFotos(){
     '</div>'
   ) : '';
 
-  // Botón "copiar a otras piezas" — solo si esta pieza tiene fotos y es Editor.
-  var puedeCopiar = media.length && ((typeof esEditor !== 'function') || esEditor());
-  var copiarBtn = puedeCopiar
+  // Botón "copiar a otras piezas" — disponible para TODOS (también los que no son
+  // Editores), a pedido de Eugenio: sus trabajadores lo usan para replicar fotos
+  // a piezas iguales. Es una acción segura (solo copia fotos ya subidas; no borra
+  // ni cambia datos de la pieza). Solo requiere que la pieza tenga fotos.
+  var copiarBtn = media.length
     ? '<button class="btn btn-block" style="margin-top:8px; background:#fff; color:#6b3fa0; border:2px solid #6b3fa0; font-weight:800;" onclick="abrirCopiarFotos()">📋 Copiar estas fotos a otras piezas</button>'
     : '';
 
