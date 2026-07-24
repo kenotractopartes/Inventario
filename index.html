@@ -2809,7 +2809,9 @@ function linkFichaPieza(id){ return PUB_URL_BASE + encodeURIComponent(id); }
 // nuevo" y quedan iguales entre sí (a pedido de Eugenio, jul 2026). Las demás
 // (radiadores, puertas, cofres, cabezas, etc.) son usadas/dañadas y cada pieza
 // es única → fotos individuales. Para sumar otra familia, agrégala aquí.
-var FAMILIAS_FOTOS_MODELO = ['inyectores', 'arboles', 'transmisiones'];
+// jul 2026: se sumó 'campanas' — las del mismo modelo (ej. ISX) son iguales,
+// así una sola foto sirve para todas las del modelo.
+var FAMILIAS_FOTOS_MODELO = ['inyectores', 'arboles', 'transmisiones', 'campanas'];
 
 // Clave del modelo: familia + modelo + MARCA (ignorando mayúsculas y
 // separadores). Devuelve '' (→ fotos individuales) si la pieza no tiene
