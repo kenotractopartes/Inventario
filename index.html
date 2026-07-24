@@ -2967,6 +2967,17 @@ function abrirFotosPieza(id){
   var p = DATA.piezas.find(function(x){ return x.id === id; });
   if (!p) return;
   _piezaFotosId = id;
+  // jul 2026: si la familia ahora comparte fotos por MODELO pero esta pieza trae
+  // fotos VIEJAS individuales (subidas antes de que su familia entrara a la lista)
+  // y el modelo todavía no tiene fotos, se promueven al modelo UNA sola vez — así
+  // con solo abrir el modal se pasan a todas las piezas del modelo, sin resubir.
+  // Solo Editor (escribe en Firebase); idempotente (ya no corre si el modelo tiene).
+  var _key = _modelKey(p);
+  var _puedeEditar = (typeof esEditor !== 'function') || esEditor();
+  if (_puedeEditar && _key && !(MEDIA_MODELO[_key] && (MEDIA_MODELO[_key].media || []).length)) {
+    var _indiv = (PUB[id] && Array.isArray(PUB[id].media)) ? PUB[id].media.slice() : [];
+    if (_indiv.length) guardarMedia(p, _indiv);  // → media_modelo + republica todas las del modelo
+  }
   var f = FAMILIAS.find(function(x){ return x.id === p.familia; });
   document.getElementById('fotos-desc').textContent = (f?.nombreSingular || 'Pieza') + ': ' + (p.modelo || '');
   renderModalFotos();
