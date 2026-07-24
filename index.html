@@ -3067,14 +3067,102 @@ function renderModalFotos(){
     '</div>'
   ) : '';
 
+  // Botón "copiar a otras piezas" — solo si esta pieza tiene fotos y es Editor.
+  var puedeCopiar = media.length && ((typeof esEditor !== 'function') || esEditor());
+  var copiarBtn = puedeCopiar
+    ? '<button class="btn btn-block" style="margin-top:8px; background:#fff; color:#6b3fa0; border:2px solid #6b3fa0; font-weight:800;" onclick="abrirCopiarFotos()">📋 Copiar estas fotos a otras piezas</button>'
+    : '';
+
   body.innerHTML =
     '<div id="fotos-progreso"></div>' +
     avisoModelo +
     galeria +
     '<button class="btn btn-block" style="background:#185FA5;color:#fff;border-color:#185FA5;font-weight:800;" onclick="document.getElementById(\'fotos-input\').click()">📷 Tomar o elegir fotos / video</button>' +
     '<button class="btn btn-block" style="margin-top:8px; background:#fff; color:#185FA5; border:2px solid #185FA5; font-weight:800;" onclick="abrirFotosLeadway()">🌐 Traer fotos de mi página web</button>' +
+    copiarBtn +
     '<div style="font-size:12px; color:#999; text-align:center; margin-top:6px;">Se guardan en HD. En el teléfono puedes usar la cámara directo.</div>' +
     compartir;
+}
+
+// ── COPIAR FOTOS A OTRAS PIEZAS (jul 2026) ──────────────────────────────────
+// Como las familias con variantes (ej. campanas ISX sin EGR vs ISX870) no pueden
+// compartir fotos automático, el Editor elige a mano a qué piezas copiarlas. Se
+// DUPLICAN los archivos en Storage (cada pieza con los suyos) para que sean
+// independientes: borrar/vender una NO afecta a las demás.
+var _copiarSel = {};
+function abrirCopiarFotos(){
+  var src = DATA.piezas.find(function(x){ return x.id === _piezaFotosId; });
+  if(!src) return;
+  var media = mediaDePieza(_piezaFotosId) || [];
+  if(!media.length){ toast('Esta pieza no tiene fotos que copiar', 'error'); return; }
+  _copiarSel = {};
+  var f = FAMILIAS.find(function(x){ return x.id === src.familia; });
+  var cand = DATA.piezas.filter(function(x){ return x && x.familia === src.familia && !x.vendida && x.id !== src.id; });
+  var filas = cand.map(function(x){
+    var nf = (mediaDePieza(x.id) || []).length;
+    var fecha = x.fechaRegistro ? new Date(x.fechaRegistro).toLocaleDateString('es-MX') : '';
+    return '<label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid #eee;cursor:pointer;">' +
+      '<input type="checkbox" onchange="_copiarSel[\'' + x.id + '\']=this.checked" style="width:20px;height:20px;flex:none;">' +
+      '<span style="flex:1;min-width:0;font-size:14px;"><strong>' + escapeHtml(x.modelo || (f && f.nombreSingular) || 'Pieza') + '</strong>' +
+        (x.folioInterno ? ' <span style="color:#999;font-family:ui-monospace,monospace;">' + escapeHtml(x.folioInterno) + '</span>' : '') +
+        '<br><span style="font-size:12px;color:#888;">' + escapeHtml(fecha) + (nf ? ' · <span style="color:#c0392b;">ya tiene ' + nf + ' foto(s) — se reemplazan</span>' : '') + '</span>' +
+      '</span></label>';
+  }).join('');
+  var body = document.getElementById('fotos-body');
+  body.innerHTML =
+    '<div style="margin-bottom:10px;"><button class="btn btn-small" onclick="renderModalFotos()">← Regresar</button></div>' +
+    '<div style="background:#f3eefb;border:1px solid #cbb6e6;border-radius:8px;padding:9px 12px;font-size:13px;color:#4e3570;margin-bottom:10px;">📋 Elige a qué piezas copiar estas <strong>' + media.length + '</strong> foto(s). Cada pieza queda con su <strong>propia copia</strong> (independientes). Ojo: usa el <strong>nombre</strong> para no copiar a una variante distinta.</div>' +
+    (cand.length ? filas + '<button class="btn btn-block" style="margin-top:10px;background:#6b3fa0;color:#fff;border-color:#6b3fa0;font-weight:800;" onclick="copiarFotosSeleccionadas()">📋 Copiar a las seleccionadas</button>'
+                 : '<p style="color:#888;text-align:center;padding:14px;">No hay otras piezas de esta familia sin vender.</p>') +
+    '<div id="copiar-progreso" style="font-size:13px;color:#555;text-align:center;margin-top:8px;"></div>';
+}
+
+function copiarFotosSeleccionadas(){
+  var media = mediaDePieza(_piezaFotosId) || [];
+  var ids = Object.keys(_copiarSel).filter(function(k){ return _copiarSel[k]; });
+  if(!ids.length){ toast('Elige al menos una pieza', 'error'); return; }
+  if(!media.length){ toast('No hay fotos que copiar', 'error'); return; }
+  var prog = document.getElementById('copiar-progreso');
+  var st = firebase.storage();
+  var hechas = 0;
+
+  function dupUrl(url, targetId, ts, sufijo){
+    return fetch(url).then(function(r){ if(!r.ok) throw new Error('no se pudo leer una foto'); return r.blob(); })
+      .then(function(blob){
+        var ref = st.ref('fotos_piezas/' + targetId + '/' + ts + sufijo);
+        return ref.put(blob).then(function(){ return ref.getDownloadURL(); });
+      });
+  }
+  function dupMedia(targetId, m, ts){
+    if(m.t === 'video' && m.url) return dupUrl(m.url, targetId, ts, '_video').then(function(u){ return { t:'video', url:u, kb:m.kb }; });
+    var pHd  = m.hd  ? dupUrl(m.hd,  targetId, ts, '_hd')  : Promise.resolve('');
+    var pWeb = m.web ? dupUrl(m.web, targetId, ts, '_web') : Promise.resolve('');
+    return Promise.all([pHd, pWeb]).then(function(r){ return { t:'foto', hd:(r[0]||r[1]), web:(r[1]||r[0]), kb:m.kb }; });
+  }
+  function copiarAPieza(targetId){
+    var tp = DATA.piezas.find(function(x){ return x.id === targetId; });
+    if(!tp) return Promise.resolve();
+    var i = 0;
+    return media.reduce(function(chain, m){
+      return chain.then(function(acc){
+        var ts = Date.now() + '_' + (i++);
+        return dupMedia(targetId, m, ts).then(function(nm){ acc.push(nm); return acc; });
+      });
+    }, Promise.resolve([])).then(function(nuevos){ return guardarMedia(tp, nuevos); });
+  }
+
+  if(prog) prog.textContent = '⏳ Copiando… (0/' + ids.length + ')';
+  ids.reduce(function(chain, tid){
+    return chain.then(function(){ return copiarAPieza(tid); })
+      .then(function(){ hechas++; if(prog) prog.textContent = '⏳ Copiando… (' + hechas + '/' + ids.length + ')'; });
+  }, Promise.resolve()).then(function(){
+    toast('✓ Fotos copiadas a ' + hechas + ' pieza(s)', 'success');
+    try { renderBusqueda(); } catch(e){}
+    renderModalFotos();
+  }).catch(function(e){
+    console.error('copiar fotos:', e);
+    if(prog) prog.innerHTML = '⚠️ Se copió a ' + hechas + ' pieza(s). Error en el resto: ' + escapeHtml((e && e.message) || 'revisa la conexión') + '. Vuelve a intentar con las que falten.';
+  });
 }
 
 // El mismo mensaje bonito para WhatsApp del teléfono Y para copiar en compu.
