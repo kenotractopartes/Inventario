@@ -955,6 +955,23 @@ function numeroArnesBadge(p){
   return '<span style="display:inline-block;min-width:30px;text-align:center;background:#8a4a20;color:#fff;border-radius:6px;padding:1px 7px;font-size:15px;font-weight:900;margin-right:7px;vertical-align:2px;">#' + escapeHtml(String(n)) + '</span>';
 }
 function nombreZonaArnes(z){ var o = ARNES_ZONAS.find(function(x){ return x.id === z; }); return o ? o.nombre : (z || ''); }
+// ── Alta manual de arneses (jul 2026) ──────────────────────────────────────
+// La importación del sistema viejo traía zona/número/tipo, pero el alta a mano
+// no tenía dónde ponerlos: el arnés quedaba sin ubicación y no salía en la
+// vista del cuarto. Estos campos lo arreglan.
+let _arnesZonaSel = null, _arnesTipoSel = null;
+function selectArnesZona(btn, id){
+  document.querySelectorAll('#arnes-zonas .btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  _arnesZonaSel = id;
+}
+function selectArnesTipo(btn, id){
+  // Segundo clic en el mismo tipo lo des-selecciona (es opcional).
+  if(_arnesTipoSel === id){ btn.classList.remove('selected'); _arnesTipoSel = null; return; }
+  document.querySelectorAll('#arnes-tipos .btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  _arnesTipoSel = id;
+}
 
 // ============================================================
 // ESTADO (localStorage)
@@ -3996,6 +4013,21 @@ function seleccionarFamilia(famId) {
       <input type="text" id="pieza-descripcion" placeholder="${f.placeholderLibre || 'Escribe aquí...'}"></div>`;
   }
 
+  // Arneses (jul 2026): además de la descripción, piden ZONA + NÚMERO (así se
+  // ubican en el cuarto: "Tubo principal #18") y el tipo opcional. Sin esto el
+  // arnés quedaba sin ubicación y no aparecía en la vista por zonas.
+  if (f.id === 'arneses') {
+    _arnesZonaSel = null; _arnesTipoSel = null;
+    html += `<div class="field"><label>¿En qué zona del cuarto va?</label><div class="btn-grid" id="arnes-zonas">${ARNES_ZONAS.map(z =>
+      `<button type="button" class="btn" onclick="selectArnesZona(this, '${z.id}')">${z.nombre}</button>`
+    ).join('')}</div></div>`;
+    html += `<div class="field"><label>Número (el que se repite entre zonas, ej. 18)</label>
+      <input type="number" id="arnes-numero" min="1" placeholder="Ej. 18"></div>`;
+    html += `<div class="field"><label>Tipo (opcional)</label><div class="btn-grid" id="arnes-tipos">${ARNES_TIPOS.map(t =>
+      `<button type="button" class="btn" onclick="selectArnesTipo(this, '${t.id}')">${t.nombre}</button>`
+    ).join('')}</div></div>`;
+  }
+
   // Extras según familia
   if (f.tipo === 'especial-diferenciales' || f.tipo === 'especial-mancuernas') {
     html += `<div class="field"><label>Marca del eje</label><div class="btn-grid" id="pieza-marcas-eje"></div></div>`;
@@ -4282,6 +4314,17 @@ function guardarPieza() {
     baseExtras.libras = document.getElementById('pieza-libras')?.value.trim() || '';
   }
   if (f.tipo === 'libre' && descLibre) baseExtras.descripcion = descLibre;
+  // Arneses (jul 2026): zona + número obligatorios — son su ubicación en el
+  // cuarto ("Tubo principal #18"), igual que los migrados del sistema viejo.
+  if (f.id === 'arneses') {
+    const numArnes = document.getElementById('arnes-numero')?.value.trim();
+    if (!_arnesZonaSel) { toast('Elige la zona del cuarto donde va el arnés', 'error'); return; }
+    if (!numArnes) { toast('Ponle el número al arnés (ej. 18)', 'error'); return; }
+    baseExtras.zonaArnes = _arnesZonaSel;
+    baseExtras.numeroArnes = numArnes;
+    if (_arnesTipoSel) baseExtras.tipoArnes = _arnesTipoSel;
+    baseExtras.ubicacion = nombreZonaArnes(_arnesZonaSel) + ' #' + numArnes;
+  }
   if (document.getElementById('pieza-doble-turbo')?.checked) baseExtras.dobleTurbo = true;
 
   // Datos exclusivos de motor
