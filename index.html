@@ -3086,24 +3086,36 @@ function renderModalFotos(){
 
 // ── COPIAR FOTOS A OTRAS PIEZAS (jul 2026) ──────────────────────────────────
 // Como las familias con variantes (ej. campanas ISX sin EGR vs ISX870) no pueden
-// compartir fotos automático, el Editor elige a mano a qué piezas copiarlas. Se
-// DUPLICAN los archivos en Storage (cada pieza con los suyos) para que sean
-// independientes: borrar/vender una NO afecta a las demás.
+// compartir fotos automático, el Editor elige a mano a qué piezas copiarlas.
+// Se copian las MISMAS fotos (referencias a los archivos ya subidos) — no se
+// vuelven a subir, así que es instantáneo y no depende de CORS. Para que sea
+// seguro, el borrado (de foto o de pieza) NO elimina un archivo de Storage si
+// otra pieza todavía lo usa (ver _urlUsadaPorOtraPieza).
 var _copiarSel = {};
+// Etiqueta legible que distingue una pieza de otra de la misma familia:
+// modelo + lo que Raúl escribió (notas suele traer "Motor ISX sin EGR"/"ISX870").
+function _subnombrePieza(x){
+  var f = FAMILIAS.find(function(y){ return y.id === x.familia; });
+  var base = x.modelo || (f && f.nombreSingular) || 'Pieza';
+  var sub = (x.notas || '').trim();
+  if(!sub){ try { sub = (formatExtras(x.extras, x.modelo) || '').trim(); } catch(e){} }
+  return { base: base, sub: sub };
+}
 function abrirCopiarFotos(){
   var src = DATA.piezas.find(function(x){ return x.id === _piezaFotosId; });
   if(!src) return;
   var media = mediaDePieza(_piezaFotosId) || [];
   if(!media.length){ toast('Esta pieza no tiene fotos que copiar', 'error'); return; }
   _copiarSel = {};
-  var f = FAMILIAS.find(function(x){ return x.id === src.familia; });
   var cand = DATA.piezas.filter(function(x){ return x && x.familia === src.familia && !x.vendida && x.id !== src.id; });
   var filas = cand.map(function(x){
     var nf = (mediaDePieza(x.id) || []).length;
     var fecha = x.fechaRegistro ? new Date(x.fechaRegistro).toLocaleDateString('es-MX') : '';
+    var nom = _subnombrePieza(x);
     return '<label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid #eee;cursor:pointer;">' +
       '<input type="checkbox" onchange="_copiarSel[\'' + x.id + '\']=this.checked" style="width:20px;height:20px;flex:none;">' +
-      '<span style="flex:1;min-width:0;font-size:14px;"><strong>' + escapeHtml(x.modelo || (f && f.nombreSingular) || 'Pieza') + '</strong>' +
+      '<span style="flex:1;min-width:0;font-size:14px;"><strong>' + escapeHtml(nom.base) + '</strong>' +
+        (nom.sub ? ' <span style="color:#444;">— ' + escapeHtml(nom.sub) + '</span>' : ' <span style="color:#c0392b;">(sin nombre)</span>') +
         (x.folioInterno ? ' <span style="color:#999;font-family:ui-monospace,monospace;">' + escapeHtml(x.folioInterno) + '</span>' : '') +
         '<br><span style="font-size:12px;color:#888;">' + escapeHtml(fecha) + (nf ? ' · <span style="color:#c0392b;">ya tiene ' + nf + ' foto(s) — se reemplazan</span>' : '') + '</span>' +
       '</span></label>';
@@ -3111,7 +3123,7 @@ function abrirCopiarFotos(){
   var body = document.getElementById('fotos-body');
   body.innerHTML =
     '<div style="margin-bottom:10px;"><button class="btn btn-small" onclick="renderModalFotos()">← Regresar</button></div>' +
-    '<div style="background:#f3eefb;border:1px solid #cbb6e6;border-radius:8px;padding:9px 12px;font-size:13px;color:#4e3570;margin-bottom:10px;">📋 Elige a qué piezas copiar estas <strong>' + media.length + '</strong> foto(s). Cada pieza queda con su <strong>propia copia</strong> (independientes). Ojo: usa el <strong>nombre</strong> para no copiar a una variante distinta.</div>' +
+    '<div style="background:#f3eefb;border:1px solid #cbb6e6;border-radius:8px;padding:9px 12px;font-size:13px;color:#4e3570;margin-bottom:10px;">📋 Elige a qué piezas copiar estas <strong>' + media.length + '</strong> foto(s). <strong>Fíjate en el nombre</strong> (ej. «sin EGR» vs «870») para no copiar a una variante distinta. Borrar una pieza no afecta a las demás.</div>' +
     (cand.length ? filas + '<button class="btn btn-block" style="margin-top:10px;background:#6b3fa0;color:#fff;border-color:#6b3fa0;font-weight:800;" onclick="copiarFotosSeleccionadas()">📋 Copiar a las seleccionadas</button>'
                  : '<p style="color:#888;text-align:center;padding:14px;">No hay otras piezas de esta familia sin vender.</p>') +
     '<div id="copiar-progreso" style="font-size:13px;color:#555;text-align:center;margin-top:8px;"></div>';
@@ -3123,45 +3135,35 @@ function copiarFotosSeleccionadas(){
   if(!ids.length){ toast('Elige al menos una pieza', 'error'); return; }
   if(!media.length){ toast('No hay fotos que copiar', 'error'); return; }
   var prog = document.getElementById('copiar-progreso');
-  var st = firebase.storage();
   var hechas = 0;
-
-  function dupUrl(url, targetId, ts, sufijo){
-    return fetch(url).then(function(r){ if(!r.ok) throw new Error('no se pudo leer una foto'); return r.blob(); })
-      .then(function(blob){
-        var ref = st.ref('fotos_piezas/' + targetId + '/' + ts + sufijo);
-        return ref.put(blob).then(function(){ return ref.getDownloadURL(); });
-      });
-  }
-  function dupMedia(targetId, m, ts){
-    if(m.t === 'video' && m.url) return dupUrl(m.url, targetId, ts, '_video').then(function(u){ return { t:'video', url:u, kb:m.kb }; });
-    var pHd  = m.hd  ? dupUrl(m.hd,  targetId, ts, '_hd')  : Promise.resolve('');
-    var pWeb = m.web ? dupUrl(m.web, targetId, ts, '_web') : Promise.resolve('');
-    return Promise.all([pHd, pWeb]).then(function(r){ return { t:'foto', hd:(r[0]||r[1]), web:(r[1]||r[0]), kb:m.kb }; });
-  }
-  function copiarAPieza(targetId){
-    var tp = DATA.piezas.find(function(x){ return x.id === targetId; });
-    if(!tp) return Promise.resolve();
-    var i = 0;
-    return media.reduce(function(chain, m){
-      return chain.then(function(acc){
-        var ts = Date.now() + '_' + (i++);
-        return dupMedia(targetId, m, ts).then(function(nm){ acc.push(nm); return acc; });
-      });
-    }, Promise.resolve([])).then(function(nuevos){ return guardarMedia(tp, nuevos); });
-  }
-
-  if(prog) prog.textContent = '⏳ Copiando… (0/' + ids.length + ')';
+  if(prog) prog.textContent = '⏳ Copiando…';
+  // Copia por referencia: cada pieza destino apunta a los MISMOS archivos ya
+  // subidos (copia profunda del arreglo para no ligar objetos en memoria).
   ids.reduce(function(chain, tid){
-    return chain.then(function(){ return copiarAPieza(tid); })
-      .then(function(){ hechas++; if(prog) prog.textContent = '⏳ Copiando… (' + hechas + '/' + ids.length + ')'; });
+    return chain.then(function(){
+      var tp = DATA.piezas.find(function(x){ return x.id === tid; });
+      if(!tp) return;
+      var copia = media.map(function(m){ return Object.assign({}, m); });
+      return guardarMedia(tp, copia).then(function(){ hechas++; if(prog) prog.textContent = '⏳ Copiando… (' + hechas + '/' + ids.length + ')'; });
+    });
   }, Promise.resolve()).then(function(){
     toast('✓ Fotos copiadas a ' + hechas + ' pieza(s)', 'success');
     try { renderBusqueda(); } catch(e){}
     renderModalFotos();
   }).catch(function(e){
     console.error('copiar fotos:', e);
-    if(prog) prog.innerHTML = '⚠️ Se copió a ' + hechas + ' pieza(s). Error en el resto: ' + escapeHtml((e && e.message) || 'revisa la conexión') + '. Vuelve a intentar con las que falten.';
+    if(prog) prog.innerHTML = '⚠️ Se copió a ' + hechas + '. Error en el resto: ' + escapeHtml((e && e.message) || 'revisa la conexión') + '.';
+  });
+}
+
+// ¿Algún OTRO registro (distinto de exceptId) todavía usa este archivo de
+// Storage? Si sí, NO se debe borrar el archivo (lo comparten por copia). Evita
+// que borrar una pieza/foto rompa las fotos de sus copias.
+function _urlUsadaPorOtraPieza(url, exceptId){
+  if(!url) return false;
+  return (DATA.piezas || []).some(function(x){
+    if(!x || x.id === exceptId) return false;
+    return (mediaDePieza(x.id) || []).some(function(m){ return m && (m.url === url || m.web === url || m.hd === url); });
   });
 }
 
@@ -3345,7 +3347,8 @@ function borrarMediaPieza(i){
   try {
     var st = firebase.storage();
     [m.url, m.web, m.hd].forEach(function(u){
-      if (u) try { st.refFromURL(u).delete().catch(function(){}); } catch(e){}
+      // No borrar el archivo si otra pieza (una copia) todavía lo usa.
+      if (u && !_urlUsadaPorOtraPieza(u, p.id)) try { st.refFromURL(u).delete().catch(function(){}); } catch(e){}
     });
   } catch(e){}
   guardarMedia(p, media).then(function(){
@@ -5987,9 +5990,10 @@ function eliminarPieza(id) {
         firebase.database().ref('media_modelo/' + key).remove();
       }
     } else {
-      // Fotos individuales: borrar sus archivos.
+      // Fotos individuales: borrar sus archivos — salvo los que otra pieza
+      // (una copia) todavía use, para no romperle las fotos.
       mediaIndividual.forEach(function(m){
-        [m.url, m.web, m.hd].forEach(function(u){ if (u) try { firebase.storage().refFromURL(u).delete().catch(function(){}); } catch(e){} });
+        [m.url, m.web, m.hd].forEach(function(u){ if (u && !_urlUsadaPorOtraPieza(u, id)) try { firebase.storage().refFromURL(u).delete().catch(function(){}); } catch(e){} });
       });
     }
   } catch(e){ console.error('limpiar ficha:', e); }
