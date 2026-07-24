@@ -2809,9 +2809,33 @@ function linkFichaPieza(id){ return PUB_URL_BASE + encodeURIComponent(id); }
 // nuevo" y quedan iguales entre sí (a pedido de Eugenio, jul 2026). Las demás
 // (radiadores, puertas, cofres, cabezas, etc.) son usadas/dañadas y cada pieza
 // es única → fotos individuales. Para sumar otra familia, agrégala aquí.
-// jul 2026: se sumó 'campanas' — las del mismo modelo (ej. ISX) son iguales,
-// así una sola foto sirve para todas las del modelo.
-var FAMILIAS_FOTOS_MODELO = ['inyectores', 'arboles', 'transmisiones', 'campanas'];
+// NO poner 'campanas': dentro de un mismo motor (ej. ISX) hay variantes muy
+// distintas ("ISX sin EGR" vs "ISX870") que el modelo no distingue, así que
+// compartirían fotos equivocadas. Van individuales. (revertido jul 2026)
+var FAMILIAS_FOTOS_MODELO = ['inyectores', 'arboles', 'transmisiones'];
+
+// jul 2026: LIMPIEZA — campanas estuvo un rato en el modo por-modelo y se creó
+// un nodo compartido "campanas::..." que repartió las fotos de una campana a
+// otras del mismo motor pero de DISTINTA variante (ISX sin EGR ≠ ISX870). Aquí
+// se borra ese nodo y se re-publican las fichas de campanas como INDIVIDUALES:
+// la campana que tenía fotos las conserva (siguen en su ficha propia); las que
+// las recibieron por error quedan sin fotos. Solo Editor; idempotente (ya no
+// hace nada cuando el nodo ya no existe).
+function _limpiarCampanasDeModelo(){
+  if(typeof esEditor === 'function' && !esEditor()) return;
+  if(typeof MEDIA_MODELO === 'undefined' || typeof firebase === 'undefined') return;
+  var claves = Object.keys(MEDIA_MODELO || {}).filter(function(k){ return k.indexOf('campanas') === 0; });
+  if(!claves.length) return;
+  claves.forEach(function(k){
+    try { firebase.database().ref('media_modelo/' + k).remove(); } catch(e){}
+    delete MEDIA_MODELO[k];
+  });
+  (DATA.piezas || []).filter(function(p){ return p && p.familia === 'campanas' && !p.vendida; })
+    .forEach(function(p){ try { publicarFicha(p); } catch(e){} });
+  console.log('🧹 Campanas: se quitaron del modo por-modelo y se re-publicaron individuales.');
+}
+setTimeout(_limpiarCampanasDeModelo, 4000);
+setTimeout(_limpiarCampanasDeModelo, 12000);
 
 // Clave del modelo: familia + modelo + MARCA (ignorando mayúsculas y
 // separadores). Devuelve '' (→ fotos individuales) si la pieza no tiene
