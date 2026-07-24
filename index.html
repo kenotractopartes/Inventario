@@ -2814,28 +2814,50 @@ function linkFichaPieza(id){ return PUB_URL_BASE + encodeURIComponent(id); }
 // compartirían fotos equivocadas. Van individuales. (revertido jul 2026)
 var FAMILIAS_FOTOS_MODELO = ['inyectores', 'arboles', 'transmisiones'];
 
-// jul 2026: LIMPIEZA — campanas estuvo un rato en el modo por-modelo y se creó
-// un nodo compartido "campanas::..." que repartió las fotos de una campana a
-// otras del mismo motor pero de DISTINTA variante (ISX sin EGR ≠ ISX870). Aquí
-// se borra ese nodo y se re-publican las fichas de campanas como INDIVIDUALES:
-// la campana que tenía fotos las conserva (siguen en su ficha propia); las que
-// las recibieron por error quedan sin fotos. Solo Editor; idempotente (ya no
-// hace nada cuando el nodo ya no existe).
-function _limpiarCampanasDeModelo(){
+// jul 2026: RECUPERACIÓN — al meter/sacar campanas del modo por-modelo se
+// perdieron los ENLACES de las fotos (no los archivos). Las imágenes siguen en
+// Storage bajo fotos_piezas/<id>/ como "<ts>_hd", "<ts>_web" y "<ts>_video".
+// Esta función, para cada campana SIN fotos, relee su carpeta de Storage,
+// reconstruye la galería (emparejando hd+web por timestamp) y la vuelve a
+// guardar como INDIVIDUAL de esa pieza. Solo lee Storage y re-guarda: NO borra
+// nada. Solo Editor; no toca las piezas que ya tienen fotos.
+function _recuperarFotosCampanas(){
   if(typeof esEditor === 'function' && !esEditor()) return;
-  if(typeof MEDIA_MODELO === 'undefined' || typeof firebase === 'undefined') return;
-  var claves = Object.keys(MEDIA_MODELO || {}).filter(function(k){ return k.indexOf('campanas') === 0; });
-  if(!claves.length) return;
-  claves.forEach(function(k){
-    try { firebase.database().ref('media_modelo/' + k).remove(); } catch(e){}
-    delete MEDIA_MODELO[k];
+  if(typeof firebase === 'undefined' || !firebase.storage) return;
+  var st = firebase.storage();
+  var camps = (DATA.piezas || []).filter(function(p){ return p && p.familia === 'campanas' && !p.vendida; });
+  camps.forEach(function(p){
+    if((mediaDePieza(p.id) || []).length) return;         // ya tiene fotos → no tocar
+    st.ref('fotos_piezas/' + p.id).listAll().then(function(res){
+      if(!res.items || !res.items.length) return;
+      var grupos = {};
+      res.items.forEach(function(it){
+        var m = String(it.name).match(/^(.*)_(hd|web|video)$/);
+        if(!m) return;
+        grupos[m[1]] = grupos[m[1]] || {};
+        grupos[m[1]][m[2]] = it;
+      });
+      var tss = Object.keys(grupos).sort();
+      return Promise.all(tss.map(function(ts){
+        var g = grupos[ts];
+        if(g.video) return g.video.getDownloadURL().then(function(u){ return { t:'video', url:u }; });
+        return Promise.all([
+          g.hd  ? g.hd.getDownloadURL()  : Promise.resolve(''),
+          g.web ? g.web.getDownloadURL() : Promise.resolve('')
+        ]).then(function(r){ return { t:'foto', hd:(r[0]||r[1]), web:(r[1]||r[0]) }; });
+      })).then(function(media){
+        media = media.filter(function(m){ return m && (m.web || m.url || m.hd); });
+        if(!media.length) return;
+        return guardarMedia(p, media).then(function(){
+          console.log('🖼️ Recuperadas ' + media.length + ' fotos de campana ' + (p.modelo||'') + ' (' + p.id + ')');
+          try { renderBusqueda(); } catch(e){}
+        });
+      });
+    }).catch(function(e){ console.warn('recuperar campana ' + p.id + ':', e && e.message); });
   });
-  (DATA.piezas || []).filter(function(p){ return p && p.familia === 'campanas' && !p.vendida; })
-    .forEach(function(p){ try { publicarFicha(p); } catch(e){} });
-  console.log('🧹 Campanas: se quitaron del modo por-modelo y se re-publicaron individuales.');
 }
-setTimeout(_limpiarCampanasDeModelo, 4000);
-setTimeout(_limpiarCampanasDeModelo, 12000);
+setTimeout(_recuperarFotosCampanas, 5000);
+setTimeout(_recuperarFotosCampanas, 15000);
 
 // Clave del modelo: familia + modelo + MARCA (ignorando mayúsculas y
 // separadores). Devuelve '' (→ fotos individuales) si la pieza no tiene
