@@ -1913,7 +1913,11 @@ function normalizarData(obj) {
       ? { ids: obj.chasisIgnorados.ids || {}, series: obj.chasisIgnorados.series || {} }
       : { ids:{}, series:{} },
     salidas: Array.isArray(obj.salidas) ? obj.salidas : [],
-    folioCounter: obj.folioCounter || 1
+    folioCounter: obj.folioCounter || 1,
+    // jul 2026 — Pendientes por dar de baja. OJO: esta función es lista blanca;
+    // si un campo no se declara aquí, se borra al llegar datos de la nube.
+    ventasAtendidas: (obj.ventasAtendidas && typeof obj.ventasAtendidas === 'object') ? obj.ventasAtendidas : {},
+    ventasDesde: obj.ventasDesde || ''
   };
   return d;
 }
@@ -1966,7 +1970,11 @@ function cargar() {
     familiasOverride: JSON.parse(JSON.stringify(FAMILIAS_OVERRIDE_DEFAULT)),
     estatusChasisSync: {},
     salidas: [],
-    folioCounter: 1
+    folioCounter: 1,
+    // jul 2026 — Pendientes por dar de baja (lo que Maura vendió y Raúl aún no
+    // quita de su inventario). Clave: "<idVentaMaura>#<índiceDePieza>".
+    ventasAtendidas: {},
+    ventasDesde: ''      // ISO; solo avisa de ventas de esta fecha en adelante
   };
 }
 function guardarLocal() {
@@ -8127,6 +8135,8 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
         });
       });
       mVentas=arr; mCargando=false; mError=''; render();
+      // jul 2026 — avisar al botón flotante de pendientes por dar de baja
+      if(typeof window.pendRefrescar === 'function') { try{ window.pendRefrescar(); }catch(e){} }
     }, function(err){
       mCargando=false; mError='No se pudieron leer las ventas ('+(err&&err.code||'error')+').'; render();
     });
@@ -8260,6 +8270,10 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
     var v = mUltimaVis[i];
     if(v && typeof window.abrirInventarioFamilia === 'function') window.abrirInventarioFamilia(v.famId, v.pieza);
   };
+  // jul 2026 — el botón flotante de pendientes lee de aquí las ventas ya
+  // parseadas (familias de Raúl, sin deudas/préstamos/mov fiscales).
+  window.mauraVentas = function(){ return mVentas.slice(); };
+  window.mauraHayLogin = function(){ return !!(mAuth && mAuth.currentUser); };
   // Login del portón de entrada → deja autenticada también la pestaña de Ventas de Maura
   // (mismo correo/contraseña; la cuenta existe en los dos proyectos Firebase).
   window.mauraLoginCon = function(em, pw){
@@ -8268,5 +8282,269 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
 })();
 </script>
 <!-- ═══════════════ FIN MÓDULO VENTAS DE MAURA ═══════════════ -->
+
+<!-- ═══════════════ PENDIENTES POR DAR DE BAJA (botón flotante) ═══════════════
+     Problema que resuelve: Maura vende en mostrador y Raúl tiene que quitar esa
+     pieza de su inventario. Antes dependía de que él se acordara de entrar a la
+     pestaña "Ventas de Maura" al final del día — y se le iban piezas.
+     Ahora un botón flotante (estilo el circulito de iOS) se queda encima de todo
+     con el número de piezas pendientes, y no se va hasta que las palomea.
+     · Solo avisa de las FAMILIAS GRANDES; la familia "Otro" (tornillos, mangueras,
+       tubos, basecitas) NO genera aviso, porque eso Raúl no lo tiene registrado.
+     · PIEZA POR PIEZA: si una venta trae varias piezas, cada una se palomea
+       aparte (un cliente se puede llevar más de una cosa).
+     · Lo atendido se guarda en Firebase (DATA.ventasAtendidas) para que no
+       reaparezca al entrar desde otro aparato.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<style>
+  #pend-fab{position:fixed;z-index:9998;width:58px;height:58px;border-radius:50%;
+    background:rgba(30,30,34,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    border:2px solid rgba(255,255,255,.55);box-shadow:0 4px 18px rgba(0,0,0,.35);
+    display:none;align-items:center;justify-content:center;cursor:grab;user-select:none;
+    touch-action:none;transition:transform .12s, opacity .2s;}
+  #pend-fab:active{cursor:grabbing;transform:scale(.94);}
+  #pend-fab .pf-ico{font-size:25px;line-height:1;filter:grayscale(.15);pointer-events:none;}
+  #pend-fab .pf-badge{position:absolute;top:-5px;right:-5px;min-width:23px;height:23px;padding:0 6px;
+    border-radius:12px;background:#d93025;color:#fff;font:800 12px/23px system-ui,sans-serif;
+    text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.35);pointer-events:none;}
+  #pend-panel{position:fixed;z-index:9999;inset:auto 14px 14px 14px;max-width:520px;margin:0 auto;
+    max-height:76vh;overflow:auto;background:#fff;border-radius:16px;display:none;
+    box-shadow:0 12px 44px rgba(0,0,0,.34);border:1px solid #d9d9d3;}
+  #pend-panel .pp-head{position:sticky;top:0;background:#17140f;color:#fff;padding:13px 16px;
+    display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  #pend-panel .pp-head b{font:800 15px/1.2 Georgia,serif;}
+  #pend-panel .pp-head small{display:block;font:400 11.5px/1.4 system-ui,sans-serif;opacity:.72;margin-top:2px;}
+  #pend-panel .pp-x{background:none;border:none;color:#fff;font-size:23px;cursor:pointer;line-height:1;padding:0 2px;}
+  #pend-panel .pp-body{padding:10px 12px 16px;}
+  .pp-item{border:1px solid #e4e2da;border-left:4px solid #c9a24b;border-radius:10px;
+    padding:10px 12px;margin-bottom:9px;background:#fdfcf9;}
+  .pp-item .pp-top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:3px;}
+  .pp-fam{background:#efe7d6;color:#6b5a2e;font:800 10.5px/1 system-ui,sans-serif;
+    padding:4px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px;}
+  .pp-fec{color:#999;font:600 11.5px/1 system-ui,sans-serif;}
+  .pp-pieza{font:700 15px/1.35 Georgia,serif;color:#1a1a1a;margin:3px 0;}
+  .pp-meta{color:#777;font:400 12px/1.45 system-ui,sans-serif;}
+  /* Acción principal arriba (ancho completo) y las dos secundarias abajo:
+     así el texto nunca se corta en celular. */
+  .pp-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;}
+  .pp-btns button{border-radius:8px;border:1px solid #ccc;background:#fff;
+    padding:9px 8px;font:700 12.5px/1.2 system-ui,sans-serif;cursor:pointer;white-space:nowrap;}
+  /* OJO: se usa "button.clase" para ganarle en especificidad a ".pp-btns button".
+     Sin esto el fondo blanco de arriba pisaba el verde y el texto blanco quedaba
+     invisible sobre blanco. */
+  .pp-btns button.pp-b-ok{width:100%;border-color:#2e7d46;color:#fff;background:#2e7d46;font-size:13.5px;padding:11px 8px;}
+  .pp-btns button.pp-b-ver{flex:1;min-width:0;border-color:#185FA5;color:#185FA5;}
+  .pp-btns button.pp-b-na{flex:1;min-width:0;border-color:#bbb;color:#777;}
+  .pp-vacio{text-align:center;color:#888;padding:26px 10px;font:400 14px/1.5 system-ui,sans-serif;}
+  .pp-aviso{background:#fff6e5;border:1px solid #e8c98a;color:#7a5a12;border-radius:9px;
+    padding:9px 11px;font:600 12px/1.45 system-ui,sans-serif;margin-bottom:10px;}
+</style>
+<div id="pend-fab" onclick="pendAbrir()" title="Piezas vendidas que faltan dar de baja">
+  <span class="pf-ico">📦</span><span class="pf-badge" id="pend-badge">0</span>
+</div>
+<div id="pend-panel">
+  <div class="pp-head">
+    <div><b>📦 Falta darlas de baja</b><small id="pend-sub">Piezas que Maura ya vendió</small></div>
+    <button class="pp-x" onclick="pendCerrar()">×</button>
+  </div>
+  <div class="pp-body" id="pend-body"></div>
+</div>
+<script>
+(function(){
+  // Familias que NO generan aviso: "Otro" son piezas chicas (tornillos, mangueras,
+  // tubos, basecitas) que Raúl no lleva en su inventario. (pedido de Eugenio)
+  var PEND_FAM_IGNORAR = { otros:1 };
+  var pendLista = [];
+
+  function hoyISO(){
+    var d=new Date();
+    return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+  }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function editor(){ return (typeof esEditor!=='function') || esEditor(); }
+
+  // Fecha de arranque: solo se avisa de ventas de este día en adelante. Se fija
+  // la primera vez que abre un Editor, para no inundar con el histórico.
+  function desdeISO(){
+    if(typeof DATA==='undefined') return hoyISO();
+    if(!DATA.ventasDesde){
+      var h = hoyISO();
+      if(editor()){ DATA.ventasDesde = h; try{ guardar(); }catch(e){} }
+      return h;
+    }
+    return DATA.ventasDesde;
+  }
+
+  // Convierte las ventas de Maura en piezas individuales pendientes.
+  // Una venta con varias piezas produce VARIOS pendientes (uno por pieza).
+  function calcular(){
+    var out=[];
+    if(typeof window.mauraVentas !== 'function' || typeof DATA==='undefined') return out;
+    var atendidas = DATA.ventasAtendidas || {};
+    var desde = desdeISO();
+    window.mauraVentas().forEach(function(v){
+      if(!v || PEND_FAM_IGNORAR[v.famId]) return;      // fuera "Otro"
+      if(!v.fecha || v.fecha < desde) return;          // fuera lo anterior al arranque
+      var id = v.ts || 0;
+      if(!id) return;
+      var piezas = [];
+      if(v.productos && v.productos.length){
+        v.productos.forEach(function(p){
+          var d=(p.desc||'').trim(); if(!d) return;
+          piezas.push({ txt:d, cant:(p.cant===''||p.cant==null)?1:p.cant });
+        });
+      }
+      if(!piezas.length) piezas.push({ txt:(v.pieza||'(sin nombre)'), cant:1 });
+      piezas.forEach(function(pz, idx){
+        var key = id+'#'+idx;
+        if(atendidas[key]) return;                      // ya la palomeó
+        out.push({ key:key, fecha:v.fecha, fam:v.fam, famId:v.famId,
+                   pieza:pz.txt, cant:pz.cant, cliente:v.cliente, efe:v.efe });
+      });
+    });
+    out.sort(function(a,b){ return (a.fecha||'').localeCompare(b.fecha||''); });  // más viejas primero
+    return out;
+  }
+
+  function pintarFab(){
+    var fab=document.getElementById('pend-fab'), bdg=document.getElementById('pend-badge');
+    if(!fab||!bdg) return;
+    var n=pendLista.length;
+    bdg.textContent = n>99 ? '99+' : n;
+    fab.style.display = n>0 ? 'flex' : 'none';
+    if(n===0) pendCerrar();
+  }
+
+  function fechaCorta(iso){
+    var p=String(iso||'').split('-'); if(p.length<3) return iso||'—';
+    return p[2].slice(0,2)+'/'+p[1];
+  }
+  function dinero(n){ n=Number(n)||0; return '$'+n.toLocaleString('es-MX'); }
+
+  function pintarPanel(){
+    var b=document.getElementById('pend-body'), sub=document.getElementById('pend-sub');
+    if(!b) return;
+    if(sub) sub.textContent = pendLista.length
+      ? pendLista.length+' pieza'+(pendLista.length===1?'':'s')+' que Maura ya vendió'
+      : 'Piezas que Maura ya vendió';
+    if(!pendLista.length){
+      b.innerHTML='<div class="pp-vacio">✅ Todo al corriente.<br>No hay piezas por dar de baja.</div>';
+      return;
+    }
+    var aviso = editor() ? '' :
+      '<div class="pp-aviso">👀 Estás en modo <b>Solo Ver</b>. Puedes revisar la lista, pero para palomear entra como Editor.</div>';
+    b.innerHTML = aviso + pendLista.map(function(it, i){
+      var cant = (Number(it.cant)>1) ? '<b>'+esc(it.cant)+'× </b>' : '';
+      return '<div class="pp-item">'+
+        '<div class="pp-top"><span class="pp-fam">'+esc(it.fam)+'</span>'+
+          '<span class="pp-fec">'+esc(fechaCorta(it.fecha))+'</span></div>'+
+        '<div class="pp-pieza">'+cant+esc(it.pieza)+'</div>'+
+        '<div class="pp-meta">'+esc(it.cliente||'Sin cliente')+' · '+dinero(it.efe)+'</div>'+
+        '<div class="pp-btns">'+
+          '<button class="pp-b-ok" onclick="pendMarcar('+i+',\'ok\')">✅ Ya la quité del inventario</button>'+
+          '<button class="pp-b-ver" onclick="pendBuscar('+i+')">🔎 Buscarla</button>'+
+          '<button class="pp-b-na" onclick="pendMarcar('+i+',\'na\')">🚫 No la tenía</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  window.pendRefrescar = function(){
+    pendLista = calcular();
+    pintarFab();
+    if(document.getElementById('pend-panel').style.display==='block') pintarPanel();
+  };
+  window.pendAbrir = function(){
+    if(_arrastro) return;                 // no abrir si venía de arrastrar
+    pendLista = calcular(); pintarPanel();
+    document.getElementById('pend-panel').style.display='block';
+  };
+  window.pendCerrar = function(){ var p=document.getElementById('pend-panel'); if(p) p.style.display='none'; };
+  window.pendBuscar = function(i){
+    var it=pendLista[i]; if(!it) return;
+    window.pendCerrar();
+    if(typeof window.abrirInventarioFamilia==='function') window.abrirInventarioFamilia(it.famId, it.pieza);
+  };
+  window.pendMarcar = function(i, motivo){
+    var it=pendLista[i]; if(!it) return;
+    if(!editor()){ if(typeof toast==='function') toast('Entra como Editor para palomear', 'error'); return; }
+    if(!DATA.ventasAtendidas) DATA.ventasAtendidas = {};
+    DATA.ventasAtendidas[it.key] = { ts: Date.now(), m: motivo };
+    // Poda: no guardar para siempre lo muy viejo (mantiene el archivo chico).
+    var corte = Date.now() - 120*24*60*60*1000;
+    Object.keys(DATA.ventasAtendidas).forEach(function(k){
+      var e=DATA.ventasAtendidas[k];
+      if(e && e.ts && e.ts < corte) delete DATA.ventasAtendidas[k];
+    });
+    try{ guardar(); }catch(e){}
+    if(typeof toast==='function') toast(motivo==='ok' ? '✓ Dada de baja' : 'Marcada como no registrada', 'success');
+    window.pendRefrescar();
+  };
+
+  // ── Arrastrar el botón (y recordar dónde lo dejó) ──
+  var _arrastro=false;
+  // Se respeta una franja de 96px arriba para no tapar el menú de pestañas.
+  function colocar(x,y){
+    var fab=document.getElementById('pend-fab'); if(!fab) return;
+    var w=window.innerWidth, h=window.innerHeight;
+    x=Math.max(8, Math.min(x, w-66)); y=Math.max(96, Math.min(y, h-74));
+    fab.style.left=x+'px'; fab.style.top=y+'px'; fab.style.right='auto'; fab.style.bottom='auto';
+  }
+  function porDefecto(){
+    var w=window.innerWidth||document.documentElement.clientWidth||1024;
+    var h=window.innerHeight||document.documentElement.clientHeight||768;
+    colocar(w-78, h-140);
+  }
+  function initFab(){
+    var fab=document.getElementById('pend-fab'); if(!fab) return;
+    var pos=null;
+    try{ pos=JSON.parse(localStorage.getItem('pend_fab_pos')||'null'); }catch(e){}
+    // Si la posición guardada ya no cabe (cambió de compu a celular), se reinicia.
+    var cabe = pos && pos.x!=null && pos.x < window.innerWidth-40 && pos.y < window.innerHeight-40;
+    if(cabe) colocar(pos.x,pos.y); else porDefecto();
+    // Al cambiar el tamaño de la ventana, re-encuadrar. Se leen los estilos y NO
+    // getBoundingClientRect, porque cuando el botón está oculto ese daría 0,0 y
+    // lo mandaría a la esquina de arriba.
+    window.addEventListener('resize', function(){
+      var x=parseFloat(fab.style.left), y=parseFloat(fab.style.top);
+      if(isNaN(x) || isNaN(y)) { porDefecto(); return; }
+      colocar(x, y);
+    });
+    var sx=0, sy=0, ox=0, oy=0, moviendo=false;
+    function down(e){
+      var t=e.touches?e.touches[0]:e;
+      moviendo=true; _arrastro=false;
+      sx=t.clientX; sy=t.clientY;
+      var r=fab.getBoundingClientRect(); ox=r.left; oy=r.top;
+      document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+      document.addEventListener('touchmove',move,{passive:false}); document.addEventListener('touchend',up);
+    }
+    function move(e){
+      if(!moviendo) return;
+      var t=e.touches?e.touches[0]:e;
+      var dx=t.clientX-sx, dy=t.clientY-sy;
+      if(Math.abs(dx)>4 || Math.abs(dy)>4){ _arrastro=true; if(e.cancelable) e.preventDefault(); }
+      colocar(ox+dx, oy+dy);
+    }
+    function up(){
+      moviendo=false;
+      document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up);
+      document.removeEventListener('touchmove',move); document.removeEventListener('touchend',up);
+      var r=fab.getBoundingClientRect();
+      try{ localStorage.setItem('pend_fab_pos', JSON.stringify({x:r.left,y:r.top})); }catch(e){}
+      setTimeout(function(){ _arrastro=false; }, 60);   // que el clic no dispare tras arrastrar
+    }
+    fab.addEventListener('mousedown',down);
+    fab.addEventListener('touchstart',down,{passive:true});
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ initFab(); window.pendRefrescar(); });
+  else { initFab(); window.pendRefrescar(); }
+  setTimeout(function(){ window.pendRefrescar(); }, 4000);
+  setTimeout(function(){ window.pendRefrescar(); }, 12000);
+})();
+</script>
+<!-- ═══════════ FIN PENDIENTES POR DAR DE BAJA ═══════════ -->
 </body>
 </html>
