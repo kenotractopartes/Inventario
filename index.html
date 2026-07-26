@@ -8279,6 +8279,21 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
   window.mauraLoginCon = function(em, pw){
     try { if(ensureMaura() && mAuth){ mAuth.signInWithEmailAndPassword(em, pw).catch(function(){}); } } catch(e){}
   };
+
+  // jul 2026 — ARRANQUE AUTOMÁTICO. Antes este módulo solo se encendía al abrir
+  // la pestaña MAURA, así que el botón flotante de "falta darlas de baja" no veía
+  // ninguna venta si Raúl se quedaba en INICIO (y en un aparato con la sesión ya
+  // guardada, mauraLoginCon tampoco corre). Ahora se conecta solo al cargar: si
+  // hay sesión guardada, onAuthStateChanged dispara mSubscribe() y el botón ya
+  // tiene datos sin que nadie entre a la pestaña.
+  function autoArranque(){
+    try{
+      if(ensureMaura() && mAuth && mAuth.currentUser && !mUnsub) mSubscribe();
+    }catch(e){ console.warn('auto-arranque Maura:', e); }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', autoArranque);
+  else autoArranque();
+  setTimeout(autoArranque, 3000);   // reintento por si Firebase tardó en cargar
 })();
 </script>
 <!-- ═══════════════ FIN MÓDULO VENTAS DE MAURA ═══════════════ -->
