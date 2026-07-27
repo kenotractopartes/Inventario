@@ -2867,6 +2867,47 @@ function _recuperarFotosCampanas(){
 setTimeout(_recuperarFotosCampanas, 5000);
 setTimeout(_recuperarFotosCampanas, 15000);
 
+// ── LIMPIEZA DE MODELOS DE INYECTORES (jul 2026) ───────────────────────────
+// Al sacar el conteo físico salieron modelos repetidos solo por cómo se
+// escribieron (un espacio de más) y dos registros de prueba. Confirmado con
+// Eugenio: solo hay DOS tipos de BigCam (normal y Agencia), y "Caterpillar C15"
+// es el mismo que "C15". Sin esto, el conteo cíclico sale fragmentado.
+// Solo toca la familia 'inyectores'. Idempotente: ya no hace nada al terminar.
+// (Ojo: las fotos NO se ven afectadas — _normClave ya ignora los espacios, así
+//  que "Big Cam" y "BigCam" siempre compartieron el mismo grupo de fotos.)
+function _limpiarModelosInyectores(){
+  if(typeof esEditor === 'function' && !esEditor()) return;
+  if(typeof DATA === 'undefined' || !DATA.piezas) return;
+  var RENOMBRAR = {
+    'big cam': 'BigCam',
+    'big cam agencia': 'BigCam Agencia',
+    'caterpillar c15': 'C15'
+  };
+  var BORRAR = { 'eugenio iny': 1, 'eugenio prueba': 1 };
+  var norm = function(s){ return String(s == null ? '' : s).toLowerCase().trim().replace(/\s+/g, ' '); };
+  var cambios = 0, borradas = [];
+  (DATA.piezas || []).forEach(function(p){
+    if(!p || p.familia !== 'inyectores') return;
+    var n = norm(p.modelo);
+    if(BORRAR[n]){ borradas.push(p.id); return; }
+    var nuevo = RENOMBRAR[n];
+    if(nuevo && p.modelo !== nuevo){ p.modelo = nuevo; cambios++; }
+  });
+  if(borradas.length){
+    DATA.piezas = DATA.piezas.filter(function(p){ return borradas.indexOf(p.id) === -1; });
+    borradas.forEach(function(id){
+      try { firebase.database().ref('fichas_publicas/' + id).remove(); } catch(e){}
+    });
+  }
+  if(cambios || borradas.length){
+    guardar();
+    console.log('🧹 Inyectores: ' + cambios + ' modelo(s) unificado(s), ' + borradas.length + ' registro(s) de prueba borrado(s).');
+    try { renderBusqueda(); } catch(e){}
+  }
+}
+setTimeout(_limpiarModelosInyectores, 5000);
+setTimeout(_limpiarModelosInyectores, 14000);
+
 // Clave del modelo: familia + modelo + MARCA (ignorando mayúsculas y
 // separadores). Devuelve '' (→ fotos individuales) si la pieza no tiene
 // modelo, o si su familia NO comparte fotos por modelo.
