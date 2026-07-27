@@ -247,6 +247,7 @@
   <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="addPiezaSuelta()">🔧 Agregar Pieza Suelta (sin camión) 🔧</button>
   <div style="height: 10px"></div>
   <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #2e7d46; color:#2e7d46; font-weight:800;" onclick="abrirCompraMercancia()">🛒 Compra de Mercancía 🛒</button>
+  <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #7a5ea8; color:#7a5ea8; font-weight:800;" onclick="abrirConteo()">📋 Conteo Físico (inventario cíclico) 📋</button>
 
   <h3 style="margin-top:24px">Buscador de Piezas y Camiones</h3>
   <div style="display:flex; gap:8px; align-items:center; max-width:640px;">
@@ -538,6 +539,21 @@
 </div>
 
 <!-- MODAL FOTOS Y VIDEO DE LA PIEZA -->
+<!-- ═══ CONTEO FÍSICO (inventario cíclico) — jul 2026 ═══
+     Raúl cuenta en el patio desde el celular y captura ahí mismo. El sistema
+     saca la diferencia contra lo registrado y deja marcar las que faltan.
+     Lo físico manda: lo que no aparece se marca FALTANTE (no se borra, para
+     poder ver después si siempre falta lo mismo). Los sobrantes solo se avisan. -->
+<div class="modal-bg" id="modal-conteo">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <div class="modal-title">📋 Conteo físico</div>
+      <button class="modal-close" onclick="closeModal('modal-conteo')">×</button>
+    </div>
+    <div id="conteo-body"></div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modal-fotos">
   <div class="modal" style="max-width:520px;">
     <div class="modal-header">
@@ -1917,7 +1933,9 @@ function normalizarData(obj) {
     // jul 2026 — Pendientes por dar de baja. OJO: esta función es lista blanca;
     // si un campo no se declara aquí, se borra al llegar datos de la nube.
     ventasAtendidas: (obj.ventasAtendidas && typeof obj.ventasAtendidas === 'object') ? obj.ventasAtendidas : {},
-    ventasDesde: obj.ventasDesde || ''
+    ventasDesde: obj.ventasDesde || '',
+    // jul 2026 — Historial de conteos físicos (inventarios cíclicos).
+    conteos: Array.isArray(obj.conteos) ? obj.conteos : []
   };
   return d;
 }
@@ -1974,7 +1992,9 @@ function cargar() {
     // jul 2026 — Pendientes por dar de baja (lo que Maura vendió y Raúl aún no
     // quita de su inventario). Clave: "<idVentaMaura>#<índiceDePieza>".
     ventasAtendidas: {},
-    ventasDesde: ''      // ISO; solo avisa de ventas de esta fecha en adelante
+    ventasDesde: '',     // ISO; solo avisa de ventas de esta fecha en adelante
+    // jul 2026 — Historial de conteos físicos (inventarios cíclicos).
+    conteos: []
   };
 }
 function guardarLocal() {
@@ -2875,6 +2895,280 @@ setTimeout(_recuperarFotosCampanas, 15000);
 // Solo toca la familia 'inyectores'. Idempotente: ya no hace nada al terminar.
 // (Ojo: las fotos NO se ven afectadas — _normClave ya ignora los espacios, así
 //  que "Big Cam" y "BigCam" siempre compartieron el mismo grupo de fotos.)
+// ══════════ CONTEO FÍSICO / INVENTARIO CÍCLICO (jul 2026) ══════════
+// Flujo: elegir familia → escribir cuántas hay de cada modelo → ver diferencias
+// → marcar las faltantes (eligiendo cuáles) → se guarda el conteo en el historial.
+// Regla del negocio (Eugenio): LO FÍSICO ES LO REAL. Lo que falta se marca
+// FALTANTE, no se borra, para poder detectar después si siempre falta lo mismo
+// (que sería señal de robo o de ventas sin registrar). Lo que sobra solo se avisa.
+var _conteoFam = null;      // familia que se está contando
+var _conteoVals = {};       // modelo -> cantidad contada (lo que escribe Raúl)
+
+// Piezas vivas de una familia (ni vendidas ni ya marcadas faltantes)
+function _piezasVivas(famId){
+  return (DATA.piezas || []).filter(function(p){
+    return p && p.familia === famId && !p.vendida;
+  });
+}
+// Agrupa por modelo: { modelo -> [piezas] }
+function _porModelo(famId){
+  var g = {};
+  _piezasVivas(famId).forEach(function(p){
+    var m = (p.modelo || '(sin modelo)').trim() || '(sin modelo)';
+    (g[m] = g[m] || []).push(p);
+  });
+  return g;
+}
+
+function abrirConteo(){
+  _conteoFam = null; _conteoVals = {};
+  renderConteoFamilias();
+  openModal('modal-conteo');
+}
+
+function renderConteoFamilias(){
+  var b = document.getElementById('conteo-body'); if(!b) return;
+  var conFam = FAMILIAS.map(function(f){
+    return { f: f, n: _piezasVivas(f.id).length };
+  }).filter(function(x){ return x.n > 0; });
+  var hist = (DATA.conteos || []).slice().sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+  b.innerHTML =
+    '<div style="background:#f3eefb;border:1px solid #cbb6e6;border-radius:8px;padding:10px 12px;font-size:13px;color:#4e3570;margin-bottom:12px;">' +
+      '📋 Cuenta las piezas <b>en el patio</b> y escribe cuántas hay. El sistema te dice la diferencia contra lo registrado.' +
+    '</div>' +
+    '<div style="font-size:12px;font-weight:800;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">¿Qué familia vas a contar?</div>' +
+    (conFam.length
+      ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;">' +
+        conFam.map(function(x){
+          return '<button class="btn" style="text-align:left;padding:11px 12px;" onclick="iniciarConteo(\'' + x.f.id + '\')">' +
+            '<b>' + escapeHtml(x.f.nombre) + '</b><br><span style="font-size:12px;color:#888;">' + x.n + ' pieza(s)</span></button>';
+        }).join('') + '</div>'
+      : '<p style="color:#888;padding:12px;">No hay piezas en el patio.</p>') +
+    (hist.length
+      ? '<div style="margin-top:18px;border-top:2px solid #eee;padding-top:12px;">' +
+        '<div style="font-size:12px;font-weight:800;color:#666;text-transform:uppercase;margin-bottom:8px;">Conteos anteriores</div>' +
+        hist.slice(0,8).map(function(c, i){
+          var dif = (c.lineas||[]).filter(function(l){ return l.dif !== 0; }).length;
+          return '<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px;cursor:pointer;" onclick="verConteoHist(' + i + ')">' +
+            '<span><b>' + escapeHtml(c.famNombre || c.familia) + '</b> · ' + escapeHtml(c.fecha) + '</span>' +
+            '<span style="color:' + (dif ? '#c0392b' : '#2e7d46') + ';font-weight:700;">' + (dif ? dif + ' con diferencia' : 'cuadró ✓') + '</span>' +
+          '</div>';
+        }).join('') + '</div>'
+      : '');
+}
+
+function iniciarConteo(famId){
+  _conteoFam = famId; _conteoVals = {}; _conteoSnap = null;
+  renderConteoCaptura();
+}
+
+function renderConteoCaptura(){
+  var b = document.getElementById('conteo-body'); if(!b) return;
+  var f = FAMILIAS.find(function(x){ return x.id === _conteoFam; });
+  var g = _porModelo(_conteoFam);
+  var modelos = Object.keys(g).sort(function(a,b){ return g[b].length - g[a].length || a.localeCompare(b); });
+  b.innerHTML =
+    '<div style="margin-bottom:10px;"><button class="btn btn-small" onclick="abrirConteo()">← Cambiar familia</button></div>' +
+    '<div style="font-size:17px;font-weight:800;color:#17140f;margin-bottom:3px;">' + escapeHtml(f ? f.nombre : _conteoFam) + '</div>' +
+    '<div style="font-size:12.5px;color:#888;margin-bottom:12px;">Escribe cuántas hay <b>físicamente</b> de cada modelo. Puedes dejar en blanco lo que no cuentes hoy.</div>' +
+    '<div style="max-height:52vh;overflow:auto;border:1px solid #e6e2d8;border-radius:10px;">' +
+      '<table style="width:100%;border-collapse:collapse;font-size:14px;">' +
+        '<thead><tr style="background:#f4f1e9;position:sticky;top:0;">' +
+          '<th style="text-align:left;padding:8px 10px;font-size:11.5px;color:#666;">MODELO</th>' +
+          '<th style="text-align:center;padding:8px 6px;font-size:11.5px;color:#666;">SISTEMA</th>' +
+          '<th style="text-align:center;padding:8px 6px;font-size:11.5px;color:#666;">CONTADO</th>' +
+        '</tr></thead><tbody>' +
+        modelos.map(function(m, i){
+          var n = g[m].length;
+          return '<tr style="border-top:1px solid #f0ede4;' + (i%2?'background:#fbfaf7;':'') + '">' +
+            '<td style="padding:7px 10px;font-weight:600;color:#1a1a1a;">' + escapeHtml(m) + '</td>' +
+            '<td style="padding:7px 6px;text-align:center;color:#666;font-weight:700;">' + n + '</td>' +
+            '<td style="padding:5px 6px;text-align:center;">' +
+              '<input type="number" inputmode="numeric" min="0" style="width:66px;padding:7px 4px;text-align:center;font-size:16px;font-weight:700;border:2px solid #ccc;border-radius:7px;" ' +
+              'value="' + (_conteoVals[m] != null ? _conteoVals[m] : '') + '" ' +
+              'oninput="_conteoVals[' + JSON.stringify(m).replace(/"/g,'&quot;') + ']=this.value===\'\'?null:parseInt(this.value,10)">' +
+            '</td></tr>';
+        }).join('') +
+      '</tbody></table></div>' +
+    '<button class="btn btn-block" style="margin-top:12px;background:#7a5ea8;color:#fff;border-color:#7a5ea8;font-weight:800;" onclick="verDiferenciasConteo()">📊 Ver diferencias</button>';
+}
+
+// Calcula las diferencias entre lo contado y lo registrado.
+function _difsConteo(){
+  var g = _porModelo(_conteoFam), out = [];
+  Object.keys(g).forEach(function(m){
+    var cont = _conteoVals[m];
+    if(cont == null || isNaN(cont)) return;         // no lo contó hoy
+    out.push({ modelo:m, sistema:g[m].length, fisico:cont, dif: cont - g[m].length, piezas:g[m] });
+  });
+  return out.sort(function(a,b){ return Math.abs(b.dif) - Math.abs(a.dif); });
+}
+
+// Foto de las diferencias TAL COMO SE ENCONTRARON. Se guarda aparte porque al
+// marcar las faltantes el inventario ya queda cuadrado, y si el historial se
+// recalculara diría "todo cuadró" — perdiendo justo el dato que sirve para
+// detectar si siempre falta lo mismo.
+var _conteoSnap = null;
+
+function verDiferenciasConteo(nuevo){
+  var b = document.getElementById('conteo-body'); if(!b) return;
+  var difs = _difsConteo();
+  if(!difs.length){ toast('Escribe al menos un conteo', 'error'); return; }
+  if(nuevo !== false || !_conteoSnap) _conteoSnap = difs.map(function(d){
+    return { modelo:d.modelo, sistema:d.sistema, fisico:d.fisico, dif:d.dif };
+  });
+  var faltan  = difs.filter(function(d){ return d.dif < 0; });
+  var sobran  = difs.filter(function(d){ return d.dif > 0; });
+  var cuadran = difs.filter(function(d){ return d.dif === 0; });
+  var f = FAMILIAS.find(function(x){ return x.id === _conteoFam; });
+
+  b.innerHTML =
+    '<div style="margin-bottom:10px;"><button class="btn btn-small" onclick="renderConteoCaptura()">← Corregir conteo</button></div>' +
+    '<div style="font-size:17px;font-weight:800;margin-bottom:10px;">' + escapeHtml(f?f.nombre:'') + ' — resultado</div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">' +
+      '<div style="flex:1;min-width:88px;background:#eaf6ee;border:1px solid #b8ddc4;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:21px;font-weight:800;color:#2e7d46;">' + cuadran.length + '</div><div style="font-size:10.5px;color:#5a7a63;">CUADRAN</div></div>' +
+      '<div style="flex:1;min-width:88px;background:#fdeceb;border:1px solid #e8b4b0;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:21px;font-weight:800;color:#c0392b;">' + faltan.length + '</div><div style="font-size:10.5px;color:#8a5450;">FALTAN</div></div>' +
+      '<div style="flex:1;min-width:88px;background:#fff6e5;border:1px solid #e8c98a;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:21px;font-weight:800;color:#b8860b;">' + sobran.length + '</div><div style="font-size:10.5px;color:#8a7434;">SOBRAN</div></div>' +
+    '</div>' +
+    (faltan.length ?
+      '<div style="font-size:12px;font-weight:800;color:#c0392b;margin:12px 0 6px;">❌ FALTAN — elige cuáles marcar</div>' +
+      faltan.map(function(d){
+        var i = difs.indexOf(d);
+        return '<div style="border:1px solid #e8b4b0;border-left:4px solid #c0392b;border-radius:9px;padding:10px 12px;margin-bottom:8px;background:#fffaf9;">' +
+          '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;">' +
+            '<b style="font-size:15px;">' + escapeHtml(d.modelo) + '</b>' +
+            '<span style="color:#c0392b;font-weight:800;">' + d.dif + '</span></div>' +
+          '<div style="font-size:12.5px;color:#777;margin:3px 0 8px;">Sistema: ' + d.sistema + ' · Contado: <b>' + d.fisico + '</b> · faltan <b>' + Math.abs(d.dif) + '</b></div>' +
+          '<button class="btn btn-small" style="width:100%;background:#c0392b;color:#fff;border-color:#c0392b;font-weight:700;" onclick="elegirFaltantes(' + i + ')">Marcar ' + Math.abs(d.dif) + ' como faltante</button>' +
+        '</div>';
+      }).join('') : '') +
+    (sobran.length ?
+      '<div style="font-size:12px;font-weight:800;color:#b8860b;margin:14px 0 6px;">➕ SOBRAN — dalas de alta tú</div>' +
+      '<div style="background:#fff6e5;border:1px solid #e8c98a;border-radius:9px;padding:10px 12px;font-size:13px;color:#7a5a12;">' +
+        sobran.map(function(d){
+          return '<div style="padding:3px 0;"><b>' + escapeHtml(d.modelo) + '</b>: hay <b>' + d.fisico + '</b> y el sistema tiene ' + d.sistema + ' → <b>sobran ' + d.dif + '</b></div>';
+        }).join('') +
+        '<div style="margin-top:7px;font-size:11.5px;opacity:.85;">Se registran con «Agregar Pieza Suelta» para que lleven su folio, ubicación y precio.</div>' +
+      '</div>' : '') +
+    '<button class="btn btn-block" style="margin-top:14px;background:#17140f;color:#fff;border-color:#17140f;font-weight:800;" onclick="guardarConteo()">💾 Guardar este conteo en el historial</button>';
+}
+
+// Cuando faltan piezas de un modelo, se elige CUÁLES son las que no aparecieron.
+// Importante en motores/chasis (cada uno es único e identificable); en inyectores
+// da lo mismo, por eso hay un atajo que palomea las primeras.
+var _faltSel = {};
+function elegirFaltantes(idx){
+  var d = _difsConteo()[idx]; if(!d) return;
+  _faltSel = {};
+  var faltan = Math.abs(d.dif);
+  var b = document.getElementById('conteo-body');
+  b.innerHTML =
+    '<div style="margin-bottom:10px;"><button class="btn btn-small" onclick="verDiferenciasConteo()">← Regresar</button></div>' +
+    '<div style="font-size:16px;font-weight:800;margin-bottom:3px;">' + escapeHtml(d.modelo) + '</div>' +
+    '<div style="font-size:13px;color:#777;margin-bottom:10px;">Palomea las <b>' + faltan + '</b> que no aparecieron en el patio.</div>' +
+    '<button class="btn btn-small" style="margin-bottom:10px;" onclick="_palomearPrimeras(' + faltan + ')">Palomear las primeras ' + faltan + '</button>' +
+    '<div style="max-height:46vh;overflow:auto;border:1px solid #e6e2d8;border-radius:9px;">' +
+    d.piezas.map(function(p){
+      var det = [p.folioInterno, (p.extras && p.extras.serie) ? 'Serie ' + p.extras.serie : '',
+                 (p.extras && p.extras.ubicacion) ? '📍' + p.extras.ubicacion : '',
+                 p.fechaRegistro ? new Date(p.fechaRegistro).toLocaleDateString('es-MX') : ''].filter(Boolean).join(' · ');
+      return '<label style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-bottom:1px solid #f0ede4;cursor:pointer;">' +
+        '<input type="checkbox" style="width:20px;height:20px;flex:none;" onchange="_faltSel[\'' + p.id + '\']=this.checked;_actContFalt()">' +
+        '<span style="flex:1;min-width:0;font-size:13.5px;"><b>' + escapeHtml(p.modelo || '') + '</b>' +
+        (det ? '<br><span style="font-size:11.5px;color:#888;">' + escapeHtml(det) + '</span>' : '') + '</span></label>';
+    }).join('') + '</div>' +
+    '<div id="cont-falt-msg" style="text-align:center;font-size:12.5px;color:#888;margin-top:8px;">0 de ' + faltan + ' palomeadas</div>' +
+    '<button class="btn btn-block" style="margin-top:8px;background:#c0392b;color:#fff;border-color:#c0392b;font-weight:800;" onclick="aplicarFaltantes(' + idx + ')">❌ Marcar como faltantes</button>';
+}
+function _palomearPrimeras(n){
+  var cbs = document.querySelectorAll('#conteo-body input[type=checkbox]');
+  for(var i=0;i<cbs.length;i++){ var marcar = i < n; cbs[i].checked = marcar; cbs[i].onchange(); }
+}
+function _actContFalt(){
+  var el = document.getElementById('cont-falt-msg'); if(!el) return;
+  var n = Object.keys(_faltSel).filter(function(k){ return _faltSel[k]; }).length;
+  el.textContent = n + ' palomeada(s)';
+}
+
+function aplicarFaltantes(idx){
+  var d = _difsConteo()[idx]; if(!d) return;
+  var ids = Object.keys(_faltSel).filter(function(k){ return _faltSel[k]; });
+  if(!ids.length){ toast('Palomea al menos una pieza', 'error'); return; }
+  var faltan = Math.abs(d.dif);
+  if(ids.length !== faltan && !confirm('Palomeaste ' + ids.length + ' pero la diferencia es de ' + faltan + '.\n\n¿Continuar de todos modos?')) return;
+  pushUndo('Marcar faltantes');
+  var hoy = Date.now();
+  ids.forEach(function(id){
+    var p = (DATA.piezas || []).find(function(x){ return x.id === id; });
+    if(!p) return;
+    // vendida=true saca la pieza del inventario disponible en TODO el sistema
+    // (hay ~42 filtros que ya lo usan). faltante=true la distingue: no es venta,
+    // no suma dinero y se muestra como FALTANTE.
+    p.vendida = true;
+    p.faltante = true;
+    p.fechaVenta = hoy;
+    p.precioVenta = 0;
+    p.faltanteFecha = hoy;
+    // Su ficha pública se retira: la pieza ya no está.
+    try { firebase.database().ref('fichas_publicas/' + p.id).remove(); } catch(e){}
+  });
+  guardar();
+  toast('✓ ' + ids.length + ' pieza(s) marcada(s) como faltante', 'success');
+  _faltSel = {};
+  try { renderBusqueda(); } catch(e){}
+  verDiferenciasConteo(false);   // false = no pisar la foto de cómo se encontró
+}
+
+function guardarConteo(){
+  // Se guarda la foto de cómo se ENCONTRÓ el conteo (no lo ya corregido).
+  var difs = _conteoSnap || _difsConteo();
+  if(!difs.length){ toast('No hay nada que guardar', 'error'); return; }
+  var f = FAMILIAS.find(function(x){ return x.id === _conteoFam; });
+  var d = new Date();
+  if(!Array.isArray(DATA.conteos)) DATA.conteos = [];
+  DATA.conteos.push({
+    id: 'cnt-' + Date.now(),
+    ts: Date.now(),
+    fecha: d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2),
+    familia: _conteoFam,
+    famNombre: f ? f.nombre : _conteoFam,
+    lineas: difs.map(function(x){ return { modelo:x.modelo, sistema:x.sistema, fisico:x.fisico, dif:x.dif }; })
+  });
+  if(DATA.conteos.length > 60) DATA.conteos = DATA.conteos.slice(-60);   // no crecer sin fin
+  guardar();
+  toast('✓ Conteo guardado en el historial', 'success');
+  abrirConteo();
+}
+
+function verConteoHist(i){
+  var hist = (DATA.conteos || []).slice().sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+  var c = hist[i]; if(!c) return;
+  var b = document.getElementById('conteo-body');
+  var conDif = (c.lineas||[]).filter(function(l){ return l.dif !== 0; });
+  b.innerHTML =
+    '<div style="margin-bottom:10px;"><button class="btn btn-small" onclick="abrirConteo()">← Regresar</button></div>' +
+    '<div style="font-size:16px;font-weight:800;">' + escapeHtml(c.famNombre||c.familia) + '</div>' +
+    '<div style="font-size:12.5px;color:#888;margin-bottom:12px;">Conteo del ' + escapeHtml(c.fecha) + '</div>' +
+    (conDif.length
+      ? '<table style="width:100%;border-collapse:collapse;font-size:13.5px;">' +
+        '<thead><tr style="background:#f4f1e9;"><th style="text-align:left;padding:7px 9px;font-size:11px;color:#666;">MODELO</th><th style="padding:7px;font-size:11px;color:#666;">SIST.</th><th style="padding:7px;font-size:11px;color:#666;">FÍSICO</th><th style="padding:7px;font-size:11px;color:#666;">DIF</th></tr></thead><tbody>' +
+        conDif.map(function(l){
+          return '<tr style="border-top:1px solid #f0ede4;"><td style="padding:6px 9px;">' + escapeHtml(l.modelo) + '</td>' +
+            '<td style="padding:6px;text-align:center;color:#777;">' + l.sistema + '</td>' +
+            '<td style="padding:6px;text-align:center;font-weight:700;">' + l.fisico + '</td>' +
+            '<td style="padding:6px;text-align:center;font-weight:800;color:' + (l.dif<0?'#c0392b':'#b8860b') + ';">' + (l.dif>0?'+':'') + l.dif + '</td></tr>';
+        }).join('') + '</tbody></table>'
+      : '<div style="background:#eaf6ee;border:1px solid #b8ddc4;border-radius:9px;padding:14px;text-align:center;color:#2e7d46;font-weight:700;">✅ Todo cuadró en este conteo</div>');
+}
+
+// jul 2026 — Una pieza marcada FALTANTE en un conteo físico lleva vendida=true
+// (así desaparece del inventario disponible en todos lados sin tocar los ~42
+// filtros que ya existen), pero NO se vendió. Estos ayudantes hacen que se vea
+// y se cuente como lo que es.
+function esFaltante(p){ return !!(p && p.faltante); }
+function txtEstadoPieza(p){ return esFaltante(p) ? 'FALTANTE' : 'VENDIDA'; }
+function colorEstadoPieza(p){ return esFaltante(p) ? '#b8860b' : '#c0392b'; }
+
 function _limpiarModelosInyectores(){
   if(typeof esEditor === 'function' && !esEditor()) return;
   if(typeof DATA === 'undefined' || !DATA.piezas) return;
@@ -3657,7 +3951,7 @@ function renderCamiones() {
       <div style="display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid #f0f0e8; font-size:13px;">
         <div style="flex:1; min-width:0;">
           <span style="font-weight:700; color:#1a1a1a;">${escapeHtml(r.nombre)}</span>
-          ${r.vendida ? '<span style="color:#c0392b; font-size:11px; font-weight:600;"> VENDIDA</span>' : ''}
+          ${r.vendida ? '<span style="color:'+colorEstadoPieza(r)+'; font-size:11px; font-weight:600;"> '+txtEstadoPieza(r)+'</span>' : ''}
         </div>
         <div style="font-size:11px; color:#aaa; font-family:ui-monospace,monospace; white-space:nowrap; margin-left:8px;">${fechaCorta(r.ts)}</div>
       </div>
@@ -4720,7 +5014,7 @@ function renderPiezaItem(p) {
     <div class="pieza-item" style="${p.vendida ? 'opacity:0.55' : ''}">
       <div class="pieza-info">
         <div class="pieza-name">${f?.nombreSingular || f?.nombre || p.familia}: ${p.modelo}${precio}${_alertaHuerfano(p)}${badgeApartada(p)}</div>
-        <div class="pieza-detail">${extras}${p.vendida ? ' · <strong style="color:#c0392b">VENDIDA</strong>' : ''}</div>
+        <div class="pieza-detail">${extras}${p.vendida ? ' · <strong style="color:'+colorEstadoPieza(p)+'">'+txtEstadoPieza(p)+'</strong>' : ''}</div>
       </div>
       <div class="pieza-actions">
         ${p.vendida
@@ -4849,7 +5143,7 @@ function renderPiezaItemConCamion(p) {
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
         <div style="flex:1;">
           <div style="font-size:18px; font-weight:900; color:#1a1a1a;">${escapeHtml(p.modelo || '')}${precio}${_alertaHuerfano(p)}${estadoInyBadge(p)}${badgeApartada(p)}${p.bajoPedido ? ' <span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : ''}</div>
-          <div style="font-size:13px; color:#777; margin-top:2px;">${extras}${p.vendida ? ' · <strong style="color:#c0392b">VENDIDA</strong>' : ''}</div>
+          <div style="font-size:13px; color:#777; margin-top:2px;">${extras}${p.vendida ? ' · <strong style="color:'+colorEstadoPieza(p)+'">'+txtEstadoPieza(p)+'</strong>' : ''}</div>
           ${p.notas ? `<div style="font-size:14px; color:#4a4a4a; background:#f7f3ea; border-left:3px solid #c9a24b; border-radius:2px; padding:7px 11px; margin-top:5px;">📝 ${escapeHtml(p.notas)}</div>` : ''}
           ${origen}
         </div>
@@ -5747,7 +6041,10 @@ function fmtDinero(n){
   return (neg ? '-' : '') + '$' + enteros + (partes[1] === '00' ? '' : '.' + partes[1]);
 }
 function renderVentas() {
-  const vendidas = DATA.piezas.filter(p => p.vendida);
+  // jul 2026: las piezas marcadas FALTANTES en un conteo físico llevan
+  // vendida=true (para que salgan del inventario disponible en todos lados),
+  // pero NO son ventas: se excluyen de este reporte para no inflar el dinero.
+  const vendidas = DATA.piezas.filter(p => p.vendida && !p.faltante);
   const desde = document.getElementById('ventas-desde')?.value;
   const hasta = document.getElementById('ventas-hasta')?.value;
   const dMin = desde ? new Date(desde + 'T00:00:00').getTime() : null;
@@ -6154,10 +6451,10 @@ function renderComprasLista(q) {
     var f = FAMILIAS.find(function(x) { return x.id === p.familia; });
     var fam = f ? (f.nombreSingular || f.nombre) : p.familia;
     var compra = Number(p.precioCompra) || 0;
-    var venta = Number(p.precioVenta) || Number(p.precioSugerido) || 0;  // precio real si ya se vendió
+    var venta = esFaltante(p) ? 0 : (Number(p.precioVenta) || Number(p.precioSugerido) || 0);  // faltante no es venta
     var gan = (compra && venta) ? (venta - compra) : null;
     return '<div style="padding:10px 4px;border-bottom:1px solid #eee;">' +
-      '<div style="font-weight:700;">' + escapeHtml(fam) + (p.modelo ? ': ' + escapeHtml(p.modelo) : '') + (p.vendida ? ' <span style="color:#c0392b;font-size:11px;font-weight:700;">VENDIDA</span>' : '') + '</div>' +
+      '<div style="font-weight:700;">' + escapeHtml(fam) + (p.modelo ? ': ' + escapeHtml(p.modelo) : '') + (p.vendida ? ' <span style="color:'+colorEstadoPieza(p)+';font-size:11px;font-weight:700;">'+txtEstadoPieza(p)+'</span>' : '') + '</div>' +
       '<div style="font-size:13px;color:#555;margin-top:3px;">💰 Compra: <b>$' + compra.toLocaleString('en-US') + '</b>' +
         (venta ? ' &nbsp;·&nbsp; 🏷 Venta: <b>$' + venta.toLocaleString('en-US') + '</b>' : ' &nbsp;·&nbsp; 🏷 Venta: <span style="color:#aaa;">sin precio</span>') +
         (gan !== null ? ' &nbsp;·&nbsp; <span style="color:' + (gan >= 0 ? '#2e7d46' : '#c0392b') + ';font-weight:700;">' + (gan >= 0 ? 'Ganancia' : 'Pérdida') + ': $' + Math.abs(gan).toLocaleString('en-US') + '</span>' : '') +
@@ -6865,7 +7162,7 @@ function excelFilaDe(p) {
     ex.cpl || '', ex.hp || '', ex.serie || ex.terminacion || '', ex.libras || '', ex.marcaEje || '',
     ex.suspension || '', ex.paso || '', ex.fichaVin || '', ex.fichaNoMotor || '', ex.ubicacion || '',
     p.precioSugerido || '', p.precioMax || '', ex.driveLink || '', p.notas || '',
-    p.vendida ? 'VENDIDA' : 'En Patio', p.fechaRegistro ? new Date(p.fechaRegistro).toLocaleDateString('es-MX') : ''
+    p.vendida ? txtEstadoPieza(p) : 'En Patio', p.fechaRegistro ? new Date(p.fechaRegistro).toLocaleDateString('es-MX') : ''
   ];
 }
 
@@ -6891,7 +7188,7 @@ function excelFilaChasis(p) {
     ex.consecutivo || '', baja, ex.fichaExtra || '',
     ex.ubicacion || '',
     p.precioSugerido || '', p.precioMax || '', p.notas || '',
-    p.vendida ? 'VENDIDA' : 'En Patio', p.fechaRegistro ? new Date(p.fechaRegistro).toLocaleDateString('es-MX') : ''
+    p.vendida ? txtEstadoPieza(p) : 'En Patio', p.fechaRegistro ? new Date(p.fechaRegistro).toLocaleDateString('es-MX') : ''
   ];
 }
 
