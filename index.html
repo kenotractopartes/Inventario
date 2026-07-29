@@ -1910,10 +1910,21 @@ function initFirebase() {
 
 function empujarAFirebase() {
   if (!fbRef) return;
-  if (!esEditor()) return;   // Solo Ver nunca escribe en la nube
+  if (!esEditor()) {
+    // Solo Ver nunca escribe en la nube. ESTO SE AVISA: antes se regresaba
+    // callado, así que el cambio se guardaba solo en esa computadora, se veía
+    // bien al recargar (venía del navegador) y luego DESAPARECÍA cuando la nube
+    // mandaba su copia. Se veía como "está bugeado", pero era el modo.
+    avisarFallaGuardado('Estás en modo <b>Solo Ver</b>: el cambio NO se subió a la nube y se va a perder. '
+      + 'Entra como <b>Editor</b> (botón de arriba) y vuelve a hacerlo.');
+    return;
+  }
   const payload = { ...DATA, _origen: DEVICE_ID, _ts: Date.now(), _key: EDITOR_KEY };
   fbRef.set(payload).then(() => setEstadoSync('ok', 'Sincronizado'))
-    .catch(() => setEstadoSync('offline', 'Sin permiso o sin conexión'));
+    .catch((e) => {
+      setEstadoSync('offline', 'Sin permiso o sin conexión');
+      avisarFallaGuardado('La nube RECHAZÓ el cambio. Quedó solo en esta computadora.', e);
+    });
 }
 
 function normalizarData(obj) {
@@ -1997,15 +2008,46 @@ function cargar() {
     conteos: []
   };
 }
+// jul 2026 — AVISO GRANDE Y ROJO cuando algo falla al guardar.
+// Antes fallaba en silencio: Raúl picaba "Agregar", no pasaba nada visible y
+// nadie sabía por qué. Cualquier cosa que impida guardar tiene que verse.
+function avisarFallaGuardado(texto, err){
+  try { console.error(texto, err || ''); } catch(e){}
+  let el = document.getElementById('aviso-falla-guardado');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'aviso-falla-guardado';
+    el.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b03a2e;color:#fff;'
+      + 'padding:12px 46px 12px 16px;font:600 14px/1.4 system-ui,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.3)';
+    el.innerHTML = '<span id="aviso-falla-txt"></span>'
+      + '<button onclick="this.parentElement.remove()" style="position:absolute;right:10px;top:8px;'
+      + 'background:rgba(255,255,255,.2);border:0;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer">✕</button>';
+    document.body.appendChild(el);
+  }
+  const t = el.querySelector('#aviso-falla-txt');
+  if (t) t.innerHTML = '⚠️ ' + texto + (err && err.message ? '<br><span style="font-weight:400;font-size:12px;opacity:.9">Detalle: ' + err.message + '</span>' : '');
+}
+
 function guardarLocal() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); }
-  catch(e) { console.error('Error local:', e); }
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); return true; }
+  catch(e) {
+    // Lo más común: se llenó el espacio del navegador. Callarlo es peligroso —
+    // el cambio se ve en pantalla pero no queda guardado en esta computadora.
+    avisarFallaGuardado('No se pudo guardar en esta computadora (espacio del navegador lleno). '
+      + 'El cambio SÍ se está subiendo a la nube, pero avísale a Eugenio.', e);
+    return false;
+  }
 }
 function guardar() {
-  registrarUndo();
+  // Cada paso va aparte: si uno truena, los demás TIENEN que correr igual.
+  // Antes, un error en cualquiera de estos mataba la función que llamó a
+  // guardar() — por eso no sonaba el ding ni se cerraba la ventana.
+  try { registrarUndo(); } catch(e){ console.error('registrarUndo:', e); }
   guardarLocal();
   if (!fbAplicandoRemoto && fbRef) empujarAFirebase();
-  renderHistorialAcciones();
+  else if (!fbRef) avisarFallaGuardado('Sin conexión con la nube: este cambio SOLO quedó en esta computadora. '
+      + 'Los demás no lo van a ver hasta que vuelva el internet.');
+  try { renderHistorialAcciones(); } catch(e){ console.error('renderHistorialAcciones:', e); }
 }
 
 function getCatalogos() {
@@ -2046,6 +2088,16 @@ function showView(name) {
 // ============================================================
 // TOAST
 // ============================================================
+// jul 2026 — Red de seguridad: si truena CUALQUIER cosa, que se vea. Sin esto,
+// un error dejaba los botones "muertos" (ni sonido ni cambio en pantalla) y no
+// había forma de saber qué pasó sin abrir la consola del navegador.
+window.addEventListener('error', function(ev){
+  if (typeof avisarFallaGuardado === 'function' && ev && ev.message) {
+    avisarFallaGuardado('Algo falló en el sistema. Toma una foto de este aviso y mándasela a Eugenio.',
+      { message: ev.message + ' — línea ' + (ev.lineno || '?') });
+  }
+});
+
 function toast(msg, tipo) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -4983,7 +5035,10 @@ function guardarPieza() {
     });
   }
 
-  guardar();
+  // Blindado: si guardar() truena, la pieza ya está en DATA y la pantalla
+  // TIENE que actualizarse igual. Antes un error aquí dejaba la ventana
+  // abierta, sin ding y sin refrescar — parecía que no había pasado nada.
+  try { guardar(); } catch(e){ avisarFallaGuardado('Falló al guardar la pieza.', e); }
   // Si el modelo recién registrado YA tiene fotos (otras piezas iguales), la
   // pieza nueva las hereda sola: publicamos su ficha para que su QR funcione.
   try {
@@ -4993,13 +5048,17 @@ function guardarPieza() {
       republicarModelo(keyNueva);
     }
   } catch(e){ console.error('publicar modelo nuevo:', e); }
-  playDing();
-  if (_modoCompra) toast(`🛒 ${cantidad} compra${cantidad > 1 ? 's' : ''} registrada${cantidad > 1 ? 's' : ''}`, 'success');
-  else toast(`✓ ${cantidad} pieza${cantidad > 1 ? 's' : ''} agregada${cantidad > 1 ? 's' : ''}`, 'success');
+  try { playDing(); } catch(e){}
+  try {
+    if (_modoCompra) toast(`🛒 ${cantidad} compra${cantidad > 1 ? 's' : ''} registrada${cantidad > 1 ? 's' : ''}`, 'success');
+    else toast(`✓ ${cantidad} pieza${cantidad > 1 ? 's' : ''} agregada${cantidad > 1 ? 's' : ''}`, 'success');
+  } catch(e){}
   _modoCompra = false;
   closeModal('modal-pieza');
-  if (document.getElementById('view-camiones').classList.contains('active')) renderCamiones();
-  if (document.getElementById('view-camiones').classList.contains('active')) renderCamiones();
+  // Antes solo redibujaba la lista de camiones (y encima la línea estaba
+  // repetida). Si Raúl estaba en Buscar, en una familia o en Salidas, la pieza
+  // nueva no aparecía hasta recargar. refrescarVistaActual() cubre todas.
+  refrescarVistaActual();
 }
 
 // ============================================================
@@ -6372,7 +6431,7 @@ function eliminarPieza(id) {
   const key = _modelKey(p);
   const mediaIndividual = (!key && PUB[id] && PUB[id].media) ? PUB[id].media.slice() : [];
   DATA.piezas = DATA.piezas.filter(x => x.id !== id);
-  guardar();
+  try { guardar(); } catch(e){ avisarFallaGuardado('Falló al guardar el borrado.', e); }
   if (typeof actualizarBannerFaltantes === 'function') actualizarBannerFaltantes();
   try {
     // Su propia ficha siempre se quita.
@@ -6399,7 +6458,9 @@ function eliminarPieza(id) {
   toast('Pieza eliminada');
   if (p && p.camionId && document.getElementById('modal-pieza').classList.contains('active')) verPiezasCamion(p.camionId);
   else refrescarModalPiezaSiAbierto();
-  if (document.getElementById('view-buscar').classList.contains('active')) renderBusqueda();
+  // Antes solo redibujaba si estabas en Buscar: si borrabas una pieza SUELTA
+  // desde cualquier otra vista, seguía en pantalla hasta recargar.
+  refrescarVistaActual();
 }
 
 // ── Atajo desde "Ventas de Maura": ver MIS piezas de una familia y borrarlas rápido ──
