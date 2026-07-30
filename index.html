@@ -1169,6 +1169,31 @@ function espejoChasisEstatus(data){
   // 2) set de estatusIds que YA tienen pieza (dedup robusto: no depende solo de estatusChasisSync)
   const yaEn={};
   DATA.piezas.forEach(p=>{ if(p&&p.extras&&p.extras.estatusId) yaEn[p.extras.estatusId]=true; });
+  // jul 2026 — REFRESCAR LOS QUE YA EXISTEN.
+  // Antes esto SOLO creaba. Y en el Estatus un chasis nace VACÍO (marca, año y
+  // serie en blanco) y se llena después, celda por celda. Si el inventario de
+  // Raúl estaba abierto en ese momento, copiaba la fila recién nacida —vacía—
+  // y ya nunca la volvía a mirar: quedaba un "Chasis" pelón para siempre. Lo
+  // mismo pasaba al corregir un chasis viejo: el cambio no llegaba.
+  // Solo se copian los datos que el Estatus SÍ trae; lo que esté en blanco allá
+  // no borra lo que Raúl haya escrito a mano acá.
+  let actualizados=0;
+  DATA.piezas.forEach(p=>{
+    const eid = p && p.extras && p.extras.estatusId;
+    if(!eid) return;
+    const ch = (data||{})[eid];
+    if(!ch) return;
+    const marca=_txtPlano(ch.marca), anio=_txtPlano(ch.anio), serie=_txtPlano(ch.serie);
+    let cambio=false;
+    const poner=(obj,k,v)=>{ if(v && obj[k]!==v){ obj[k]=v; cambio=true; } };
+    poner(p.extras,'fichaMarca',marca);
+    poner(p.extras,'fichaAño',anio);
+    poner(p.extras,'fichaVin',serie);
+    poner(p.extras,'consecutivo', ch.consecutivo ? String(ch.consecutivo) : '');
+    poner(p.extras,'baja', ch.baja ? String(ch.baja) : '');
+    poner(p,'marca',marca); poner(p,'camionMarca',marca); poner(p,'año',anio);
+    if(cambio) actualizados++;
+  });
   let creados=0;
   Object.keys(data||{}).forEach(eid=>{
     if(yaEn[eid]){ DATA.estatusChasisSync[eid]=true; return; }   // ya existe la pieza → NO crear otra
@@ -1191,11 +1216,12 @@ function espejoChasisEstatus(data){
     });
     yaEn[eid]=true; DATA.estatusChasisSync[eid]=true; creados++;
   });
-  if(quitados>0 || creados>0){
+  if(quitados>0 || creados>0 || actualizados>0){
     guardar();
     if(typeof refrescarVistaActual==='function') refrescarVistaActual();
     if(quitados>0 && typeof toast==='function') toast('🧹 '+quitados+' chasis duplicados quitados','success');
     if(creados>0 && typeof toast==='function') toast('🔗 '+creados+' chasis del Estatus agregados','success');
+    if(actualizados>0 && typeof toast==='function') toast('🔄 '+actualizados+' chasis actualizados desde el Estatus','success');
   }
 }
 var _estatusChasisData = {};
