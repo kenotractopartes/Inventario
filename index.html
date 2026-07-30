@@ -5,15 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inventario de Patio · Tracto Partes Magaña</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📋</text></svg>">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js" crossorigin="anonymous"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { font-family: Georgia, 'Times New Roman', serif; background: #f2efe9; color: #1a1a1a; font-size: 16px; line-height: 1.5; }
@@ -1886,12 +1886,26 @@ function initFirebase() {
       }
       // Ignorar el eco de nuestro propio guardado
       if (remoto._origen === DEVICE_ID) return;
-      // Aplicar datos remotos
+      // Aplicar datos remotos.
+      // El try/finally NO es adorno (jul 2026). Si algo tronaba aquí —casi
+      // siempre al redibujar— la línea de abajo nunca corría y
+      // fbAplicandoRemoto se quedaba PEGADO en true. A partir de ese momento
+      // guardar() dejaba de subir a la nube EL RESTO DE LA SESIÓN: los cambios
+      // se guardaban solo en esa computadora, se veían al recargar (venían del
+      // navegador) y luego desaparecían cuando llegaba la copia de la nube.
+      // Como el error nacía dentro del SDK de Firebase (otro dominio), Chrome
+      // solo decía "Script error." y no había forma de ubicarlo.
       fbAplicandoRemoto = true;
-      DATA = normalizarData(remoto);
-      guardarLocal();
-      refrescarVistaActual();
-      fbAplicandoRemoto = false;
+      try {
+        DATA = normalizarData(remoto);
+        guardarLocal();
+        refrescarVistaActual();
+      } catch(e) {
+        avisarFallaGuardado('Falló al aplicar los datos que llegaron de la nube. '
+          + 'Recarga la página; si sigue, mándale esta foto a Eugenio.', e);
+      } finally {
+        fbAplicandoRemoto = false;   // PASE LO QUE PASE
+      }
       setEstadoSync('ok', 'Sincronizado');
     }, (err) => {
       console.error('Firebase:', err);
@@ -2093,9 +2107,22 @@ function showView(name) {
 // había forma de saber qué pasó sin abrir la consola del navegador.
 window.addEventListener('error', function(ev){
   if (typeof avisarFallaGuardado === 'function' && ev && ev.message) {
-    avisarFallaGuardado('Algo falló en el sistema. Toma una foto de este aviso y mándasela a Eugenio.',
-      { message: ev.message + ' — línea ' + (ev.lineno || '?') });
+    // "Script error." sin línea = el error nació dentro de una librería de otro
+    // dominio (Firebase). Por eso los <script src> llevan crossorigin: sin él
+    // Chrome esconde el mensaje y no hay manera de saber qué pasó.
+    const detalle = (ev.message === 'Script error.' || !ev.lineno)
+      ? ev.message + (ev.filename ? ' (' + ev.filename.split('/').pop() + ')' : '')
+      : ev.message + ' — línea ' + ev.lineno;
+    avisarFallaGuardado('Algo falló en el sistema. Toma una foto de este aviso y mándasela a Eugenio.', { message: detalle });
   }
+});
+// Los errores de Firebase casi siempre son promesas rechazadas, y esas NO las
+// atrapa el listener de arriba: se perdían sin dejar rastro.
+window.addEventListener('unhandledrejection', function(ev){
+  if (typeof avisarFallaGuardado !== 'function') return;
+  const r = ev && ev.reason;
+  const msg = (r && (r.message || r.code)) ? (r.code ? r.code + ' · ' : '') + (r.message || '') : String(r);
+  avisarFallaGuardado('Una operación no se completó. Toma una foto de este aviso y mándasela a Eugenio.', { message: msg });
 });
 
 function toast(msg, tipo) {
