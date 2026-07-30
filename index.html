@@ -1922,6 +1922,38 @@ function initFirebase() {
   }
 }
 
+// ════════════════════════════════════════════════════════════════════
+// BLINDAJE DE LLAVES (jul 2026) — nació de un apagón real.
+// Firebase prohíbe . # $ / [ ] en los nombres de las llaves. Como TODO el
+// inventario se sube en un solo bloque, UNA sola llave inválida hacía que
+// fbRef.set() rechazara el bloque ENTERO. Resultado: la computadora seguía
+// trabajando "bien" pero no subía nada a la nube, y nadie se enteraba.
+// Pasó con ventasAtendidas, cuyas llaves eran "<idVenta>#<índice>".
+// Aquí se limpia CUALQUIER llave inválida antes de subir, venga de donde
+// venga, para que un descuido así no vuelva a apagar la sincronización.
+// ════════════════════════════════════════════════════════════════════
+var _LLAVE_PROHIBIDA = /[.#$/\[\]]/g;
+// El separador es "_" a propósito: es EXACTAMENTE lo que deja el limpiador al
+// convertir las llaves viejas ("1784994219842#0" → "1784994219842_0"), así lo
+// que Raúl ya había palomeado sigue contando como palomeado.
+function _keyVenta(idVenta, idx){ return String(idVenta).replace(_LLAVE_PROHIBIDA, '_') + '_' + idx; }
+function _limpiarLlaves(valor, cuenta){
+  if (!valor || typeof valor !== 'object') return valor;
+  if (Array.isArray(valor)) { valor.forEach(function(v){ _limpiarLlaves(v, cuenta); }); return valor; }
+  Object.keys(valor).forEach(function(k){
+    var limpia = k.replace(_LLAVE_PROHIBIDA, '_');
+    if (limpia !== k || limpia === '') {
+      if (limpia === '') limpia = '_';
+      valor[limpia] = valor[k];
+      delete valor[k];
+      cuenta.n++;
+      k = limpia;
+    }
+    _limpiarLlaves(valor[k], cuenta);
+  });
+  return valor;
+}
+
 function empujarAFirebase() {
   if (!fbRef) return;
   if (!esEditor()) {
@@ -1933,6 +1965,11 @@ function empujarAFirebase() {
       + 'Entra como <b>Editor</b> (botón de arriba) y vuelve a hacerlo.');
     return;
   }
+  // Se limpia DATA en el mismo lugar (no una copia): así lo local y la nube
+  // quedan iguales y la llave mala no vuelve a aparecer en el siguiente guardado.
+  var cuenta = { n: 0 };
+  _limpiarLlaves(DATA, cuenta);
+  if (cuenta.n) { console.warn('Se corrigieron ' + cuenta.n + ' llaves inválidas antes de subir'); guardarLocal(); }
   const payload = { ...DATA, _origen: DEVICE_ID, _ts: Date.now(), _key: EDITOR_KEY };
   fbRef.set(payload).then(() => setEstadoSync('ok', 'Sincronizado'))
     .catch((e) => {
@@ -8872,8 +8909,12 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
       }
       if(!piezas.length) piezas.push({ txt:(v.pieza||'(sin nombre)'), cant:1 });
       piezas.forEach(function(pz, idx){
-        var key = id+'#'+idx;
-        if(atendidas[key]) return;                      // ya la palomeó
+        // OJO: el separador NO puede ser "#". Firebase prohíbe . # $ / [ ] en
+        // las llaves, y como todo el inventario se sube en un solo bloque, UNA
+        // llave inválida tumbaba la subida COMPLETA — para siempre, hasta que
+        // se borrara. (Bug de jul 2026; el separador era "#".)
+        var key = _keyVenta(id, idx);
+        if(atendidas[key] || atendidas[id+'#'+idx]) return;   // ya la palomeó (llave nueva o vieja)
         out.push({ key:key, fecha:v.fecha, fam:v.fam, famId:v.famId,
                    pieza:pz.txt, cant:pz.cant, cliente:v.cliente, efe:v.efe });
       });
