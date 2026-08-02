@@ -4,214 +4,398 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tractopartes Magaña — Refacciones para tractocamión en Monterrey</title>
-<meta name="description" content="Motores, transmisiones, diferenciales, inyectores y refacciones para tractocamión. Más de 30 años en Monterrey. Envíos a todo México.">
-<meta name="theme-color" content="#1a1a1a">
+<meta name="description" content="Motores, transmisiones, diferenciales, inyectores y turbos para tractocamión. Más de 30 años en Monterrey. Piezas reales en piso, garantía y envíos a todo México.">
+<meta name="theme-color" content="#0d1424">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Tractopartes Magaña">
 <meta property="og:title" content="Tractopartes Magaña — Refacciones para tractocamión">
-<meta property="og:description" content="Motores, transmisiones, diferenciales e inyectores. Monterrey, envíos a todo México.">
+<meta property="og:description" content="Piezas reales en piso, no catálogo. Monterrey, envíos a todo México.">
+<meta property="og:image" content="img/patio.jpg">
+<link rel="icon" href="img/logo.png">
 <link rel="preconnect" href="https://inventario-julio-26-default-rtdb.firebaseio.com" crossorigin>
 <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin>
+<link rel="preload" as="image" href="img/patio.jpg" fetchpriority="high">
 <!-- ============================================================
-     TRACTOPARTES MAGAÑA — SITIO NUEVO (prototipo, ago 2026)
-     Un solo archivo. Sin frameworks, sin fuentes externas, sin
-     build. Pensado para abrir INSTANTÁNEO en el navegador de
-     adentro de la app de Facebook (62% del tráfico real).
+     TRACTOPARTES MAGAÑA — SITIO NUEVO (ago 2026)
+     Un solo archivo + 3 imágenes. Sin frameworks, sin fuentes
+     externas, sin build. Pensado para abrir INSTANTÁNEO en el
+     navegador de adentro de la app de Facebook (62% del tráfico).
 
-     Lee los nodos PÚBLICOS y de SOLO LECTURA del inventario:
-       fichas_publicas/  -> las piezas
-       media_modelo/     -> las fotos compartidas por modelo
-     No escribe nada. No tiene llaves. No toca Leadway.
+     El catálogo sale de los nodos PÚBLICOS y de SOLO LECTURA del
+     inventario: fichas_publicas/ y media_modelo/. No escribe nada,
+     no tiene llaves, no toca Leadway.
      ============================================================ -->
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   :root{
-    --tinta:#16181d; --tinta2:#2a2f38; --gris:#6b7280; --gris2:#9aa2ae;
-    --linea:#e3e6ea; --papel:#fff; --fondo:#f5f6f8;
-    --rojo:#b5241b; --rojo2:#8f1a13; --verde:#128c4a; --ambar:#b45309;
-    --r:12px; --sombra:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.1);
-    --sombra2:0 4px 12px rgba(16,24,40,.1);
+    --noche:#0d1424; --noche2:#151f36; --tinta:#101623; --gris:#6b7687; --gris2:#9aa5b6;
+    --linea:#e4e8ee; --papel:#fff; --fondo:#f4f6f9;
+    --rojo:#c8201d; --rojo2:#9d1614; --verde:#12a05c; --verde2:#0c7a45;
+    --r:14px; --s1:0 1px 2px rgba(13,20,36,.05),0 2px 6px rgba(13,20,36,.07);
+    --s2:0 8px 26px rgba(13,20,36,.14);
     --safe:env(safe-area-inset-bottom,0px);
   }
-  html{-webkit-text-size-adjust:100%}
-  body{
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    background:var(--fondo); color:var(--tinta); font-size:16px; line-height:1.5;
-    -webkit-font-smoothing:antialiased; overflow-wrap:break-word;
-  }
+  html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--fondo);color:var(--tinta);font-size:16px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;overflow-wrap:break-word}
   img{display:block;max-width:100%}
   button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   a{color:inherit;text-decoration:none}
-  .wrap{max-width:1180px;margin:0 auto;padding:0 14px}
+  .wrap{max-width:1200px;margin:0 auto;padding:0 16px}
+  .aclara{background:#fff6d8;border-bottom:1px solid #f0e2a8;color:#6b5410;
+    font-size:12px;text-align:center;padding:6px 14px;font-weight:600}
 
-  /* ---------- Encabezado ---------- */
-  header{position:sticky;top:0;z-index:40;background:var(--tinta);color:#fff}
-  /* En el teléfono el buscador se va a su propio renglón: es lo que más
-     se usa y apretado entre la marca y WhatsApp no cabía. */
-  .barra{display:flex;align-items:center;gap:10px;padding:10px 0;flex-wrap:wrap}
-  .marca{display:flex;flex-direction:column;line-height:1.05;flex:1 1 auto}
-  .marca b{font-size:17px;font-weight:800;letter-spacing:-.3px}
-  .marca span{font-size:9px;letter-spacing:2.2px;color:var(--rojo);font-weight:700}
-  .buscador{position:relative;min-width:0;order:3;flex:1 0 100%}
-  @media(min-width:620px){
-    .barra{flex-wrap:nowrap}
-    .marca{flex:0 0 auto}
-    .buscador{order:0;flex:1 1 auto}
-  }
-  .buscador input{
-    width:100%;padding:11px 38px 11px 38px;border-radius:999px;border:1.5px solid transparent;
-    background:#262a32;color:#fff;font-size:16px;outline:none;
-  }
-  .buscador input::placeholder{color:#8b929d}
-  .buscador input:focus{border-color:var(--rojo);background:#2e333c}
-  .buscador svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:16px;height:16px;stroke:#8b929d;fill:none;stroke-width:2}
-  .limpiar{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:28px;height:28px;
-    border-radius:50%;color:#8b929d;font-size:18px;display:none;align-items:center;justify-content:center}
-  .limpiar.on{display:flex}
-  .tel-top{flex:0 0 auto;display:flex;align-items:center;gap:6px;background:var(--verde);
-    color:#fff;padding:9px 13px;border-radius:999px;font-size:13px;font-weight:700;white-space:nowrap}
-  .tel-top svg{width:15px;height:15px;fill:currentColor}
+  /* ═══════════ ENCABEZADO ═══════════ */
+  header{position:sticky;top:0;z-index:50;background:rgba(13,20,36,.97);
+    backdrop-filter:saturate(150%) blur(8px);color:#fff;transition:box-shadow .2s}
+  header.pegado{box-shadow:0 4px 20px rgba(0,0,0,.3)}
+  .barra{display:flex;align-items:center;gap:12px;padding:9px 0}
+  /* El logo trae "TRACTOPARTES" en morado, que sobre la barra oscura no
+     se leería. Va sobre una placa blanca: se respeta la marca tal cual. */
+  .logo{display:flex;align-items:center;flex:1 1 auto;min-width:0}
+  .logo .placa{background:#fff;border-radius:9px;padding:5px 9px;display:flex;align-items:center}
+  .logo img{height:26px;width:auto;flex:0 0 auto}
+  @media(min-width:520px){.logo img{height:31px}}
+  .wa-btn{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;background:var(--verde);
+    color:#fff;padding:9px 14px;border-radius:999px;font-size:13.5px;font-weight:700;
+    white-space:nowrap;box-shadow:0 2px 10px rgba(18,160,92,.32)}
+  .wa-btn:active{background:var(--verde2)}
+  .wa-btn svg{width:16px;height:16px;fill:currentColor}
+  /* buscador compacto: aparece solo cuando ya pasaste el de la portada */
+  .mini{max-height:0;overflow:hidden;transition:max-height .25s ease;padding:0 16px}
+  header.pegado .mini{max-height:64px}
+  .mini .caja{position:relative;margin:0 auto 9px;max-width:1168px}
+  .mini input{width:100%;padding:10px 38px;border-radius:999px;border:1.5px solid #2a3852;
+    background:#1b2740;color:#fff;font-size:16px;outline:none}
+  .mini input:focus{border-color:var(--rojo)}
+  .mini input::placeholder{color:#7b8798}
+  .mini .lupa{position:absolute;left:13px;top:50%;transform:translateY(-50%);
+    width:16px;height:16px;stroke:#7b8798;fill:none;stroke-width:2}
 
-  /* ---------- Familias ---------- */
-  .familias{background:var(--tinta);padding-bottom:9px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-  .familias::-webkit-scrollbar{display:none}
-  .familias .pista{display:flex;gap:7px;padding:0 14px;max-width:1180px;margin:0 auto;width:max-content;min-width:100%}
-  .chip{padding:6px 13px;border-radius:999px;background:#262a32;color:#c8cdd5;font-size:13px;
-    font-weight:600;white-space:nowrap;border:1.5px solid transparent}
-  .chip.on{background:#fff;color:var(--tinta);border-color:#fff}
-  .chip .n{opacity:.5;font-weight:500;margin-left:3px}
+  /* ═══════════ PORTADA ═══════════ */
+  .hero{position:relative;background:var(--noche);color:#fff;overflow:hidden}
+  .hero .foto{position:absolute;inset:0}
+  .hero .foto img{width:100%;height:100%;object-fit:cover;object-position:center 62%}
+  /* El velo tiene que dejar ver el patio y a la vez que el texto se lea.
+     Se abre en el medio (.55) y se cierra arriba y abajo. */
+  .hero .velo{position:absolute;inset:0;
+    background:linear-gradient(180deg,rgba(13,20,36,.86) 0%,rgba(13,20,36,.55) 30%,rgba(13,20,36,.72) 62%,rgba(13,20,36,.96) 100%)}
+  .hero .dentro{position:relative;padding:34px 16px 30px;max-width:1200px;margin:0 auto}
+  .vivo{display:inline-flex;align-items:center;gap:7px;background:rgba(18,160,92,.16);
+    border:1px solid rgba(18,160,92,.5);color:#4ade9a;font-size:12.5px;font-weight:700;
+    padding:5px 12px;border-radius:999px;margin-bottom:15px}
+  .vivo i{width:7px;height:7px;border-radius:50%;background:#4ade9a;display:block;
+    animation:late 1.9s ease-in-out infinite}
+  @keyframes late{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+  .hero h1{font-size:clamp(30px,8.4vw,54px);font-weight:900;line-height:1.02;
+    letter-spacing:-1.6px;margin-bottom:13px}
+  .hero h1 em{font-style:normal;color:#ff5a52}
+  .hero p.sub{font-size:16px;color:#c3ccdb;max-width:560px;margin-bottom:21px;line-height:1.5}
+  .buscar-hero{position:relative;max-width:560px;margin-bottom:13px}
+  .buscar-hero input{width:100%;padding:16px 17px 16px 47px;border-radius:13px;border:2px solid transparent;
+    background:#fff;color:var(--tinta);font-size:16.5px;font-weight:500;outline:none;box-shadow:var(--s2)}
+  .buscar-hero input:focus{border-color:var(--rojo)}
+  .buscar-hero input::placeholder{color:#9aa5b6;font-weight:400}
+  .buscar-hero .lupa{position:absolute;left:16px;top:50%;transform:translateY(-50%);
+    width:20px;height:20px;stroke:var(--gris);fill:none;stroke-width:2.2}
+  /* en una sola línea que se desliza: envueltas se partían feo */
+  .pistas{display:flex;gap:6px;margin-bottom:22px;overflow-x:auto;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch;align-items:center}
+  .pistas::-webkit-scrollbar{display:none}
+  .pistas button{flex:0 0 auto}
+  .pistas span{font-size:12px;color:#8e9bb0;margin-right:2px;flex:0 0 auto}
+  .pistas button{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);
+    color:#dbe2ec;font-size:12.5px;font-weight:600;padding:5px 11px;border-radius:999px}
+  .pistas button:active{background:rgba(255,255,255,.2)}
+  .acciones{display:flex;flex-wrap:wrap;gap:10px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:15px 24px;
+    border-radius:12px;font-size:16px;font-weight:800;letter-spacing:-.2px}
+  .btn.rojo{background:var(--rojo);color:#fff;box-shadow:0 6px 20px rgba(200,32,29,.4)}
+  .btn.rojo:active{background:var(--rojo2)}
+  .btn.verde{background:var(--verde);color:#fff;box-shadow:0 6px 20px rgba(18,160,92,.36)}
+  .btn.verde:active{background:var(--verde2)}
+  .btn svg{width:19px;height:19px;fill:currentColor}
 
-  /* ---------- Resultados ---------- */
-  .conteo{padding:13px 0 9px;font-size:13px;color:var(--gris);display:flex;
-    align-items:center;justify-content:space-between;gap:10px}
+  /* ═══════════ CONFIANZA ═══════════ */
+  .confianza{background:var(--papel);border-bottom:1px solid var(--linea)}
+  .confianza .fila{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--linea)}
+  @media(min-width:760px){.confianza .fila{grid-template-columns:repeat(4,1fr)}}
+  .conf{background:var(--papel);padding:17px 14px;text-align:center}
+  .conf b{display:block;font-size:20px;font-weight:900;letter-spacing:-.6px;color:var(--rojo)}
+  .conf span{display:block;font-size:12.5px;color:var(--gris);font-weight:600;margin-top:2px;line-height:1.3}
+
+  /* ═══════════ SECCIONES ═══════════ */
+  section.bloque{padding:38px 0 8px}
+  .titulo{margin-bottom:18px}
+  .titulo h2{font-size:clamp(24px,6vw,34px);font-weight:900;letter-spacing:-1px;line-height:1.1}
+  .titulo p{font-size:14.5px;color:var(--gris);margin-top:5px}
+
+  /* categorías con foto real */
+  .cats{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}
+  @media(min-width:640px){.cats{grid-template-columns:repeat(3,1fr);gap:14px}}
+  @media(min-width:980px){.cats{grid-template-columns:repeat(4,1fr)}}
+  .cat{position:relative;border-radius:var(--r);overflow:hidden;background:var(--noche);
+    aspect-ratio:1.16;box-shadow:var(--s1);display:block}
+  .cat img{width:100%;height:100%;object-fit:cover;transition:transform .35s ease}
+  @media(hover:hover){.cat:hover img{transform:scale(1.06)}}
+  .cat .capa{position:absolute;inset:0;
+    background:linear-gradient(to top,rgba(13,20,36,.93) 8%,rgba(13,20,36,.35) 52%,rgba(13,20,36,.1) 100%)}
+  .cat .txt{position:absolute;left:0;right:0;bottom:0;padding:12px 13px;color:#fff}
+  .cat .txt b{display:block;font-size:15.5px;font-weight:800;letter-spacing:-.35px;line-height:1.15}
+  .cat .txt span{display:block;font-size:12px;color:#a9b6c9;font-weight:600;margin-top:2px}
+
+  /* ═══════════ CATÁLOGO ═══════════ */
+  #catalogo{scroll-margin-top:66px}
+  .chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none;
+    -webkit-overflow-scrolling:touch}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{padding:7px 14px;border-radius:999px;background:var(--papel);color:#43506a;font-size:13.5px;
+    font-weight:700;white-space:nowrap;border:1.5px solid var(--linea);box-shadow:var(--s1)}
+  .chip.on{background:var(--noche);color:#fff;border-color:var(--noche)}
+  .chip .n{opacity:.55;font-weight:600;margin-left:4px}
+  .conteo{padding:2px 0 12px;font-size:13.5px;color:var(--gris)}
   .conteo b{color:var(--tinta)}
-  .rejilla{display:grid;grid-template-columns:repeat(2,1fr);gap:11px;padding-bottom:26px}
-  @media(min-width:620px){.rejilla{grid-template-columns:repeat(3,1fr);gap:14px}}
-  @media(min-width:900px){.rejilla{grid-template-columns:repeat(4,1fr)}}
-
-  .tarjeta{background:var(--papel);border-radius:var(--r);overflow:hidden;box-shadow:var(--sombra);
-    display:flex;flex-direction:column;transition:box-shadow .15s,transform .15s}
+  .conteo a{color:var(--verde2);font-weight:700;text-decoration:underline}
+  .rejilla{display:grid;grid-template-columns:repeat(2,1fr);gap:11px;padding-bottom:8px}
+  @media(min-width:640px){.rejilla{grid-template-columns:repeat(3,1fr);gap:14px}}
+  @media(min-width:980px){.rejilla{grid-template-columns:repeat(4,1fr)}}
+  .tarjeta{background:var(--papel);border-radius:var(--r);overflow:hidden;box-shadow:var(--s1);
+    display:flex;flex-direction:column;transition:box-shadow .18s,transform .18s}
   .tarjeta:active{transform:scale(.985)}
-  @media(hover:hover){.tarjeta:hover{box-shadow:var(--sombra2)}}
-  .foto{position:relative;aspect-ratio:1;background:#eef0f3;overflow:hidden}
+  @media(hover:hover){.tarjeta:hover{box-shadow:var(--s2);transform:translateY(-2px)}}
+  .foto{position:relative;aspect-ratio:1;background:#e9edf2;overflow:hidden}
   .foto img{width:100%;height:100%;object-fit:cover}
   .foto .ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
-    color:#c3c8d0;font-size:11px;font-weight:600;letter-spacing:1px}
-  .cinta{position:absolute;top:7px;left:7px;background:rgba(22,24,29,.86);color:#fff;font-size:10px;
-    font-weight:700;letter-spacing:.6px;padding:3px 8px;border-radius:5px;text-transform:uppercase}
-  .nfotos{position:absolute;bottom:7px;right:7px;background:rgba(22,24,29,.72);color:#fff;
-    font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;display:flex;align-items:center;gap:3px}
+    color:#b9c2cf;font-size:11px;font-weight:700;letter-spacing:1.2px}
+  .cinta{position:absolute;top:8px;left:8px;background:rgba(13,20,36,.9);color:#fff;font-size:10px;
+    font-weight:800;letter-spacing:.7px;padding:4px 9px;border-radius:6px;text-transform:uppercase}
+  .nfotos{position:absolute;bottom:8px;right:8px;background:rgba(13,20,36,.78);color:#fff;
+    font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;display:flex;align-items:center;gap:4px}
   .nfotos svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2}
-  .cuerpo{padding:9px 10px 11px;display:flex;flex-direction:column;gap:5px;flex:1}
-  .nombre{font-size:14px;font-weight:700;line-height:1.28;letter-spacing:-.2px;
+  .cuerpo{padding:10px 11px 12px;display:flex;flex-direction:column;gap:5px;flex:1}
+  .fam{font-size:10.5px;color:var(--gris);font-weight:800;text-transform:uppercase;letter-spacing:.7px}
+  .nombre{font-size:14px;font-weight:700;line-height:1.3;letter-spacing:-.25px;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .fam{font-size:11px;color:var(--gris);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
-  .precio{margin-top:auto;padding-top:4px;font-size:16px;font-weight:800;letter-spacing:-.4px}
-  .precio.cot{font-size:13px;font-weight:700;color:var(--verde)}
-
-  /* ---------- Vacío / carga ---------- */
-  .vacio{text-align:center;padding:56px 22px;color:var(--gris)}
-  .vacio h3{font-size:17px;color:var(--tinta);margin-bottom:7px}
-  .vacio p{font-size:14px;margin-bottom:17px}
-  .vacio .sug{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:13px}
-  .vacio .sug button{background:var(--papel);border:1px solid var(--linea);padding:7px 13px;
-    border-radius:999px;font-size:13px;font-weight:600;box-shadow:var(--sombra)}
-  .esq{background:var(--papel);border-radius:var(--r);overflow:hidden;box-shadow:var(--sombra)}
-  .esq .a{aspect-ratio:1;background:#e9ecf0}
-  .esq .b{height:11px;margin:11px 10px;background:#e9ecf0;border-radius:4px}
-  .esq .c{height:11px;margin:0 10px 13px;width:55%;background:#e9ecf0;border-radius:4px}
+  .precio{margin-top:auto;padding-top:5px;font-size:17px;font-weight:900;letter-spacing:-.5px}
+  .precio.cot{font-size:13.5px;font-weight:800;color:var(--verde2)}
+  .mas{display:block;width:100%;margin:16px 0 4px;padding:15px;background:var(--papel);
+    border:1.5px solid var(--linea);border-radius:12px;font-size:15px;font-weight:800;
+    box-shadow:var(--s1);text-align:center}
+  .vacio{grid-column:1/-1;text-align:center;padding:44px 20px}
+  .vacio h3{font-size:18px;margin-bottom:6px}
+  .vacio p{font-size:14px;color:var(--gris);margin-bottom:16px}
+  .esq{background:var(--papel);border-radius:var(--r);overflow:hidden;box-shadow:var(--s1)}
+  .esq .a{aspect-ratio:1;background:#e6eaf0}
+  .esq .b{height:11px;margin:12px 11px;background:#e6eaf0;border-radius:4px}
+  .esq .c{height:11px;margin:0 11px 14px;width:58%;background:#e6eaf0;border-radius:4px}
   .pulso{animation:pulso 1.3s ease-in-out infinite}
   @keyframes pulso{0%,100%{opacity:1}50%{opacity:.45}}
 
-  /* ---------- Ficha ---------- */
-  .ficha{position:fixed;inset:0;z-index:60;background:var(--fondo);overflow-y:auto;
+  /* ═══════════ ENVÍOS ═══════════ */
+  .envios{margin:40px 0 0;background:var(--noche);color:#fff;overflow:hidden}
+  .envios .caja{display:grid;gap:0}
+  @media(min-width:860px){.envios .caja{grid-template-columns:1.05fr 1fr;align-items:center}}
+  .envios .im{aspect-ratio:16/10;order:-1}
+  @media(min-width:860px){.envios .im{aspect-ratio:auto;height:100%;min-height:340px;order:1}}
+  .envios .im img{width:100%;height:100%;object-fit:cover}
+  .envios .tx{padding:30px 16px 34px}
+  @media(min-width:860px){.envios .tx{padding:46px 40px}}
+  .envios h2{font-size:clamp(25px,6.2vw,36px);font-weight:900;letter-spacing:-1.1px;
+    line-height:1.08;margin-bottom:12px}
+  .envios p{font-size:15.5px;color:#bcc6d6;margin-bottom:22px;max-width:460px}
+
+  /* ═══════════ PIE ═══════════ */
+  footer{background:#080d18;color:#93a0b3;padding:36px 0 40px;font-size:14.5px}
+  footer .cols{display:grid;gap:26px}
+  @media(min-width:760px){footer .cols{grid-template-columns:1.3fr 1fr 1fr}}
+  footer b.t{color:#fff;display:block;font-size:15px;margin-bottom:11px;font-weight:800}
+  footer a{display:block;padding:5px 0;color:#c2cbd8}
+  footer a:active{color:#fff}
+  .redes{display:flex;gap:9px;margin-top:14px}
+  .redes a{width:36px;height:36px;border-radius:9px;background:#141d2e;display:flex;
+    align-items:center;justify-content:center;padding:0}
+  .redes svg{width:17px;height:17px;fill:#c2cbd8}
+  .legal{margin-top:26px;padding-top:20px;border-top:1px solid #17202f;font-size:12.5px;color:#5f6c80}
+
+  /* ═══════════ FICHA ═══════════ */
+  .ficha{position:fixed;inset:0;z-index:80;background:var(--fondo);overflow-y:auto;
     -webkit-overflow-scrolling:touch;display:none}
   .ficha.on{display:block}
-  .fbarra{position:sticky;top:0;z-index:5;background:var(--tinta);color:#fff;display:flex;
-    align-items:center;gap:9px;padding:10px 14px}
-  .fbarra button.volver{display:flex;align-items:center;gap:6px;font-size:15px;font-weight:600}
-  .fbarra svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2.2}
+  .fbarra{position:sticky;top:0;z-index:5;background:var(--noche);color:#fff;display:flex;
+    align-items:center;gap:10px;padding:11px 15px}
+  .fbarra .volver{display:flex;align-items:center;gap:7px;font-size:15px;font-weight:700}
+  .fbarra svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2.3}
   .fbarra .sp{flex:1}
-  .visor{background:#0e0f12;position:relative}
+  .visor{background:#080d18;position:relative}
   .visor .marco{aspect-ratio:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  @media(min-width:860px){.visor .marco{aspect-ratio:16/9}}
   .visor img{width:100%;height:100%;object-fit:contain}
-  .visor .cont{position:absolute;bottom:9px;right:11px;background:rgba(0,0,0,.6);color:#fff;
-    font-size:12px;padding:3px 9px;border-radius:999px}
-  .flecha{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:56px;
-    background:rgba(0,0,0,.4);color:#fff;font-size:23px;display:flex;align-items:center;justify-content:center}
-  .flecha.iz{left:0;border-radius:0 8px 8px 0} .flecha.de{right:0;border-radius:8px 0 0 8px}
-  .tiras{display:flex;gap:6px;overflow-x:auto;padding:9px 14px;background:#0e0f12;scrollbar-width:none}
+  .visor .cont{position:absolute;bottom:10px;right:12px;background:rgba(0,0,0,.62);color:#fff;
+    font-size:12px;padding:3px 10px;border-radius:999px}
+  .flecha{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:60px;
+    background:rgba(0,0,0,.42);color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center}
+  .flecha.iz{left:0;border-radius:0 9px 9px 0}.flecha.de{right:0;border-radius:9px 0 0 9px}
+  .tiras{display:flex;gap:7px;overflow-x:auto;padding:10px 15px;background:#080d18;scrollbar-width:none}
   .tiras::-webkit-scrollbar{display:none}
-  .tira{flex:0 0 54px;height:54px;border-radius:7px;overflow:hidden;border:2px solid transparent;background:#22252b}
+  .tira{flex:0 0 56px;height:56px;border-radius:8px;overflow:hidden;border:2px solid transparent;background:#1b2233}
   .tira img{width:100%;height:100%;object-fit:cover}
   .tira.on{border-color:#fff}
-
-  .fcuerpo{padding:15px 14px 130px;max-width:760px;margin:0 auto}
-  .ffam{font-size:11px;font-weight:700;color:var(--rojo);text-transform:uppercase;letter-spacing:1.1px}
-  .ftit{font-size:24px;font-weight:800;line-height:1.18;letter-spacing:-.6px;margin:5px 0 11px}
-  .fprecio{font-size:29px;font-weight:800;letter-spacing:-1px}
-  .fprecio small{font-size:12px;font-weight:600;color:var(--gris);display:block;letter-spacing:0;margin-top:1px}
-  .fprecio.cot{font-size:19px;color:var(--verde)}
-  .fdisp{display:inline-flex;align-items:center;gap:6px;margin-top:11px;background:#e8f5ee;
-    color:var(--verde);font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px}
-  .fdisp.no{background:#fdecea;color:var(--rojo)}
+  .fcuerpo{padding:17px 15px 132px;max-width:780px;margin:0 auto}
+  .ffam{font-size:11px;font-weight:800;color:var(--rojo);text-transform:uppercase;letter-spacing:1.2px}
+  .ftit{font-size:clamp(23px,5.6vw,30px);font-weight:900;line-height:1.14;letter-spacing:-.8px;margin:6px 0 13px}
+  .fprecio{font-size:31px;font-weight:900;letter-spacing:-1.2px}
+  .fprecio small{font-size:12.5px;font-weight:600;color:var(--gris);display:block;letter-spacing:0;margin-top:2px}
+  .fprecio.cot{font-size:20px;color:var(--verde2)}
+  .fdisp{display:inline-flex;align-items:center;gap:7px;margin-top:13px;background:#e6f7ee;
+    color:var(--verde2);font-size:13.5px;font-weight:800;padding:7px 14px;border-radius:999px}
+  .fdisp.no{background:#fdeceb;color:var(--rojo)}
   .fdisp i{width:7px;height:7px;border-radius:50%;background:currentColor;display:block}
-  .datos{margin-top:19px;background:var(--papel);border-radius:var(--r);overflow:hidden;box-shadow:var(--sombra)}
-  .datos h4{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gris);
-    padding:12px 15px 8px;font-weight:700}
-  .dato{display:flex;justify-content:space-between;gap:15px;padding:10px 15px;border-top:1px solid var(--linea);font-size:14px}
+  .datos{margin-top:21px;background:var(--papel);border-radius:var(--r);overflow:hidden;box-shadow:var(--s1)}
+  .datos h4{font-size:11.5px;text-transform:uppercase;letter-spacing:1.1px;color:var(--gris);
+    padding:13px 16px 9px;font-weight:800}
+  .dato{display:flex;justify-content:space-between;gap:16px;padding:11px 16px;
+    border-top:1px solid var(--linea);font-size:14.5px}
   .dato .k{color:var(--gris)}
   .dato .v{font-weight:700;text-align:right}
-  .aviso{margin-top:15px;background:#fff8e6;border:1px solid #f0dfae;border-radius:var(--r);
-    padding:12px 15px;font-size:13px;color:#7a5a10;line-height:1.5}
-  .cta{position:fixed;left:0;right:0;bottom:0;z-index:70;background:var(--papel);
-    border-top:1px solid var(--linea);padding:11px 14px calc(11px + var(--safe));display:none;gap:9px}
+  .aviso{margin-top:16px;background:#fff8e6;border:1px solid #f0dfae;border-radius:var(--r);
+    padding:13px 16px;font-size:13px;color:#7a5a10;line-height:1.55}
+  .cta{position:fixed;left:0;right:0;bottom:0;z-index:90;background:var(--papel);
+    border-top:1px solid var(--linea);padding:11px 15px calc(11px + var(--safe));display:none;gap:10px;
+    box-shadow:0 -3px 16px rgba(13,20,36,.09)}
   .ficha.on ~ .cta{display:flex}
-  .cta a{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;
-    border-radius:11px;font-size:16px;font-weight:800;letter-spacing:-.2px}
-  .cta .wa{background:var(--verde);color:#fff;box-shadow:0 3px 10px rgba(18,140,74,.28)}
-  .cta .ll{flex:0 0 auto;background:var(--fondo);border:1.5px solid var(--linea);color:var(--tinta);padding:14px 17px}
-  .cta svg{width:19px;height:19px;fill:currentColor}
-
-  footer{background:var(--tinta);color:#9aa2ae;padding:28px 0 34px;margin-top:20px;font-size:14px}
-  footer b{color:#fff;display:block;font-size:15px;margin-bottom:9px}
-  footer a{display:block;padding:5px 0;color:#c8cdd5}
-  .aclara{background:#fffbe6;border-bottom:1px solid #f0e2a8;color:#6b5410;
-    font-size:12px;text-align:center;padding:7px 14px;font-weight:600}
+  .cta a{flex:1;display:flex;align-items:center;justify-content:center;gap:9px;padding:15px;
+    border-radius:12px;font-size:16.5px;font-weight:800;letter-spacing:-.3px}
+  .cta .wa{background:var(--verde);color:#fff;box-shadow:0 4px 14px rgba(18,160,92,.3)}
+  .cta .ll{flex:0 0 auto;background:var(--fondo);border:1.5px solid var(--linea);color:var(--tinta);padding:15px 19px}
+  .cta svg{width:20px;height:20px;fill:currentColor}
 </style>
 </head>
 <body>
 
-<div class="aclara">Versión de prueba · catálogo en vivo del inventario</div>
+<div class="aclara">Versión de prueba · el catálogo es el inventario real, en vivo</div>
 
-<header>
+<header id="cab">
   <div class="wrap barra">
-    <div class="marca"><b>TRACTOPARTES</b><span>MAGAÑA</span></div>
-    <div class="buscador">
-      <svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-      <input id="q" type="search" inputmode="search" autocomplete="off" placeholder="Motor, ISX, 3070453…" aria-label="Buscar refacción">
-      <button class="limpiar" id="limpiar" aria-label="Limpiar">&times;</button>
-    </div>
-    <a class="tel-top" href="https://wa.me/528121529279" id="waTop">
+    <a class="logo" href="#top" aria-label="Tractopartes Magaña — inicio">
+      <span class="placa"><img src="img/logo.png" alt="Tractopartes Magaña" width="470" height="168"></span>
+    </a>
+    <a class="wa-btn" href="https://wa.me/528121529279?text=Hola%2C%20necesito%20una%20refacci%C3%B3n">
       <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-8.7 15l-1.3 4.7 4.8-1.3A10 10 0 1012 2zm5.6 14.2c-.2.6-1.2 1.2-1.7 1.2-.4 0-1 .1-3.3-.8-2.8-1.1-4.5-4-4.7-4.2-.1-.2-1-1.4-1-2.6s.6-1.8.9-2.1c.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.1 1 2 1.3 2.3 1.4.2.1.4.1.6-.1l.8-1c.2-.2.3-.2.5-.1l2 .9c.2.1.4.2.4.3.1.2.1.6-.1 1.1z"/></svg>
       WhatsApp
     </a>
   </div>
-  <div class="familias"><div class="pista" id="chips"></div></div>
+  <div class="mini">
+    <div class="caja">
+      <svg class="lupa" viewBox="0 0 24 24" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="q2" type="search" inputmode="search" autocomplete="off" placeholder="Buscar refacción…" aria-label="Buscar">
+    </div>
+  </div>
 </header>
 
-<main class="wrap">
+<div id="top"></div>
+
+<!-- ═══════════ PORTADA ═══════════ -->
+<div class="hero">
+  <div class="foto"><img src="img/patio.jpg" alt="Patio de Tractopartes Magaña con motores Cummins, Detroit y Caterpillar" fetchpriority="high"></div>
+  <div class="velo"></div>
+  <div class="dentro">
+    <div class="vivo"><i></i><span id="vivoTxt">Cargando inventario…</span></div>
+    <h1>La refacción que buscas,<br><em>ya está en el piso.</em></h1>
+    <p class="sub">Más de 30 años surtiendo motores, transmisiones, diferenciales y cabinas para tractocamión. Piezas reales que puedes venir a ver — no un catálogo de fotos prestadas.</p>
+
+    <div class="buscar-hero">
+      <svg class="lupa" viewBox="0 0 24 24" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="q" type="search" inputmode="search" autocomplete="off" placeholder="Motor ISX, diferencial 40000, turbo DD15…" aria-label="Buscar refacción">
+    </div>
+    <div class="pistas">
+      <span>Prueba:</span>
+      <button data-s="Motor">Motores</button>
+      <button data-s="Diferencial">Diferenciales</button>
+      <button data-s="Turbo">Turbos</button>
+      <button data-s="Transmisión">Transmisiones</button>
+    </div>
+
+    <div class="acciones">
+      <a class="btn rojo" href="#catalogo">Ver todo el inventario</a>
+      <a class="btn verde" href="https://wa.me/528121529279?text=Hola%2C%20necesito%20una%20refacci%C3%B3n%20para%20mi%20camion">
+        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-8.7 15l-1.3 4.7 4.8-1.3A10 10 0 1012 2zm5.6 14.2c-.2.6-1.2 1.2-1.7 1.2-.4 0-1 .1-3.3-.8-2.8-1.1-4.5-4-4.7-4.2-.1-.2-1-1.4-1-2.6s.6-1.8.9-2.1c.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.1 1 2 1.3 2.3 1.4.2.1.4.1.6-.1l.8-1c.2-.2.3-.2.5-.1l2 .9c.2.1.4.2.4.3.1.2.1.6-.1 1.1z"/></svg>
+        Cotizar por WhatsApp</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ CONFIANZA ═══════════ -->
+<div class="confianza">
+  <div class="wrap"><div class="fila">
+    <div class="conf"><b>30+</b><span>años en Monterrey</span></div>
+    <div class="conf"><b id="cPiezas">—</b><span>piezas en piso</span></div>
+    <div class="conf"><b>1 mes</b><span>de garantía</span></div>
+    <div class="conf"><b>Todo<br>México</b><span>envíos a la República</span></div>
+  </div></div>
+</div>
+
+<!-- ═══════════ CATEGORÍAS ═══════════ -->
+<section class="bloque wrap">
+  <div class="titulo">
+    <h2>Busca por tipo de pieza</h2>
+    <p>Fotos de las piezas que tenemos ahorita, no imágenes de catálogo.</p>
+  </div>
+  <div class="cats" id="cats"></div>
+</section>
+
+<!-- ═══════════ CATÁLOGO ═══════════ -->
+<section class="bloque wrap" id="catalogo">
+  <div class="titulo">
+    <h2>Todo el inventario</h2>
+    <p>Se actualiza solo: lo que se vende, desaparece de aquí.</p>
+  </div>
+  <div class="chips" id="chips"></div>
   <div class="conteo" id="conteo"></div>
   <div class="rejilla" id="rejilla"></div>
-</main>
+  <button class="mas" id="mas" style="display:none">Ver más piezas</button>
+</section>
 
+<!-- ═══════════ ENVÍOS ═══════════ -->
+<div class="envios">
+  <div class="caja">
+    <div class="tx">
+      <h2>No dejes tu camión parado</h2>
+      <p>Camión detenido es dinero perdido. Mándanos foto o número de parte por WhatsApp y te cotizamos en minutos, con envío a donde estés.</p>
+      <a class="btn verde" href="https://wa.me/528121529279?text=Hola%2C%20necesito%20cotizar%20una%20refacci%C3%B3n">
+        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-8.7 15l-1.3 4.7 4.8-1.3A10 10 0 1012 2zm5.6 14.2c-.2.6-1.2 1.2-1.7 1.2-.4 0-1 .1-3.3-.8-2.8-1.1-4.5-4-4.7-4.2-.1-.2-1-1.4-1-2.6s.6-1.8.9-2.1c.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.1 1 2 1.3 2.3 1.4.2.1.4.1.6-.1l.8-1c.2-.2.3-.2.5-.1l2 .9c.2.1.4.2.4.3.1.2.1.6-.1 1.1z"/></svg>
+        Habla con un experto</a>
+    </div>
+    <div class="im"><img loading="lazy" src="img/envios.jpg" alt="Piezas listas para enviar a toda la República"></div>
+  </div>
+</div>
+
+<!-- ═══════════ PIE ═══════════ -->
 <footer>
   <div class="wrap">
-    <b>Tractopartes Magaña, S.A. de C.V.</b>
-    <a href="https://www.google.com/maps/search/?api=1&query=Ing.%20Francisco%20Beltr%C3%A1n%203163%2C%20Argentina%2C%2064550%20Monterrey%2C%20N.L." target="_blank" rel="noopener">📍 Ing. Francisco Beltrán 3163, Col. Argentina, 64550 Monterrey, N.L.</a>
-    <a href="tel:+528121529279">📞 81 2152 9279</a>
-    <a href="mailto:ventas@tractopartes.com">✉️ ventas@tractopartes.com</a>
-    <p style="margin-top:14px;font-size:12px;opacity:.6">Más de 30 años surtiendo refacciones para tractocamión. Envíos a todo México.</p>
+    <div class="cols">
+      <div>
+        <b class="t">Tractopartes Magaña, S.A. de C.V.</b>
+        <p style="line-height:1.6;color:#93a0b3">Refacciones nuevas, usadas y reconstruidas para tractocamión. Más de 30 años en Monterrey.</p>
+        <div class="redes">
+          <a href="https://www.facebook.com/tractopartesmagana/" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24"><path d="M13 22v-9h3l.5-3.5H13V7.3c0-1 .3-1.7 1.7-1.7h1.9V2.5c-.3 0-1.5-.1-2.8-.1-2.8 0-4.8 1.7-4.8 4.9v2.2H6.5V13h3.5v9H13z"/></svg></a>
+          <a href="https://www.instagram.com/tractopartesmagana/" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.1 3.3.1 4.8 1.7 4.9 4.9.1 1.3.1 1.6.1 4.8s0 3.6-.1 4.9c-.1 3.2-1.6 4.8-4.9 4.9-1.3.1-1.6.1-4.9.1s-3.6 0-4.9-.1c-3.3-.2-4.8-1.7-4.9-4.9-.1-1.3-.1-1.6-.1-4.9s0-3.5.1-4.8C2.3 4 3.8 2.4 7.1 2.3 8.4 2.2 8.8 2.2 12 2.2zm0 5a4.8 4.8 0 100 9.6 4.8 4.8 0 000-9.6zm0 7.9a3.1 3.1 0 110-6.2 3.1 3.1 0 010 6.2zm5-8.1a1.1 1.1 0 100 2.3 1.1 1.1 0 000-2.3z"/></svg></a>
+          <a href="https://www.youtube.com/@tractopartesmagana" target="_blank" rel="noopener" aria-label="YouTube"><svg viewBox="0 0 24 24"><path d="M22 12s0-3.2-.4-4.8c-.2-.8-.9-1.5-1.7-1.7C18.2 5 12 5 12 5s-6.2 0-7.9.5c-.8.2-1.5.9-1.7 1.7C2 8.8 2 12 2 12s0 3.2.4 4.8c.2.8.9 1.5 1.7 1.7 1.7.5 7.9.5 7.9.5s6.2 0 7.9-.5c.8-.2 1.5-.9 1.7-1.7.4-1.6.4-4.8.4-4.8zM10 15.5v-7l6 3.5-6 3.5z"/></svg></a>
+        </div>
+      </div>
+      <div>
+        <b class="t">Contacto</b>
+        <a href="tel:+528121529279">81 2152 9279</a>
+        <a href="tel:+528183541769">81 8354 1769</a>
+        <a href="mailto:ventas@tractopartes.com">ventas@tractopartes.com</a>
+        <a href="https://wa.me/528121529279" style="color:#4ade9a;font-weight:700">Escríbenos por WhatsApp →</a>
+      </div>
+      <div>
+        <b class="t">Visítanos</b>
+        <a href="https://www.google.com/maps/search/?api=1&query=Ing.%20Francisco%20Beltr%C3%A1n%203163%2C%20Argentina%2C%2064550%20Monterrey%2C%20N.L." target="_blank" rel="noopener">Ing. Francisco Beltrán 3163<br>Col. Argentina, 64550<br>Monterrey, N.L.</a>
+      </div>
+    </div>
+    <div class="legal">No somos distribuidores oficiales de ninguna marca. Las marcas y modelos se mencionan solo como referencia de compatibilidad.</div>
   </div>
 </footer>
 
@@ -227,26 +411,16 @@
 
 <script>
 "use strict";
-var DB   = 'https://inventario-julio-26-default-rtdb.firebaseio.com';
-var WA   = '528121529279';
-var TEL  = '+528121529279';
+var DB='https://inventario-julio-26-default-rtdb.firebaseio.com', WA='528121529279', TEL='+528121529279';
+var PAGINA=24;
 
-/* ---------- utilidades ---------- */
-function norm(s){
-  return String(s==null?'':s).toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .replace(/[^a-z0-9ñ ]+/g,' ').replace(/\s+/g,' ').trim();
-}
-function pesos(n){
-  return '$' + Number(n).toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:0});
-}
-function esc(s){
-  return String(s==null?'':s).replace(/[&<>"']/g,function(c){
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
-  });
-}
-/* distancia de edición con corte: para aguantar faltas de ortografía
-   ("caveza" -> "cabeza", "paccarr" -> "paccar") sin volverse lento. */
+function norm(s){return String(s==null?'':s).toLowerCase().normalize('NFD')
+  .replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9ñ ]+/g,' ').replace(/\s+/g,' ').trim()}
+function pesos(n){return '$'+Number(n).toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:0})}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+/* distancia de edición con corte, para aguantar faltas de dedo
+   ("caveza"→"cabeza", "paccarr"→"paccar") sin volverse lenta. */
 function cerca(a,b,max){
   if(a===b) return 0;
   if(Math.abs(a.length-b.length)>max) return max+1;
@@ -255,7 +429,7 @@ function cerca(a,b,max){
   for(i=1;i<=a.length;i++){
     cur[0]=i; var mejor=i;
     for(j=1;j<=b.length;j++){
-      cur[j]=Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+(a[i-1]===b[j-1]?0:1));
+      cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));
       if(cur[j]<mejor) mejor=cur[j];
     }
     if(mejor>max) return max+1;
@@ -263,97 +437,71 @@ function cerca(a,b,max){
   }
   return prev[b.length];
 }
-
-/* ---------- nombre bonito ----------
-   El inventario guarda "Inyector: C15" o "Turbo: Turbo DD15".
-   La gente busca "inyector caterpillar c15". Aquí se limpia el
-   duplicado y se arma PIEZA + MODELO, que es el patrón real de
-   búsqueda que salió en Search Console.                         */
+/* El inventario guarda "Inyector: C15" y aparte motor "Caterpillar C15".
+   Si uno contiene al otro (comparando SIN espacios, porque guarda
+   "ISXsinEGR" vs "ISX sin EGR") es el mismo dato: se usa el más legible. */
 function nombreBonito(p){
-  var fam = (p.familiaNombre||'').trim();
-  var t   = (p.titulo||'').trim();
-  var resto = t.indexOf(':')>-1 ? t.slice(t.indexOf(':')+1).trim() : t;
-  if(fam && norm(resto).indexOf(norm(fam))===0){
-    resto = resto.slice(fam.length).trim();          // "Turbo Turbo DD15" -> "DD15"
-  }
-  /* El inventario guarda el modelo pegado ("ISXsinEGR") y aparte el motor
-     con espacios ("ISX sin EGR"). Si uno contiene al otro es el MISMO dato:
-     nos quedamos con el más legible en vez de repetirlo.                 */
-  var motor = (p.motor||'').trim();
+  var fam=(p.familiaNombre||'').trim(), t=(p.titulo||'').trim();
+  var resto=t.indexOf(':')>-1?t.slice(t.indexOf(':')+1).trim():t;
+  if(fam && norm(resto).indexOf(norm(fam))===0) resto=resto.slice(fam.length).trim();
+  var motor=(p.motor||'').trim();
   if(motor){
-    var a = norm(resto).replace(/ /g,''), b = norm(motor).replace(/ /g,'');
-    if(!a)                       resto = motor;
-    else if(b.indexOf(a)>-1)     resto = motor;      // "C15" ⊂ "Caterpillar C15"
-    else if(a.indexOf(b)>-1)     { /* ya lo trae: se queda resto */ }
-    else                         resto = resto+' '+motor;
+    var a=norm(resto).replace(/ /g,''), b=norm(motor).replace(/ /g,'');
+    if(!a) resto=motor;
+    else if(b.indexOf(a)>-1) resto=motor;
+    else if(a.indexOf(b)>-1){}
+    else resto=resto+' '+motor;
   }
-  var n = (fam+' '+resto).trim().replace(/\s+/g,' ');
-  return n || t || 'Refacción';
+  return (fam+' '+resto).trim().replace(/\s+/g,' ')||t||'Refacción';
 }
-
-/* ---------- fotos ---------- */
-function fotosDe(p, media){
-  var out=[], i, it, arr;
-  arr = p.media||[];
-  for(i=0;i<arr.length;i++){ it=arr[i]; if(it && it.t!=='video') out.push(it); }
-  if(p.modelKey && media[p.modelKey]){
-    arr = media[p.modelKey].media||[];
-    for(i=0;i<arr.length;i++){ it=arr[i]; if(it && it.t!=='video') out.push(it); }
+function fotosDe(p,media){
+  var out=[],i,it,arr=p.media||[];
+  for(i=0;i<arr.length;i++){it=arr[i];if(it&&it.t!=='video')out.push(it)}
+  if(p.modelKey&&media[p.modelKey]){
+    arr=media[p.modelKey].media||[];
+    for(i=0;i<arr.length;i++){it=arr[i];if(it&&it.t!=='video')out.push(it)}
   }
   return out;
 }
-function chica(f){ return f.web || f.url || f.hd || ''; }
-function grande(f){ return f.hd || f.web || f.url || ''; }
+function chica(f){return f.web||f.url||f.hd||''}
+function grande(f){return f.hd||f.web||f.url||''}
 
-/* ---------- estado ---------- */
-var PIEZAS=[], MEDIA={}, FAM='', Q='', VISTA=[], ACT=null, IFOTO=0;
+var PIEZAS=[],MEDIA={},FAM='',Q='',VISTA=[],ACT=null,IFOTO=0,LIMITE=PAGINA;
 var $=function(id){return document.getElementById(id)};
 
-/* ---------- carga ---------- */
 function arranca(){
   pintaEsqueletos();
-  var cache=null;
-  try{ cache=sessionStorage.getItem('tpm_cat'); }catch(e){}
-  if(cache){
-    try{ var c=JSON.parse(cache); if(c.t && Date.now()-c.t < 6e5){ listo(c.f,c.m); return; } }catch(e){}
-  }
+  var c=null; try{c=sessionStorage.getItem('tpm_cat')}catch(e){}
+  if(c){try{var o=JSON.parse(c);if(o.t&&Date.now()-o.t<6e5){listo(o.f,o.m);return}}catch(e){}}
   Promise.all([
     fetch(DB+'/fichas_publicas.json').then(function(r){return r.json()}),
     fetch(DB+'/media_modelo.json').then(function(r){return r.json()})
   ]).then(function(r){
-    listo(r[0]||{}, r[1]||{});
-    try{ sessionStorage.setItem('tpm_cat', JSON.stringify({t:Date.now(),f:r[0],m:r[1]})); }catch(e){}
+    listo(r[0]||{},r[1]||{});
+    try{sessionStorage.setItem('tpm_cat',JSON.stringify({t:Date.now(),f:r[0],m:r[1]}))}catch(e){}
   }).catch(function(){
-    $('rejilla').innerHTML='';
-    $('conteo').innerHTML='<span style="color:var(--rojo)">No se pudo cargar el catálogo. Revisa tu conexión.</span>';
+    $('rejilla').innerHTML='<div class="vacio"><h3>No se pudo cargar el inventario</h3>'+
+      '<p>Revisa tu conexión e inténtalo otra vez.</p>'+
+      '<a class="btn verde" href="https://wa.me/'+WA+'">Escríbenos por WhatsApp</a></div>';
+    $('vivoTxt').textContent='Escríbenos por WhatsApp';
   });
 }
-
-function listo(fichas, media){
-  MEDIA = media || {};
-  var ids = Object.keys(fichas||{}), i, p, arr=[];
+function listo(fichas,media){
+  MEDIA=media||{};
+  var ids=Object.keys(fichas||{}),i,p,arr=[];
   for(i=0;i<ids.length;i++){
-    p = fichas[ids[i]]; if(!p || !p.web) continue;
-    var fotos = fotosDe(p, MEDIA);
+    p=fichas[ids[i]]; if(!p||!p.web) continue;
     arr.push({
-      id: ids[i],
-      nombre: nombreBonito(p),
-      fam: (p.familiaNombre||'Otro').trim(),
-      precio: Number(p.precioWeb)||0,
-      vendida: !!p.vendida,
-      apartada: !!p.apartada,
-      fotos: fotos,
-      specs: [
-        ['Motor', p.motor], ['Marca', p.marca], ['Condición', p.condicion],
-        ['Serie', p.serie], ['No. de motor', p.noMotor], ['CPL', p.cpl],
-        ['HP', p.hp], ['Libras', p.libras], ['Marca de eje', p.marcaEje],
-        ['Paso', p.paso], ['Suspensión', p.suspension], ['Año', p['año']],
-        ['Terminación', p.terminacion], ['VIN', p.vin], ['Extra', p.extra]
-      ].filter(function(d){ return String(d[1]==null?'':d[1]).trim()!==''; }),
-      /* el pajar de búsqueda: nombre, familia y TODAS las especificaciones,
-         para que "3070453" o "isx sin egr" encuentren la pieza */
-      pajar: norm([p.titulo,p.familiaNombre,p.motor,p.marca,p.serie,p.noMotor,p.cpl,
-                   p.hp,p.libras,p.marcaEje,p.condicion,p.extra,p['año']].join(' '))
+      id:ids[i], nombre:nombreBonito(p), fam:(p.familiaNombre||'Otro').trim(),
+      precio:Number(p.precioWeb)||0, vendida:!!p.vendida, apartada:!!p.apartada,
+      fotos:fotosDe(p,MEDIA),
+      specs:[['Motor',p.motor],['Marca',p.marca],['Condición',p.condicion],['Serie',p.serie],
+             ['No. de motor',p.noMotor],['CPL',p.cpl],['HP',p.hp],['Libras',p.libras],
+             ['Marca de eje',p.marcaEje],['Paso',p.paso],['Suspensión',p.suspension],
+             ['Año',p['año']],['Terminación',p.terminacion],['VIN',p.vin],['Extra',p.extra]]
+             .filter(function(d){return String(d[1]==null?'':d[1]).trim()!==''}),
+      pajar:norm([p.titulo,p.familiaNombre,p.motor,p.marca,p.serie,p.noMotor,p.cpl,p.hp,
+                  p.libras,p.marcaEje,p.condicion,p.extra,p['año']].join(' '))
     });
   }
   arr.sort(function(a,b){
@@ -361,198 +509,183 @@ function listo(fichas, media){
     if((b.fotos.length>0)!==(a.fotos.length>0)) return a.fotos.length?-1:1;
     return a.nombre.localeCompare(b.nombre,'es');
   });
-  PIEZAS = arr;
-  pintaChips();
-  filtra();
-  ruta();
+  PIEZAS=arr;
+  var vivas=arr.filter(function(p){return !p.vendida}).length;
+  $('vivoTxt').textContent=vivas+' piezas disponibles ahora mismo';
+  $('cPiezas').textContent=vivas;
+  pintaCats(); pintaChips(); filtra(); ruta();
 }
 
-/* ---------- búsqueda que perdona ---------- */
-var VACIAS = {de:1,del:1,la:1,el:1,los:1,las:1,para:1,con:1,y:1,en:1,un:1,una:1,
-              por:1,al:1,mi:1,me:1,que:1,motor:0};   // "motor" sí cuenta: es familia
-
-/* Búsqueda TOLERANTE a propósito. La gente teclea frases enteras
+var VACIAS={de:1,del:1,la:1,el:1,los:1,las:1,para:1,con:1,y:1,en:1,un:1,una:1,por:1,al:1,mi:1,me:1,que:1};
+/* Búsqueda tolerante a propósito: la gente teclea frases enteras
    ("arbol de levas para motor N14 3070453") y con faltas ("caveza izx").
-   Exigir que TODO coincida deja la pantalla vacía, que es lo peor que
-   puede pasar: se pierde la venta. Aquí se puntea cuántas palabras
-   pegaron y se muestra lo más cercano, ordenado. Lo que no exista de
-   plano cae al botón de WhatsApp.                                      */
-function busca(lista, q){
-  var t0 = norm(q).split(' ').filter(Boolean), t=[], i;
+   Exigir que todo coincida deja la pantalla vacía, que es donde se
+   pierde la venta. Se puntea cuántas palabras pegaron y, si nada pasa
+   el filtro estricto, se repite pidiendo solo una. */
+function busca(lista,q){
+  var t0=norm(q).split(' ').filter(Boolean),t=[],i;
   for(i=0;i<t0.length;i++) if(!VACIAS[t0[i]]) t.push(t0[i]);
-  if(!t.length) t = t0;
+  if(!t.length) t=t0;
   if(!t.length) return lista;
-
-  /* min = cuántas palabras deben pegar. Primera vuelta exigente (la mitad),
-     y si eso deja la pantalla vacía se repite pidiendo solo una: más vale
-     enseñar lo parecido que no enseñar nada.                              */
   function vuelta(min){
-    var res=[], k, p, sc, tok, peg, palabras, primera=t[0], j;
+    var res=[],k,p,sc,tok,peg,pal,primera=t[0],j;
     for(j=0;j<lista.length;j++){
-      p=lista[j]; sc=0; peg=0;
-      palabras = p.pajar.split(' ');
+      p=lista[j]; sc=0; peg=0; pal=p.pajar.split(' ');
       for(k=0;k<t.length;k++){
         tok=t[k];
-        if(p.pajar.indexOf(tok)>-1){ sc+=10; peg++; continue; }        // tal cual
-        if(/^\d{3,}$/.test(tok)){                                      // número de parte
-          for(var w=0;w<palabras.length;w++){
-            if(palabras[w].indexOf(tok)>-1){ sc+=16; peg++; break; }
-          }
+        if(p.pajar.indexOf(tok)>-1){sc+=10;peg++;continue}
+        if(/^\d{3,}$/.test(tok)){
+          for(var w=0;w<pal.length;w++){if(pal[w].indexOf(tok)>-1){sc+=16;peg++;break}}
           continue;
         }
-        if(tok.length>=3){                                             // faltas de dedo
-          var tope = tok.length>=6?2:1, mejor=99;
-          for(var z=0;z<palabras.length;z++){
-            if(Math.abs(palabras[z].length-tok.length)>tope) continue;
-            var d=cerca(tok,palabras[z],tope);
-            if(d<mejor) mejor=d;
+        if(tok.length>=3){
+          var tope=tok.length>=6?2:1,mejor=99;
+          for(var z=0;z<pal.length;z++){
+            if(Math.abs(pal[z].length-tok.length)>tope) continue;
+            var d=cerca(tok,pal[z],tope); if(d<mejor) mejor=d;
           }
-          if(mejor<=tope){ sc += 7-mejor; peg++; }
+          if(mejor<=tope){sc+=7-mejor;peg++}
         }
       }
       if(peg<min) continue;
       if(norm(p.nombre).indexOf(primera)===0) sc+=5;
-      res.push([peg*100+sc, p]);
+      res.push([peg*100+sc,p]);
     }
-    res.sort(function(a,b){ return b[0]-a[0]; });
-    return res.map(function(x){ return x[1] });
+    res.sort(function(a,b){return b[0]-a[0]});
+    return res.map(function(x){return x[1]});
   }
-
-  var estricto = vuelta(t.length>1 ? Math.ceil(t.length/2) : 1);
+  var estricto=vuelta(t.length>1?Math.ceil(t.length/2):1);
   if(estricto.length) return estricto;
-  var flojo = vuelta(1);
-  flojo.aprox = true;                      // para avisarle "esto es lo más cercano"
-  return flojo;
+  var flojo=vuelta(1); flojo.aprox=true; return flojo;
 }
 
-/* ---------- pintado ---------- */
 function pintaEsqueletos(){
-  var h='',i;
-  for(i=0;i<8;i++) h+='<div class="esq pulso"><div class="a"></div><div class="b"></div><div class="c"></div></div>';
+  var h='',i; for(i=0;i<8;i++) h+='<div class="esq pulso"><div class="a"></div><div class="b"></div><div class="c"></div></div>';
   $('rejilla').innerHTML=h;
 }
-function pintaChips(){
-  var c={}, i;
-  for(i=0;i<PIEZAS.length;i++){ if(!PIEZAS[i].vendida) c[PIEZAS[i].fam]=(c[PIEZAS[i].fam]||0)+1; }
-  var fams = Object.keys(c).sort(function(a,b){ return c[b]-c[a] });
-  var h='<button class="chip'+(FAM?'':' on')+'" data-f="">Todo <span class="n">'+PIEZAS.length+'</span></button>';
+/* Categorías con la foto de una pieza REAL de esa familia — eso es lo
+   que ninguna plantilla puede hacer: son las piezas que sí hay. */
+function pintaCats(){
+  var c={},f={},i,p;
+  for(i=0;i<PIEZAS.length;i++){
+    p=PIEZAS[i]; if(p.vendida) continue;
+    c[p.fam]=(c[p.fam]||0)+1;
+    if(!f[p.fam]&&p.fotos.length) f[p.fam]=chica(p.fotos[0]);
+  }
+  var fams=Object.keys(c).sort(function(a,b){return c[b]-c[a]}).slice(0,8),h='';
   for(i=0;i<fams.length;i++){
+    var n=fams[i];
+    h+='<a class="cat" href="#catalogo" data-cat="'+esc(n)+'">'+
+       (f[n]?'<img loading="lazy" decoding="async" src="'+esc(f[n])+'" alt="'+esc(n)+'">':'')+
+       '<div class="capa"></div><div class="txt"><b>'+esc(n)+'</b>'+
+       '<span>'+c[n]+' disponible'+(c[n]===1?'':'s')+'</span></div></a>';
+  }
+  $('cats').innerHTML=h;
+}
+function pintaChips(){
+  var c={},i;
+  for(i=0;i<PIEZAS.length;i++) if(!PIEZAS[i].vendida) c[PIEZAS[i].fam]=(c[PIEZAS[i].fam]||0)+1;
+  var fams=Object.keys(c).sort(function(a,b){return c[b]-c[a]});
+  var h='<button class="chip'+(FAM?'':' on')+'" data-f="">Todo <span class="n">'+PIEZAS.length+'</span></button>';
+  for(i=0;i<fams.length;i++)
     h+='<button class="chip'+(FAM===fams[i]?' on':'')+'" data-f="'+esc(fams[i])+'">'+
        esc(fams[i])+' <span class="n">'+c[fams[i]]+'</span></button>';
-  }
   $('chips').innerHTML=h;
 }
-function filtra(){
-  var l = PIEZAS;
-  if(FAM) l = l.filter(function(p){ return p.fam===FAM });
-  if(Q)   l = busca(l, Q);
-  VISTA = l;
-  pintaRejilla();
+function filtra(reinicia){
+  if(reinicia!==false) LIMITE=PAGINA;
+  var l=PIEZAS;
+  if(FAM) l=l.filter(function(p){return p.fam===FAM});
+  if(Q) l=busca(l,Q);          // busca() ya devuelve el arreglo con su bandera .aprox
+  VISTA=l; pintaRejilla();
 }
 function pintaRejilla(){
-  var r=$('rejilla'), c=$('conteo'), i, p, h='';
+  var r=$('rejilla'),c=$('conteo'),i,p,h='';
   if(!VISTA.length){
-    r.innerHTML='';
     c.innerHTML='';
-    var sug=['Motor','Inyector','Turbo','Diferencial','Transmisión'];
-    var sh='';
-    for(i=0;i<sug.length;i++) sh+='<button data-s="'+sug[i]+'">'+sug[i]+'</button>';
-    r.innerHTML='<div class="vacio" style="grid-column:1/-1"><h3>No encontramos "'+esc(Q)+'"</h3>'+
-      '<p>Puede que sí la tengamos y no esté publicada. Pregúntanos por WhatsApp.</p>'+
-      '<a class="tel-top" style="display:inline-flex" href="https://wa.me/'+WA+'?text='+
-      encodeURIComponent('Hola, busco: '+Q)+'">Preguntar por WhatsApp</a>'+
-      '<div class="sug">'+sh+'</div></div>';
-    return;
+    r.innerHTML='<div class="vacio"><h3>No encontramos "'+esc(Q)+'"</h3>'+
+      '<p>Puede que sí la tengamos y todavía no esté publicada. Pregúntanos, te contestamos el mismo día.</p>'+
+      '<a class="btn verde" style="display:inline-flex" href="https://wa.me/'+WA+'?text='+
+      encodeURIComponent('Hola, busco: '+Q)+'">Preguntar por WhatsApp</a></div>';
+    $('mas').style.display='none'; return;
   }
-  c.innerHTML = VISTA.aprox
-    ? '<span>No tenemos <b>"'+esc(Q)+'"</b> tal cual. Esto es lo más parecido — '+
-      'o <a href="https://wa.me/'+WA+'?text='+encodeURIComponent('Hola, busco: '+Q)+
-      '" style="color:var(--verde);font-weight:700;text-decoration:underline">pregúntanos</a>.</span>'
-    : '<span><b>'+VISTA.length+'</b> '+(VISTA.length===1?'pieza':'piezas')+
-      (FAM?' en '+esc(FAM):'')+(Q?' para "'+esc(Q)+'"':'')+'</span>';
-  for(i=0;i<VISTA.length;i++){
-    p=VISTA[i];
-    var f = p.fotos[0];
-    /* Las primeras 6 (lo que cabe en la primera pantalla del teléfono) se
-       piden de inmediato y con prioridad: es lo que decide si el cliente se
-       queda o se sale. De ahí en adelante, perezosas, para no jalar 260
-       fotos en el navegador de Facebook. */
-    var arriba = i<6;
+  c.innerHTML=VISTA.aprox
+    ? 'No tenemos <b>"'+esc(Q)+'"</b> tal cual — esto es lo más parecido. '+
+      '<a href="https://wa.me/'+WA+'?text='+encodeURIComponent('Hola, busco: '+Q)+'">Pregúntanos</a>'
+    : '<b>'+VISTA.length+'</b> '+(VISTA.length===1?'pieza':'piezas')+
+      (FAM?' en '+esc(FAM):'')+(Q?' para "'+esc(Q)+'"':'');
+  var hasta=Math.min(LIMITE,VISTA.length);
+  for(i=0;i<hasta;i++){
+    p=VISTA[i]; var f=p.fotos[0];
+    /* Las primeras 6 (la primera pantalla del teléfono) se piden de
+       inmediato: son las que deciden si el cliente se queda. */
+    var arriba=i<6;
     h+='<a class="tarjeta" href="#/p/'+encodeURIComponent(p.id)+'" data-id="'+esc(p.id)+'">'+
        '<div class="foto">'+
-         (f? '<img '+(arriba?'loading="eager" fetchpriority="high"':'loading="lazy"')+
-             ' decoding="async" src="'+esc(chica(f))+'" alt="'+esc(p.nombre)+'">'
-           : '<div class="ph">SIN FOTO</div>')+
+         (f?'<img '+(arriba?'loading="eager" fetchpriority="high"':'loading="lazy"')+
+            ' decoding="async" src="'+esc(chica(f))+'" alt="'+esc(p.nombre)+'">'
+           :'<div class="ph">SIN FOTO</div>')+
          (p.vendida?'<span class="cinta">Vendida</span>':(p.apartada?'<span class="cinta">Apartada</span>':''))+
          (p.fotos.length>1?'<span class="nfotos"><svg viewBox="0 0 24 24" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/></svg>'+p.fotos.length+'</span>':'')+
-       '</div>'+
-       '<div class="cuerpo">'+
+       '</div><div class="cuerpo">'+
          '<div class="fam">'+esc(p.fam)+'</div>'+
          '<div class="nombre">'+esc(p.nombre)+'</div>'+
-         (p.precio>0 ? '<div class="precio">'+pesos(p.precio)+'</div>'
-                     : '<div class="precio cot">Pide precio →</div>')+
+         (p.precio>0?'<div class="precio">'+pesos(p.precio)+'</div>'
+                    :'<div class="precio cot">Pide precio →</div>')+
        '</div></a>';
   }
   r.innerHTML=h;
+  var m=$('mas');
+  if(VISTA.length>hasta){m.style.display='block';m.textContent='Ver más piezas ('+(VISTA.length-hasta)+' restantes)'}
+  else m.style.display='none';
 }
 
-/* ---------- ficha ---------- */
 function abre(id){
   var p=null,i;
-  for(i=0;i<PIEZAS.length;i++) if(PIEZAS[i].id===id){ p=PIEZAS[i]; break; }
+  for(i=0;i<PIEZAS.length;i++) if(PIEZAS[i].id===id){p=PIEZAS[i];break}
   if(!p) return cierra();
   ACT=p; IFOTO=0;
-  /* El link solo se manda si el sitio está publicado. Abierto como archivo
-     local mandaría "file:///Users/..." al cliente, que no le sirve de nada. */
-  var enLinea = location.protocol==='http:' || location.protocol==='https:';
+  /* El link solo se manda si el sitio está publicado: abierto como
+     archivo local mandaría "file:///Users/..." al cliente. */
+  var enLinea=location.protocol==='http:'||location.protocol==='https:';
   var msg='Hola, me interesa: '+p.nombre+(p.precio>0?' ('+pesos(p.precio)+')':'')+
-          (enLinea ? '\n'+location.origin+location.pathname+'#/p/'+p.id : '');
-  var d='', j;
+          (enLinea?'\n'+location.origin+location.pathname+'#/p/'+p.id:'');
+  var d='',j;
   for(j=0;j<p.specs.length;j++)
     d+='<div class="dato"><span class="k">'+esc(p.specs[j][0])+'</span><span class="v">'+esc(p.specs[j][1])+'</span></div>';
-
-  $('fichaCuerpo').innerHTML =
+  $('fichaCuerpo').innerHTML=
     '<div class="visor"><div class="marco" id="marco"></div>'+
-      (p.fotos.length>1?'<button class="flecha iz" id="fiz">‹</button><button class="flecha de" id="fde">›</button>'+
-       '<span class="cont" id="cont"></span>':'')+
+      (p.fotos.length>1?'<button class="flecha iz" id="fiz">‹</button><button class="flecha de" id="fde">›</button><span class="cont" id="cont"></span>':'')+
     '</div>'+
     (p.fotos.length>1?'<div class="tiras" id="tiras"></div>':'')+
     '<div class="fcuerpo">'+
-      '<div class="ffam">'+esc(p.fam)+'</div>'+
-      '<h1 class="ftit">'+esc(p.nombre)+'</h1>'+
+      '<div class="ffam">'+esc(p.fam)+'</div><h1 class="ftit">'+esc(p.nombre)+'</h1>'+
       (p.precio>0
-        ? '<div class="fprecio">'+pesos(p.precio)+'<small>Precio de lista · el envío se cotiza aparte</small></div>'
-        : '<div class="fprecio cot">Pide precio por WhatsApp<small style="color:var(--gris)">Te contestamos el mismo día</small></div>')+
-      (p.vendida ? '<div class="fdisp no"><i></i>Ya se vendió</div>'
-                 : (p.apartada ? '<div class="fdisp no"><i></i>Apartada</div>'
-                               : '<div class="fdisp"><i></i>Disponible en piso</div>'))+
-      (d? '<div class="datos"><h4>Datos de la pieza</h4>'+d+'</div>' : '')+
-      '<div class="aviso">Las fotos son de la pieza real que tenemos en piso. '+
-      'Verifica compatibilidad con tu unidad antes de comprar — con gusto te ayudamos por WhatsApp. '+
-      'Garantía de 1 mes.</div>'+
+        ?'<div class="fprecio">'+pesos(p.precio)+'<small>Precio de lista · el envío se cotiza aparte</small></div>'
+        :'<div class="fprecio cot">Pide precio por WhatsApp<small style="color:var(--gris)">Te contestamos el mismo día</small></div>')+
+      (p.vendida?'<div class="fdisp no"><i></i>Ya se vendió</div>'
+                :(p.apartada?'<div class="fdisp no"><i></i>Apartada</div>'
+                            :'<div class="fdisp"><i></i>Disponible en piso</div>'))+
+      (d?'<div class="datos"><h4>Datos de la pieza</h4>'+d+'</div>':'')+
+      '<div class="aviso">Las fotos son de la pieza real que tenemos en piso. Verifica la compatibilidad con tu unidad antes de comprar — con gusto te ayudamos por WhatsApp. Garantía de 1 mes.</div>'+
     '</div>';
-
-  $('cta').innerHTML =
+  $('cta').innerHTML=
     '<a class="wa" href="https://wa.me/'+WA+'?text='+encodeURIComponent(msg)+'">'+
       '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-8.7 15l-1.3 4.7 4.8-1.3A10 10 0 1012 2zm5.6 14.2c-.2.6-1.2 1.2-1.7 1.2-.4 0-1 .1-3.3-.8-2.8-1.1-4.5-4-4.7-4.2-.1-.2-1-1.4-1-2.6s.6-1.8.9-2.1c.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.1 1 2 1.3 2.3 1.4.2.1.4.1.6-.1l.8-1c.2-.2.3-.2.5-.1l2 .9c.2.1.4.2.4.3.1.2.1.6-.1 1.1z"/></svg>'+
       (p.precio>0?'Lo quiero':'Pedir precio')+'</a>'+
     '<a class="ll" href="tel:'+TEL+'"><svg viewBox="0 0 24 24"><path d="M6.6 10.8a15.1 15.1 0 006.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.2.4 2.4.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 013 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .7-.2 1l-2.3 2.2z"/></svg></a>';
-
   pintaFoto();
-  $('ficha').classList.add('on');
-  $('ficha').setAttribute('aria-hidden','false');
-  $('ficha').scrollTop=0;
-  document.body.style.overflow='hidden';
-  document.title = p.nombre + ' — Tractopartes Magaña';
+  $('ficha').classList.add('on'); $('ficha').setAttribute('aria-hidden','false');
+  $('ficha').scrollTop=0; document.body.style.overflow='hidden';
+  document.title=p.nombre+' — Tractopartes Magaña';
 }
 function pintaFoto(){
   if(!ACT) return;
   var f=ACT.fotos[IFOTO];
-  $('marco').innerHTML = f
-    ? '<img src="'+esc(grande(f))+'" alt="'+esc(ACT.nombre)+'">'
-    : '<div style="color:#555;font-size:13px;padding:40px">Sin foto</div>';
+  $('marco').innerHTML=f?'<img src="'+esc(grande(f))+'" alt="'+esc(ACT.nombre)+'">'
+                        :'<div style="color:#59637a;font-size:13px;padding:40px">Sin foto</div>';
   if($('cont')) $('cont').textContent=(IFOTO+1)+' / '+ACT.fotos.length;
-  var t=$('tiras'), i, h='';
+  var t=$('tiras'),i,h='';
   if(t){
     for(i=0;i<ACT.fotos.length;i++)
       h+='<button class="tira'+(i===IFOTO?' on':'')+'" data-i="'+i+'"><img loading="lazy" src="'+esc(chica(ACT.fotos[i]))+'" alt=""></button>';
@@ -560,57 +693,70 @@ function pintaFoto(){
   }
 }
 function cierra(){
-  $('ficha').classList.remove('on');
-  $('ficha').setAttribute('aria-hidden','true');
+  $('ficha').classList.remove('on'); $('ficha').setAttribute('aria-hidden','true');
   ACT=null; document.body.style.overflow='';
   document.title='Tractopartes Magaña — Refacciones para tractocamión en Monterrey';
 }
 function ruta(){
   var h=location.hash||'';
-  if(h.indexOf('#/p/')===0) abre(decodeURIComponent(h.slice(4)));
-  else cierra();
+  if(h.indexOf('#/p/')===0) abre(decodeURIComponent(h.slice(4))); else cierra();
 }
 
-/* ---------- eventos ---------- */
+/* ── eventos ── */
 var tmr=null;
-$('q').addEventListener('input', function(e){
-  var v=e.target.value;
-  $('limpiar').classList.toggle('on', !!v);
+function alBuscar(v,otro){
+  if(otro) otro.value=v;
   clearTimeout(tmr);
-  tmr=setTimeout(function(){ Q=v; filtra(); }, 110);
+  tmr=setTimeout(function(){Q=v;FAM='';pintaChips();filtra()},110);
+}
+$('q').addEventListener('input',function(e){alBuscar(e.target.value,$('q2'))});
+$('q2').addEventListener('input',function(e){alBuscar(e.target.value,$('q'))});
+$('q').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){e.target.blur();$('catalogo').scrollIntoView({behavior:'smooth'})}
 });
-$('limpiar').addEventListener('click', function(){
-  $('q').value=''; Q=''; $('limpiar').classList.remove('on'); filtra(); $('q').focus();
+document.querySelector('.pistas').addEventListener('click',function(e){
+  var b=e.target.closest('[data-s]'); if(!b) return;
+  var v=b.getAttribute('data-s'); $('q').value=v; $('q2').value=v;
+  Q=v; FAM=''; pintaChips(); filtra();
+  $('catalogo').scrollIntoView({behavior:'smooth'});
 });
-$('chips').addEventListener('click', function(e){
+$('cats').addEventListener('click',function(e){
+  var a=e.target.closest('[data-cat]'); if(!a) return;
+  FAM=a.getAttribute('data-cat'); Q=''; $('q').value=''; $('q2').value='';
+  pintaChips(); filtra();
+});
+$('chips').addEventListener('click',function(e){
   var b=e.target.closest('.chip'); if(!b) return;
   FAM=b.getAttribute('data-f'); pintaChips(); filtra();
-  window.scrollTo({top:0,behavior:'smooth'});
+  $('catalogo').scrollIntoView({behavior:'smooth'});
 });
-$('rejilla').addEventListener('click', function(e){
-  var s=e.target.closest('[data-s]');
-  if(s){ $('q').value=s.getAttribute('data-s'); Q=s.getAttribute('data-s'); $('limpiar').classList.add('on'); filtra(); }
-});
-$('volver').addEventListener('click', function(){ history.back(); });
-$('fichaCuerpo').addEventListener('click', function(e){
+$('mas').addEventListener('click',function(){LIMITE+=PAGINA;filtra(false)});
+$('volver').addEventListener('click',function(){history.back()});
+$('fichaCuerpo').addEventListener('click',function(e){
   if(!ACT) return;
   var t=e.target.closest('.tira');
-  if(t){ IFOTO=+t.getAttribute('data-i'); pintaFoto(); return; }
-  if(e.target.id==='fiz'){ IFOTO=(IFOTO-1+ACT.fotos.length)%ACT.fotos.length; pintaFoto(); }
-  if(e.target.id==='fde'){ IFOTO=(IFOTO+1)%ACT.fotos.length; pintaFoto(); }
+  if(t){IFOTO=+t.getAttribute('data-i');pintaFoto();return}
+  if(e.target.id==='fiz'){IFOTO=(IFOTO-1+ACT.fotos.length)%ACT.fotos.length;pintaFoto()}
+  if(e.target.id==='fde'){IFOTO=(IFOTO+1)%ACT.fotos.length;pintaFoto()}
 });
-$('compartir').addEventListener('click', function(){
+$('compartir').addEventListener('click',function(){
   var u=location.href;
-  if(navigator.share) navigator.share({title:ACT?ACT.nombre:'Tractopartes Magaña', url:u}).catch(function(){});
-  else if(navigator.clipboard) navigator.clipboard.writeText(u).then(function(){ alert('Link copiado'); });
+  if(navigator.share) navigator.share({title:ACT?ACT.nombre:'Tractopartes Magaña',url:u}).catch(function(){});
+  else if(navigator.clipboard) navigator.clipboard.writeText(u).then(function(){alert('Link copiado')});
 });
-window.addEventListener('hashchange', ruta);
-document.addEventListener('keydown', function(e){
+window.addEventListener('hashchange',ruta);
+document.addEventListener('keydown',function(e){
   if(!ACT) return;
   if(e.key==='Escape') history.back();
-  if(e.key==='ArrowLeft'){ IFOTO=(IFOTO-1+ACT.fotos.length)%ACT.fotos.length; pintaFoto(); }
-  if(e.key==='ArrowRight'){ IFOTO=(IFOTO+1)%ACT.fotos.length; pintaFoto(); }
+  if(e.key==='ArrowLeft'){IFOTO=(IFOTO-1+ACT.fotos.length)%ACT.fotos.length;pintaFoto()}
+  if(e.key==='ArrowRight'){IFOTO=(IFOTO+1)%ACT.fotos.length;pintaFoto()}
 });
+/* el buscador chico del encabezado solo aparece cuando ya pasaste el de la portada */
+var ultimo=false;
+addEventListener('scroll',function(){
+  var y=scrollY>320;
+  if(y!==ultimo){ultimo=y;$('cab').classList.toggle('pegado',y)}
+},{passive:true});
 
 arranca();
 </script>
