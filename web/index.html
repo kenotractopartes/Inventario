@@ -473,9 +473,15 @@ function pintaRejilla(){
   for(i=0;i<VISTA.length;i++){
     p=VISTA[i];
     var f = p.fotos[0];
+    /* Las primeras 6 (lo que cabe en la primera pantalla del teléfono) se
+       piden de inmediato y con prioridad: es lo que decide si el cliente se
+       queda o se sale. De ahí en adelante, perezosas, para no jalar 260
+       fotos en el navegador de Facebook. */
+    var arriba = i<6;
     h+='<a class="tarjeta" href="#/p/'+encodeURIComponent(p.id)+'" data-id="'+esc(p.id)+'">'+
        '<div class="foto">'+
-         (f? '<img loading="lazy" decoding="async" src="'+esc(chica(f))+'" alt="'+esc(p.nombre)+'">'
+         (f? '<img '+(arriba?'loading="eager" fetchpriority="high"':'loading="lazy"')+
+             ' decoding="async" src="'+esc(chica(f))+'" alt="'+esc(p.nombre)+'">'
            : '<div class="ph">SIN FOTO</div>')+
          (p.vendida?'<span class="cinta">Vendida</span>':(p.apartada?'<span class="cinta">Apartada</span>':''))+
          (p.fotos.length>1?'<span class="nfotos"><svg viewBox="0 0 24 24" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/></svg>'+p.fotos.length+'</span>':'')+
