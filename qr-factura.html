@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QR para pedir factura · Tracto Partes Magaña</title>
+<meta name="robots" content="noindex, nofollow">
+<!--
+  ════════════════════════════════════════════════════════════════════
+  EL CARTEL DEL MOSTRADOR
+  Se imprime y se pega donde el cliente lo vea. Él lo escanea con su
+  celular, llena sus datos y se acabó el "mándame tu constancia por
+  WhatsApp y yo se la reenvío a Maura".
+
+  El QR apunta al enlace GENÉRICO (sin folio): quien lo escanea llena
+  todo desde cero. El enlace CON folio lo genera el vendedor desde
+  factura-vendedor.html cuando ya anotó las piezas.
+  ════════════════════════════════════════════════════════════════════
+-->
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:#EFE9DC;color:#1a1a1a}
+  .hoja{max-width:640px;margin:0 auto;background:#fff;padding:40px 36px 34px;text-align:center}
+  .marca{font-size:13px;font-weight:800;letter-spacing:.14em;color:#8a8378;text-transform:uppercase}
+  h1{font-size:38px;margin:14px 0 6px;color:#1A3A2E;line-height:1.12}
+  .sub{font-size:19px;color:#4a5a50;margin:0 0 26px}
+  #qr{display:inline-block;padding:18px;background:#fff;border:3px solid #1A3A2E;border-radius:16px}
+  #qr canvas,#qr img{display:block}
+  .pasos{text-align:left;max-width:400px;margin:26px auto 0;font-size:16.5px;line-height:1.6;color:#333}
+  .pasos div{margin:9px 0;display:flex;gap:11px;align-items:flex-start}
+  .n{background:#1A3A2E;color:#fff;width:26px;height:26px;border-radius:50%;flex-shrink:0;
+     font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:2px}
+  .iva{background:#FFF8E7;border-left:4px solid #C9A24B;border-radius:8px;padding:12px 14px;
+       font-size:15px;color:#6b5720;margin-top:24px;text-align:left}
+  .url{margin-top:20px;font-size:13px;color:#8a8378;word-break:break-all;font-family:ui-monospace,monospace}
+  .barra{max-width:640px;margin:16px auto;text-align:center}
+  .barra button{background:#1A3A2E;color:#fff;border:0;border-radius:10px;padding:13px 26px;
+                font-size:16px;font-weight:800;cursor:pointer;margin:0 5px}
+  .barra a{color:#1A3A2E;font-size:14px;display:inline-block;margin-top:10px}
+  @media print{
+    body{background:#fff}
+    .barra{display:none}
+    .hoja{max-width:100%;padding:26px}
+  }
+</style>
+</head>
+<body>
+
+<div class="hoja">
+  <div class="marca">Tracto Partes Magaña</div>
+  <h1>¿Necesitas factura?</h1>
+  <p class="sub">Escanea con la cámara de tu celular</p>
+
+  <div id="qr"></div>
+
+  <div class="pasos">
+    <div><span class="n">1</span><span>Apunta la cámara al código</span></div>
+    <div><span class="n">2</span><span>Sube una foto de tu <b>constancia fiscal</b></span></div>
+    <div><span class="n">3</span><span>Pon tu correo y listo</span></div>
+  </div>
+
+  <div class="iva">
+    La factura se emite <b>con IVA del 16%</b>. Si pagaste sin IVA, se te cobrará la diferencia.
+  </div>
+
+  <div class="url" id="url"></div>
+</div>
+
+<div class="barra">
+  <button onclick="window.print()">🖨️ Imprimir el cartel</button>
+  <button onclick="descargar()">⬇️ Guardar el QR</button>
+  <div><a href="index.html">← Volver al inventario</a></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
+<script>
+  // El QR apunta a la página del cliente que vive JUNTO a este archivo.
+  var URL_CLIENTE = location.href.replace(/[^/]*$/, '') + 'factura.html';
+  document.getElementById('url').textContent = URL_CLIENTE;
+  new QRCode(document.getElementById('qr'), {
+    text: URL_CLIENTE, width: 260, height: 260,
+    colorDark: '#1A3A2E', colorLight: '#ffffff',
+    // Corrección alta: el cartel se va a manchar, doblar y despegar en un
+    // mostrador de refacciones. Con H sigue leyéndose aunque se maltrate.
+    correctLevel: QRCode.CorrectLevel.H
+  });
+  function descargar(){
+    var c = document.querySelector('#qr canvas'), img = document.querySelector('#qr img');
+    var url = c ? c.toDataURL('image/png') : (img ? img.src : '');
+    if (!url) return alert('No se pudo generar la imagen. Usa "Imprimir" mejor.');
+    var a = document.createElement('a');
+    a.href = url; a.download = 'QR-pedir-factura.png'; a.click();
+  }
+</script>
+</body>
+</html>

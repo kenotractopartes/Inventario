@@ -249,6 +249,19 @@
   <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #2e7d46; color:#2e7d46; font-weight:800;" onclick="abrirCompraMercancia()">🛒 Compra de Mercancía 🛒</button>
   <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #7a5ea8; color:#7a5ea8; font-weight:800;" onclick="abrirConteo()">📋 Conteo Físico (inventario cíclico) 📋</button>
 
+  <!-- jul 2026 — ADELANTAR FACTURA.
+       OJO: este botón NO lleva la clase "solo-editor" a propósito. Es el único
+       que ven TODOS, incluidos los vendedores en modo Solo Ver — son ellos los
+       que atienden al cliente y los que hoy le reenvían el PDF y los mensajes
+       a Maura. Abre una página aparte; no toca el inventario. -->
+  <div style="height: 14px"></div>
+  <button class="btn btn-block" style="background:#1A3A2E; border:2px solid #1A3A2E; color:#fff; font-weight:800;"
+          onclick="abrirAdelantarFactura()">🧾 Adelantar factura de un cliente 🧾</button>
+  <div style="font-size:12px; color:#8a8378; text-align:center; margin-top:6px; line-height:1.4">
+    Anota qué le vendiste y mándale el enlace para que él ponga sus datos.<br>
+    Le llega lista a Maura.
+  </div>
+
   <h3 style="margin-top:24px">Buscador de Piezas y Camiones</h3>
   <div style="display:flex; gap:8px; align-items:center; max-width:640px;">
     <input type="text" id="filtro-camiones" placeholder="🔍 Buscar folio, marca, serie, VIN, motor..." oninput="renderCamiones()" style="flex:1; min-width:0;">
@@ -3060,6 +3073,14 @@ function _porModelo(famId){
     (g[m] = g[m] || []).push(p);
   });
   return g;
+}
+
+// jul 2026 — Abre "Adelantar factura" en otra pestaña, llevando el nombre de
+// quien la abrió si se puede saber. Se abre APARTE a propósito: el vendedor
+// no debe perder lo que traía en el inventario.
+function abrirAdelantarFactura(){
+  var base = location.href.replace(/[^/]*$/, '');
+  window.open(base + 'factura-vendedor.html', '_blank', 'noopener');
 }
 
 function abrirConteo(){

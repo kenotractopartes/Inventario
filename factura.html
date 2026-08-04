@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pedir factura · Tracto Partes Magaña</title>
+<meta name="robots" content="noindex, nofollow">
+<!--
+  ════════════════════════════════════════════════════════════════════
+  PEDIR FACTURA — página que llena el CLIENTE
+  ────────────────────────────────────────────────────────────────────
+  Se abre de dos formas:
+    · QR pegado en el mostrador
+    · Enlace que el vendedor le manda por WhatsApp (la mayoría de los
+      clientes NO viene al mostrador — todo es en línea)
+
+  POR QUÉ ESTÁ ASÍ DE SIMPLE
+  El cliente no es empleado: no sabe qué es un "régimen fiscal 626" ni
+  un "uso de CFDI". Por eso el camino principal es UNA sola cosa —
+  subir su constancia— y de ahí sale todo lo demás. Los campos técnicos
+  quedan escondidos y solo aparecen si él dice que no la trae.
+
+  QUÉ NO HACE ESTA PÁGINA, A PROPÓSITO
+  · NO trae el catálogo de clientes. Sería publicar los RFC de los
+    1,146 clientes del negocio: esta página es pública y cualquiera la
+    puede descargar. El emparejamiento con el histórico se hace del
+    lado de Maura, que sí entra con contraseña.
+  · NO factura ni timbra nada. Solo deja la solicitud lista.
+  ════════════════════════════════════════════════════════════════════
+-->
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:#EFE9DC;color:#1a1a1a;font-size:17px;line-height:1.45;
+       padding:0 0 40px;-webkit-text-size-adjust:100%}
+  .top{background:#1A3A2E;color:#fff;padding:22px 20px 26px;text-align:center}
+  .top h1{margin:0 0 4px;font-size:21px;font-weight:800;letter-spacing:.3px}
+  .top p{margin:0;font-size:14px;opacity:.85}
+  .wrap{max-width:520px;margin:0 auto;padding:0 16px}
+  .card{background:#fff;border-radius:14px;padding:20px 18px;margin-top:-14px;
+        box-shadow:0 3px 14px rgba(0,0,0,.10)}
+  label{display:block;font-weight:700;font-size:15px;margin:20px 0 7px;color:#243}
+  label .op{font-weight:400;color:#8a8a8a;font-size:13.5px}
+  input[type=text],input[type=email],input[type=tel],select,textarea{
+    width:100%;padding:14px 14px;font-size:17px;font-family:inherit;
+    border:2px solid #d8d2c6;border-radius:10px;background:#fff;color:#111}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:#2E7D46;
+    box-shadow:0 0 0 3px rgba(46,125,70,.15)}
+  textarea{min-height:78px;resize:vertical}
+  .ayuda{font-size:13.5px;color:#7b7b7b;margin-top:6px;line-height:1.4}
+  .err{border-color:#C0392B !important;background:#FFF6F5}
+  .msg-err{color:#C0392B;font-size:14px;font-weight:600;margin-top:6px;display:none}
+
+  /* Subir la constancia — es el camino principal, por eso es grande */
+  .drop{border:2.5px dashed #2E7D46;border-radius:14px;background:#F2F9F4;
+        padding:26px 16px;text-align:center;cursor:pointer;transition:.15s}
+  .drop:active,.drop.hover{background:#E3F1E8;border-color:#1A5C30}
+  .drop .ic{font-size:38px;line-height:1}
+  .drop b{display:block;margin-top:8px;font-size:17px;color:#1A5C30}
+  .drop span{display:block;font-size:14px;color:#5c7a66;margin-top:3px}
+  .listo{display:none;background:#E3F1E8;border:2px solid #2E7D46;border-radius:12px;
+         padding:14px;margin-top:10px;font-size:15px}
+  .listo b{color:#1A5C30}
+  .quitar{background:none;border:0;color:#C0392B;font-weight:700;font-size:14px;
+          padding:6px 0;cursor:pointer;text-decoration:underline}
+
+  .otro{background:none;border:0;color:#1A5C30;font-weight:700;font-size:15px;
+        text-decoration:underline;padding:14px 0;cursor:pointer;display:block;
+        margin:6px auto 0;text-align:center}
+  #manual{display:none}
+
+  .enviar{width:100%;padding:18px;font-size:19px;font-weight:800;color:#fff;
+          background:#2E7D46;border:0;border-radius:12px;margin-top:26px;cursor:pointer}
+  .enviar:active{background:#1A5C30}
+  .enviar:disabled{background:#9db8a6;cursor:default}
+
+  .ok{display:none;text-align:center;padding:34px 20px}
+  .ok .tick{font-size:60px}
+  .ok h2{font-size:23px;margin:12px 0 8px;color:#1A5C30}
+  .ok p{color:#555;font-size:16px;margin:0 0 6px}
+  .pie{text-align:center;font-size:13px;color:#8a8378;margin-top:18px;padding:0 20px}
+  .aviso{background:#FFF8E7;border:1px solid #E8C97A;border-radius:10px;
+         padding:12px 14px;font-size:14px;color:#6b5720;margin-top:18px}
+  /* Aviso del IVA — va hasta arriba, antes de que el cliente llene nada. */
+  .nota-iva{background:#FFF8E7;border-left:4px solid #C9A24B;border-radius:8px;
+            padding:11px 13px;font-size:14.5px;color:#6b5720;line-height:1.4}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>🧾 Pedir mi factura</h1>
+  <p>Tracto Partes Magaña</p>
+</div>
+
+<div class="wrap">
+  <div class="card" id="form">
+
+    <!-- El IVA lo paga SIEMPRE el cliente. Se dice aquí arriba, antes de que
+         llene nada, para que no haya sorpresa ni discusión en el mostrador.
+         Es la causa #1 de pleito al facturar después de una venta en efectivo. -->
+    <div class="nota-iva">
+      La factura se emite <b>con IVA del 16%</b>. Si pagaste sin IVA,
+      se te cobrará la diferencia.
+    </div>
+
+    <label>¿A nombre de quién va la factura?</label>
+    <input type="text" id="nombre" autocomplete="organization" enterkeyhint="next"
+           placeholder="Empresa o persona">
+    <div class="ayuda">Tal como aparece en tu constancia fiscal.</div>
+    <div class="msg-err" id="e-nombre">Escribe el nombre o razón social.</div>
+
+    <label>Correo para enviarte la factura</label>
+    <input type="email" id="correo" inputmode="email" autocomplete="email"
+           placeholder="correo@ejemplo.com">
+    <div class="msg-err" id="e-correo">Revisa el correo, parece incompleto.</div>
+
+    <label>Tu constancia de situación fiscal</label>
+    <div class="drop" id="drop">
+      <div class="ic">📄</div>
+      <b>Tomar foto o subir archivo</b>
+      <span>Foto, captura de pantalla o PDF</span>
+    </div>
+    <input type="file" id="file" accept="image/*,.pdf" style="display:none">
+    <div class="listo" id="listo">
+      ✅ <b id="fn"></b><br>
+      <button class="quitar" type="button" onclick="quitarArchivo()">Quitar y subir otra</button>
+    </div>
+    <div class="ayuda">Con esto ya no tienes que escribir tu RFC ni datos fiscales.</div>
+
+    <button class="otro" type="button" id="btn-manual" onclick="verManual()">
+      No la traigo a la mano — escribir mis datos
+    </button>
+
+    <div id="manual">
+      <label>RFC</label>
+      <input type="text" id="rfc" maxlength="13" autocapitalize="characters"
+             autocomplete="off" placeholder="ABC123456XYZ">
+      <div class="msg-err" id="e-rfc">Sin la constancia necesitamos el RFC.</div>
+
+      <label>Código postal <span class="op">de tu domicilio fiscal</span></label>
+      <input type="text" id="cp" inputmode="numeric" maxlength="5" placeholder="64000">
+
+      <label>¿Para qué la vas a usar? <span class="op">si no sabes, deja la primera</span></label>
+      <select id="uso">
+        <option value="G03">Gastos en general</option>
+        <option value="G01">Compra de mercancía</option>
+        <option value="S01">Sin efectos fiscales</option>
+        <option value="I03">Equipo de transporte</option>
+        <option value="I08">Otra maquinaria y equipo</option>
+      </select>
+    </div>
+
+    <label>¿Qué compraste? <span class="op">o número de nota</span></label>
+    <textarea id="compra" placeholder="Ej: Motor ISX usado · nota 4821"></textarea>
+
+    <label>Teléfono <span class="op">opcional, por si hay dudas</span></label>
+    <input type="tel" id="tel" inputmode="tel" autocomplete="tel" placeholder="81 1234 5678">
+
+    <button class="enviar" id="enviar" onclick="enviar()">Enviar solicitud</button>
+    <div class="msg-err" id="e-general" style="text-align:center"></div>
+
+    <div class="aviso">
+      Tus datos solo se usan para emitir tu factura. No se comparten con nadie más.
+    </div>
+  </div>
+
+  <div class="card ok" id="ok">
+    <div class="tick">✅</div>
+    <h2>¡Listo, ya la recibimos!</h2>
+    <p>Te la enviamos a <b id="ok-correo"></b>.</p>
+    <p style="font-size:14px;color:#888;margin-top:14px">
+      Si no te llega hoy, márcanos y con gusto la revisamos.
+    </p>
+  </div>
+
+  <div class="pie">Tracto Partes Magaña · Monterrey, N.L.</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js" crossorigin="anonymous"></script>
+<script>
+// ── Misma cuenta de Firebase donde vive el sistema de Maura ──────────
+// El apiKey NO es secreto en apps web (va a la vista a propósito). Lo que
+// protege esto son las REGLAS: esta página puede CREAR una solicitud, pero
+// no puede leer, editar ni borrar ninguna. Ni la suya.
+const CFG = {
+  apiKey: "AIzaSyAzr0B8M-8PeJwK0XAaHDapyLPzsvmTThY",
+  authDomain: "ai-maura-06-26.firebaseapp.com",
+  projectId: "ai-maura-06-26",
+  storageBucket: "ai-maura-06-26.firebasestorage.app",
+  messagingSenderId: "279194148183",
+  appId: "1:279194148183:web:f96d4d94dff8c8d2c7b212"
+};
+firebase.initializeApp(CFG);
+const db = firebase.firestore();
+const st = firebase.storage();
+
+// AMARRE CON LO DEL VENDEDOR.
+// Si el vendedor ya anotó las piezas y los precios, su enlace trae el folio
+// (?f=sol_...). Entonces esto NO crea una solicitud nueva: le agrega los datos
+// fiscales a la que ya existe. Sin esto llegarían dos pedazos sueltos y Maura
+// tendría que adivinar cuál cliente va con cuál venta.
+// Si alguien abre la página por el QR del mostrador, no hay folio y se crea
+// una solicitud nueva — que es lo correcto.
+const PARAMS = new URLSearchParams(location.search);
+const FOLIO = (PARAMS.get('f') || '').slice(0, 60);
+const VENDEDOR = (PARAMS.get('v') || '').slice(0, 40);
+
+let archivo = null;
+const $ = id => document.getElementById(id);
+
+// ── Subir la constancia ─────────────────────────────────────────────
+$('drop').onclick = () => $('file').click();
+['dragover','dragenter'].forEach(e => $('drop').addEventListener(e, ev => {
+  ev.preventDefault(); $('drop').classList.add('hover');
+}));
+['dragleave','drop'].forEach(e => $('drop').addEventListener(e, ev => {
+  ev.preventDefault(); $('drop').classList.remove('hover');
+  if (e === 'drop' && ev.dataTransfer.files[0]) tomarArchivo(ev.dataTransfer.files[0]);
+}));
+$('file').onchange = e => { if (e.target.files[0]) tomarArchivo(e.target.files[0]); };
+
+function tomarArchivo(f){
+  // 12 MB alcanza de sobra para una foto o un PDF del SAT. El tope evita
+  // que un video de 300 MB tumbe la subida (y el costo).
+  if (f.size > 12 * 1024 * 1024) {
+    alert('El archivo pesa mucho (máximo 12 MB).\nSi es una foto, tómala de nuevo con menos calidad.');
+    return;
+  }
+  archivo = f;
+  $('fn').textContent = f.name.length > 34 ? f.name.slice(0, 32) + '…' : f.name;
+  $('drop').style.display = 'none';
+  $('listo').style.display = 'block';
+  $('btn-manual').style.display = 'none';
+  $('manual').style.display = 'none';   // con constancia ya no hace falta
+}
+function quitarArchivo(){
+  archivo = null; $('file').value = '';
+  $('drop').style.display = 'block';
+  $('listo').style.display = 'none';
+  $('btn-manual').style.display = 'block';
+}
+function verManual(){
+  $('manual').style.display = 'block';
+  $('btn-manual').style.display = 'none';
+  $('rfc').focus();
+}
+
+// ── Revisar antes de mandar ─────────────────────────────────────────
+function marcar(id, mal){
+  $(id).classList.toggle('err', mal);
+  const e = $('e-' + id); if (e) e.style.display = mal ? 'block' : 'none';
+  return !mal;
+}
+function validar(){
+  let ok = true;
+  ok = marcar('nombre', $('nombre').value.trim().length < 3) && ok;
+  const c = $('correo').value.trim();
+  ok = marcar('correo', !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(c)) && ok;
+  // El RFC solo es obligatorio si NO subió la constancia
+  if (!archivo) {
+    const r = $('rfc').value.trim().toUpperCase();
+    if (!r) { verManual(); }
+    ok = marcar('rfc', !/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(r)) && ok;
+  } else { marcar('rfc', false); }
+  return ok;
+}
+
+// ── Enviar ──────────────────────────────────────────────────────────
+let mandando = false;
+async function enviar(){
+  if (mandando) return;
+  $('e-general').style.display = 'none';
+  if (!validar()) {
+    document.querySelector('.err').scrollIntoView({behavior:'smooth', block:'center'});
+    return;
+  }
+  mandando = true;
+  $('enviar').disabled = true;
+  $('enviar').textContent = 'Enviando…';
+
+  // Si el enlace traía folio, se le pega a ESA solicitud; si no, se crea una.
+  const id = FOLIO || ('sol_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8));
+  try {
+    let urlArchivo = '', nombreArchivo = '';
+    if (archivo) {
+      $('enviar').textContent = 'Subiendo tu constancia…';
+      const ext = (archivo.name.match(/\.[a-z0-9]+$/i) || ['.jpg'])[0];
+      const ref = st.ref('constancias/' + id + ext);
+      await ref.put(archivo, { contentType: archivo.type || 'application/octet-stream' });
+      urlArchivo = await ref.getDownloadURL();
+      nombreArchivo = archivo.name;
+      $('enviar').textContent = 'Enviando…';
+    }
+    // merge:true — si el vendedor ya había guardado las piezas y los precios,
+    // esto NO los borra: solo agrega encima los datos del cliente.
+    await db.collection('solicitudes_factura').doc(id).set({
+      id, estado: 'pendiente',
+      nombre:  $('nombre').value.trim(),
+      correo:  $('correo').value.trim(),
+      rfc:     $('rfc').value.trim().toUpperCase(),
+      cp:      $('cp').value.trim(),
+      uso:     $('uso').value,
+      compra:  $('compra').value.trim(),
+      tel:     $('tel').value.trim(),
+      archivoUrl: urlArchivo, archivoNombre: nombreArchivo,
+      vendedor: VENDEDOR,
+      creadoEn: new Date().toISOString(),
+      _ua: (navigator.userAgent || '').slice(0, 120)
+    }, { merge: true });
+    $('ok-correo').textContent = $('correo').value.trim();
+    $('form').style.display = 'none';
+    $('ok').style.display = 'block';
+    window.scrollTo(0, 0);
+  } catch (err) {
+    console.error(err);
+    mandando = false;
+    $('enviar').disabled = false;
+    $('enviar').textContent = 'Reintentar envío';
+    // Nada se pierde en silencio: si falla, se dice y se ofrece salida.
+    $('e-general').textContent = 'No se pudo enviar. Revisa tu internet y vuelve a intentar. '
+      + 'Si sigue fallando, mándanos tus datos por WhatsApp.';
+    $('e-general').style.display = 'block';
+  }
+}
+</script>
+</body>
+</html>

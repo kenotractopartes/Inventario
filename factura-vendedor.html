@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Adelantar factura · Tracto Partes Magaña</title>
+<meta name="robots" content="noindex, nofollow">
+<!--
+  ════════════════════════════════════════════════════════════════════
+  ADELANTAR FACTURA — la llena el VENDEDOR, no el cliente
+  ────────────────────────────────────────────────────────────────────
+  Es la otra mitad de factura.html. Aquella la llena el cliente con sus
+  datos fiscales; ésta la llena el vendedor con lo que se vendió.
+
+  POR QUÉ EXISTE
+  Hoy el vendedor le reenvía a Maura el PDF y los mensajes del cliente, y
+  ella lo captura todo otra vez. Aquí el vendedor deja la solicitud casi
+  hecha y Maura solo corrobora y timbra.
+
+  LOS 4 DATOS QUE SIEMPRE HACEN FALTA
+    1. Código interno de la pieza  ─┐  los tres salen de un solo lugar:
+    2. Nombre de la pieza          ─┤  la base del Buscador SAT (1,903
+    3. Clave del SAT               ─┘  piezas), embebida más abajo.
+    4. Precio + IVA                   el vendedor teclea el precio y el
+                                      IVA se calcula solo.
+
+  Se comprobó contra las 2,577 facturas reales del negocio: el 100% de
+  los conceptos ya lleva el código interno, así que esto no cambia cómo
+  factura Maura — solo le quita el tecleo.
+
+  La base de piezas ya es pública (kenotractopartes.github.io/buscador-sat),
+  así que traerla aquí no expone nada nuevo. Los datos FISCALES del
+  cliente, en cambio, nunca se leen desde aquí: solo se escriben.
+  ════════════════════════════════════════════════════════════════════
+-->
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:#EFE9DC;color:#1a1a1a;font-size:16px;line-height:1.45;padding:0 0 40px}
+  .top{background:#1A3A2E;color:#fff;padding:18px 20px 22px;text-align:center}
+  .top h1{margin:0 0 3px;font-size:19px;font-weight:800}
+  .top p{margin:0;font-size:13px;opacity:.82}
+  .wrap{max-width:640px;margin:0 auto;padding:0 14px}
+  .card{background:#fff;border-radius:14px;padding:18px 16px;margin-top:-12px;
+        box-shadow:0 3px 14px rgba(0,0,0,.10)}
+  h2{font-size:15px;margin:24px 0 4px;color:#1A3A2E;font-weight:800;
+     text-transform:uppercase;letter-spacing:.04em}
+  h2:first-child{margin-top:0}
+  label{display:block;font-weight:700;font-size:14px;margin:14px 0 6px;color:#243}
+  label .op{font-weight:400;color:#8a8a8a;font-size:12.5px}
+  input,select,textarea{width:100%;padding:12px;font-size:16px;font-family:inherit;
+    border:2px solid #d8d2c6;border-radius:9px;background:#fff;color:#111}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:#2E7D46;
+    box-shadow:0 0 0 3px rgba(46,125,70,.15)}
+  textarea{min-height:64px;resize:vertical}
+  .err{border-color:#C0392B !important;background:#FFF6F5}
+
+  /* Buscador de piezas */
+  .buscador{position:relative}
+  .res{position:absolute;left:0;right:0;top:100%;z-index:30;background:#fff;
+       border:2px solid #2E7D46;border-top:0;border-radius:0 0 10px 10px;
+       max-height:290px;overflow-y:auto;display:none;box-shadow:0 8px 20px rgba(0,0,0,.16)}
+  .res div{padding:11px 12px;border-bottom:1px solid #eee;cursor:pointer}
+  .res div:hover,.res div.sel{background:#EAF5EE}
+  .res .pz{font-weight:700;font-size:14.5px;color:#1a1a1a}
+  .res .mt{font-size:12px;color:#7a7a7a;margin-top:2px;font-family:ui-monospace,monospace}
+  .res .vacio{color:#999;font-style:italic;cursor:default;text-align:center}
+
+  /* Caja para dar de alta una pieza */
+  .alta{border:2px solid #E3DDD0;border-radius:12px;padding:12px;margin-top:10px;background:#FCFBF7}
+  .alta.listo{border-color:#2E7D46;background:#F5FBF7}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .chip{background:#EAF5EE;border:1px solid #B9D9C5;border-radius:7px;padding:4px 9px;
+        font-size:12px;font-family:ui-monospace,monospace;color:#1A5C30}
+  .fila{display:flex;gap:10px;align-items:flex-end;margin-top:10px}
+  .fila>div{flex:1}
+  .agregar{width:100%;padding:13px;background:#fff;border:2px dashed #2E7D46;color:#1A5C30;
+           border-radius:10px;font-weight:800;font-size:15px;cursor:pointer;margin-top:12px}
+  .agregar:active{background:#EAF5EE}
+
+  /* Piezas YA anotadas — el "registro una por una" */
+  .item{border:2px solid #CFE0D5;border-radius:12px;padding:12px 13px;margin-top:11px;background:#fff;
+        box-shadow:0 1px 4px rgba(0,0,0,.05)}
+  .item .cab{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .item .nom{font-weight:800;font-size:15px;color:#1A3A2E;line-height:1.3}
+  .item .acc{display:flex;gap:6px;flex-shrink:0}
+  .ico{background:#F2F0EA;border:1px solid #DCD6C9;border-radius:8px;width:38px;height:36px;
+       font-size:16px;cursor:pointer;line-height:1}
+  .ico:active{background:#E4E0D5}
+  .ico.del{background:#FDECEA;border-color:#E4B3AC}
+  .item .cods{margin-top:6px}
+  .desglose{margin-top:10px;border-top:1px solid #EDEAE1;padding-top:9px;font-size:13.5px}
+  .desglose .r{display:flex;justify-content:space-between;padding:2px 0;color:#555}
+  .desglose .r b{color:#1a1a1a;font-variant-numeric:tabular-nums}
+  .desglose .r.tot{font-weight:800;color:#1A5C30;font-size:15px;
+                   border-top:1px dashed #D8D2C6;margin-top:5px;padding-top:6px}
+  .vacio-lista{text-align:center;color:#9a9a9a;font-size:14px;font-style:italic;padding:16px 0}
+
+  .totales{background:#1A3A2E;color:#fff;border-radius:12px;padding:14px 16px;margin-top:16px}
+  .tot{display:flex;justify-content:space-between;font-size:15px;padding:3px 0}
+  .tot.grande{font-size:20px;font-weight:800;border-top:1px solid rgba(255,255,255,.25);
+              margin-top:7px;padding-top:9px}
+
+  .enviar{width:100%;padding:17px;font-size:18px;font-weight:800;color:#fff;
+          background:#2E7D46;border:0;border-radius:12px;margin-top:20px;cursor:pointer}
+  .enviar:disabled{background:#9db8a6}
+  .wa{width:100%;padding:14px;font-size:16px;font-weight:800;color:#fff;background:#25D366;
+      border:0;border-radius:11px;margin-top:10px;cursor:pointer}
+  .copiar{width:100%;padding:13px;font-size:15px;font-weight:700;color:#1A3A2E;background:#fff;
+          border:2px solid #C9C2B2;border-radius:11px;margin-top:8px;cursor:pointer}
+  .copiar:active{background:#F2F0EA}
+  .link-box{display:none;margin-top:10px;background:#F2F9F4;border:2px solid #2E7D46;
+            border-radius:10px;padding:11px 12px;font-size:12.5px;color:#1A5C30;
+            font-family:ui-monospace,monospace;word-break:break-all;line-height:1.5}
+  .link-box b{display:block;font-family:inherit;font-size:13px;margin-bottom:5px}
+  .nota{background:#FFF8E7;border-left:4px solid #C9A24B;border-radius:8px;
+        padding:11px 13px;font-size:13.5px;color:#6b5720;margin-top:14px;line-height:1.4}
+  .ok{display:none;text-align:center;padding:34px 20px}
+  .ok .tick{font-size:58px}
+  .ok h2{font-size:22px;color:#1A5C30;text-transform:none;letter-spacing:0}
+  .msg-err{color:#C0392B;font-size:14px;font-weight:700;margin-top:8px;display:none;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>🧾 Adelantar factura</h1>
+  <p>Para vendedores · le llega lista a Maura</p>
+</div>
+
+<div class="wrap">
+  <div class="card" id="form">
+
+    <h2>1 · Qué se vendió</h2>
+
+    <!-- Agregar pieza: se busca, se pone precio, y se GUARDA como renglón.
+         Antes el buscador se quedaba puesto y al escoger otra pieza parecía
+         que se borraba la anterior. Ahora cada pieza queda anotada abajo. -->
+    <div class="alta" id="alta">
+      <div class="buscador">
+        <label>Pieza <span class="op">escribe el nombre o el código</span></label>
+        <input type="text" id="q" autocomplete="off" placeholder="Ej: abanico, o ACK032">
+        <div class="res" id="res"></div>
+      </div>
+      <div class="chips" id="chips" style="display:none"></div>
+      <div class="fila">
+        <div><label>Cantidad</label><input type="number" id="cant" value="1" min="1" step="1"></div>
+        <div><label>Precio sin IVA <span class="op">c/u</span></label>
+          <input type="number" id="prec" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></div>
+      </div>
+      <button class="agregar" type="button" id="btn-add" onclick="guardarPieza()">＋ Agregar esta pieza</button>
+      <div class="msg-err" id="e-pieza"></div>
+    </div>
+
+    <div id="lista"></div>
+
+    <div class="totales">
+      <div class="tot"><span>Subtotal</span><span id="t-sub">$0.00</span></div>
+      <div class="tot"><span>IVA 16%</span><span id="t-iva">$0.00</span></div>
+      <div class="tot grande"><span>TOTAL</span><span id="t-tot">$0.00</span></div>
+    </div>
+
+    <h2>2 · Datos del cliente</h2>
+    <div class="nota">
+      Si el cliente te va a mandar su constancia, mejor <b>mándale el enlace</b> con el
+      botón verde de abajo y que él la suba. Se junta solo con lo que llenaste aquí.
+    </div>
+
+    <label>A nombre de quién <span class="op">empresa o persona</span></label>
+    <input type="text" id="cli-nombre" placeholder="Como viene en su constancia">
+
+    <label>RFC <span class="op">si lo tienes</span></label>
+    <input type="text" id="cli-rfc" maxlength="13" autocapitalize="characters" placeholder="ABC123456XYZ">
+
+    <label>Correo para enviarle la factura</label>
+    <input type="email" id="cli-correo" inputmode="email" placeholder="correo@ejemplo.com">
+
+    <label>Notas para Maura <span class="op">opcional</span></label>
+    <textarea id="notas" placeholder="Ej: ya pagó en efectivo · falta cobrarle el IVA"></textarea>
+
+    <button class="enviar" id="enviar" onclick="enviar()">Mandarle la solicitud a Maura</button>
+    <button class="wa" type="button" onclick="mandarLink()">💬 Mandarle el enlace por WhatsApp</button>
+    <!-- Copiar el enlace: no todos los clientes usan WhatsApp. Algunos piden
+         por correo, Messenger o mensaje. Con esto se pega donde sea. -->
+    <button class="copiar" type="button" onclick="copiarLink()">🔗 Copiar el enlace para pegarlo donde sea</button>
+    <div class="link-box" id="link-box"></div>
+    <div class="msg-err" id="e-general"></div>
+  </div>
+
+  <div class="card ok" id="ok">
+    <div class="tick">✅</div>
+    <h2>Enviada</h2>
+    <p style="color:#555">Ya le apareció a Maura en <b>Facturas pendientes</b>.</p>
+    <button class="agregar" style="margin-top:20px" onclick="location.reload()">Hacer otra</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<script src="piezas.js"></script>
+<script>
+const CFG = {
+  apiKey: "AIzaSyAzr0B8M-8PeJwK0XAaHDapyLPzsvmTThY",
+  authDomain: "ai-maura-06-26.firebaseapp.com",
+  projectId: "ai-maura-06-26",
+  storageBucket: "ai-maura-06-26.firebasestorage.app",
+  messagingSenderId: "279194148183",
+  appId: "1:279194148183:web:f96d4d94dff8c8d2c7b212"
+};
+firebase.initializeApp(CFG);
+const db = firebase.firestore();
+const $ = id => document.getElementById(id);
+const IVA = 0.16;
+const fmt = n => '$' + Number(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+// PIEZAS viene de piezas.js: [codigoInterno, nombre, claveSAT, vecesFacturada]
+//
+// DE DÓNDE SALE LA CLAVE SAT: se cruzó el Buscador SAT contra las 2,577
+// facturas REALES del negocio y salió que en 169 piezas NO coincidían. Ahí
+// manda la factura, no el buscador — esa clave ya se timbró y el SAT la
+// aceptó. Ejemplo: para TRACTOCAMIÓN el buscador decía 25172600 y en las
+// facturas son 25102100, usada 77 veces.
+const norm = s => (s||'').toString().toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+const IDX = (typeof PIEZAS !== 'undefined' ? PIEZAS : []).map(p => ({
+  ci: p[0], nom: p[1], sat: p[2], veces: p[3] || 0, busca: norm(p[0] + ' ' + p[1] + ' ' + p[2])
+}));
+
+// Busca por TODAS las palabras, en cualquier orden: "abanico kw" encuentra
+// "ABANICO DE MOTOR KW USADO". Escribir el código interno también funciona.
+//
+// EL ORDEN IMPORTA MÁS QUE ENCONTRAR. Sin puntaje, escribir "inyector isx"
+// sacaba primero "TAPA DE ÁRBOL DE INYECTOR ISX USADA" en vez del inyector —
+// el vendedor escoge el primero y se factura la pieza equivocada. Por eso
+// se puntea: lo que EMPIEZA con lo que escribiste va arriba.
+function puntaje(p, q, t){
+  const n = norm(p.nom);
+  let s = 0;
+  if (p.ci.toLowerCase() === q) s += 1000;        // tecleó el código exacto: no hay duda
+  // El nombre exacto vale MENOS que el historial a propósito. La base trae
+  // entradas cortas y genéricas ("TRACTOCAMION") que nunca se han facturado,
+  // junto a la que sí se usa 77 veces ("TRACTOCAMION USADO EN LAS CONDICIONES…").
+  // Si el nombre exacto pesara más, saldría siempre la que nadie usa.
+  if (n === q) s += 300;
+  if (n.startsWith(q)) s += 400;                  // empieza con lo que escribió
+  if (n.includes(q)) s += 200;                    // la frase completa, junta
+  t.forEach(x => {                                // cada palabra, según qué tan al principio
+    const i = n.indexOf(x);
+    if (i === 0) s += 60; else if (i > 0) s += Math.max(5, 40 - i);
+  });
+  // LA SEÑAL MÁS FUERTE: si esa pieza YA se ha facturado, casi seguro es la
+  // que busca el vendedor. Sin esto, "inyector isx" sacaba primero una TAPA
+  // de árbol de inyector en vez del inyector que se ha vendido 59 veces.
+  if (p.veces > 0) s += 250 + Math.min(200, p.veces * 4);
+  s -= Math.min(30, n.length / 4);                // a igualdad, gana el nombre más corto
+  return s;
+}
+// NO se exigen TODAS las palabras, a propósito. El inyector que más se vende
+// se llama "INYECTORES RECON A CAMBIO" — no dice "ISX" por ningún lado. Con
+// filtro estricto, escribir "inyector isx" sacaba una TAPA DE ÁRBOL con cero
+// facturas y escondía el inyector de 60. Un vendedor con prisa escoge el
+// primero y se factura la pieza equivocada, con la clave SAT equivocada.
+// Ahora entra todo lo que empate con AL MENOS una palabra, y el puntaje
+// decide: las que empatan con todas van arriba, pero el historial de
+// facturación puede rescatar a una que solo empate con una.
+function buscar(q){
+  const qn = norm(q);
+  const t = qn.split(' ').filter(Boolean);
+  if (!t.length) return [];
+  const r = [];
+  for (const p of IDX) {
+    let n = 0;
+    for (const x of t) if (p.busca.includes(x)) n++;
+    if (n) r.push({ p, s: puntaje(p, qn, t) + n * 90 - (t.length - n) * 70 });
+  }
+  return r.sort((a, b) => b.s - a.s).slice(0, 40).map(x => x.p);
+}
+
+// ── Piezas ya anotadas ──────────────────────────────────────────────
+// Se guardan aquí, NO en el formulario. Así cada pieza queda como su propio
+// renglón visible y agregar otra no borra la anterior.
+let ITEMS = [];
+let editando = null;          // índice que se está corrigiendo, o null
+let elegida = null;           // la pieza escogida en el buscador
+
+function guardarPieza(){
+  const nom = ($('q').value || '').trim();
+  const cant = Number($('cant').value) || 0;
+  const prec = Number($('prec').value) || 0;
+  const falla = m => { $('e-pieza').textContent = m; $('e-pieza').style.display = 'block'; };
+  $('e-pieza').style.display = 'none';
+  if (!nom) return falla('Escoge o escribe la pieza.');
+  if (cant < 1) return falla('La cantidad debe ser 1 o más.');
+  if (!(prec > 0)) return falla('Falta el precio.');
+
+  const it = {
+    codigoInterno: (elegida && elegida.nom === nom) ? elegida.ci : ($('q').dataset.ci || ''),
+    pieza: nom,
+    claveSAT: (elegida && elegida.nom === nom) ? elegida.sat : ($('q').dataset.sat || ''),
+    cantidad: cant, precioSinIva: prec
+  };
+  if (editando !== null) { ITEMS[editando] = it; editando = null; $('btn-add').textContent = '＋ Agregar esta pieza'; }
+  else ITEMS.push(it);
+  limpiarAlta();
+  pintarLista();
+  $('q').focus();
+}
+function limpiarAlta(){
+  $('q').value = ''; $('q').dataset.ci = ''; $('q').dataset.sat = '';
+  $('cant').value = 1; $('prec').value = '';
+  $('chips').style.display = 'none'; $('chips').innerHTML = '';
+  $('alta').classList.remove('listo');
+  elegida = null;
+}
+function editarItem(i){
+  const it = ITEMS[i];
+  $('q').value = it.pieza; $('q').dataset.ci = it.codigoInterno; $('q').dataset.sat = it.claveSAT;
+  $('cant').value = it.cantidad; $('prec').value = it.precioSinIva;
+  elegida = { ci: it.codigoInterno, sat: it.claveSAT, nom: it.pieza };
+  $('chips').innerHTML = chipsDe(it); $('chips').style.display = 'flex';
+  $('alta').classList.add('listo');
+  editando = i;
+  $('btn-add').textContent = '✔ Guardar el cambio';
+  $('alta').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+function borrarItem(i){
+  ITEMS.splice(i, 1);
+  if (editando === i) { editando = null; limpiarAlta(); $('btn-add').textContent = '＋ Agregar esta pieza'; }
+  pintarLista();
+}
+function chipsDe(it){
+  return (it.codigoInterno ? '<span class="chip">Código ' + it.codigoInterno + '</span>' : '')
+       + (it.claveSAT ? '<span class="chip">SAT ' + it.claveSAT + '</span>'
+                      : '<span class="chip" style="background:#FDECEA;border-color:#E4B3AC;color:#B03A2E">sin clave SAT</span>');
+}
+
+// Cada pieza muestra SU propio desglose: precio unitario, subtotal, IVA y
+// total. Los vendedores lo piden así para que Maura lo capture desglosado.
+function pintarLista(){
+  const c = $('lista');
+  if (!ITEMS.length) { c.innerHTML = '<div class="vacio-lista">Todavía no agregas ninguna pieza.</div>'; calcular(); return; }
+  c.innerHTML = ITEMS.map((it, i) => {
+    const sub = it.cantidad * it.precioSinIva;
+    const iva = sub * IVA;
+    const cu  = it.precioSinIva * (1 + IVA);
+    return '<div class="item">'
+      + '<div class="cab">'
+        + '<div class="nom">' + (i + 1) + '. ' + esc(it.pieza) + '</div>'
+        + '<div class="acc">'
+          + '<button class="ico" type="button" title="Editar" onclick="editarItem(' + i + ')">✏️</button>'
+          + '<button class="ico del" type="button" title="Quitar" onclick="borrarItem(' + i + ')">🗑</button>'
+        + '</div>'
+      + '</div>'
+      + '<div class="chips cods">' + chipsDe(it) + '</div>'
+      + '<div class="desglose">'
+        + fila(it.cantidad + ' × ' + fmt(it.precioSinIva) + ' sin IVA', fmt(sub))
+        + fila('IVA 16%', fmt(iva))
+        + fila('Precio unitario CON IVA', fmt(cu))
+        + '<div class="r tot"><span>Total de esta pieza</span><b>' + fmt(sub + iva) + '</b></div>'
+      + '</div>'
+    + '</div>';
+  }).join('');
+  calcular();
+}
+const fila = (a, b) => '<div class="r"><span>' + a + '</span><b>' + b + '</b></div>';
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function calcular(){
+  const sub = ITEMS.reduce((s, r) => s + r.cantidad * r.precioSinIva, 0);
+  $('t-sub').textContent = fmt(sub);
+  $('t-iva').textContent = fmt(sub * IVA);
+  $('t-tot').textContent = fmt(sub * (1 + IVA));
+  return sub;
+}
+
+// ── Buscador ────────────────────────────────────────────────────────
+(function conectarBuscador(){
+  const inp = $('q'), caja = $('res');
+  let sel = -1, lista = [];
+  const pintar = () => {
+    if (!lista.length) {
+      caja.innerHTML = '<div class="vacio">No encontré esa pieza — puedes escribirla a mano</div>';
+      caja.style.display = 'block'; return;
+    }
+    caja.innerHTML = lista.map((p, k) =>
+      '<div class="' + (k === sel ? 'sel' : '') + '" data-k="' + k + '">'
+      + '<div class="pz">' + esc(p.nom) + '</div>'
+      + '<div class="mt">' + p.ci + '  ·  SAT ' + p.sat
+      + (p.veces ? '  ·  ✓ facturada ' + p.veces + (p.veces === 1 ? ' vez' : ' veces') : '')
+      + '</div></div>').join('');
+    caja.style.display = 'block';
+    [...caja.children].forEach(el => {
+      if (el.dataset.k !== undefined) el.onmousedown = ev => { ev.preventDefault(); escoger(lista[+el.dataset.k]); };
+    });
+  };
+  inp.oninput = () => { sel = -1; elegida = null; lista = buscar(inp.value); pintar(); };
+  inp.onblur  = () => setTimeout(() => { caja.style.display = 'none'; }, 150);
+  inp.onfocus = () => { if (inp.value && !elegida) { lista = buscar(inp.value); pintar(); } };
+  inp.onkeydown = e => {
+    if (!lista.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(sel + 1, lista.length - 1); pintar(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(sel - 1, 0); pintar(); }
+    else if (e.key === 'Enter' && sel >= 0) { e.preventDefault(); escoger(lista[sel]); }
+  };
+})();
+function escoger(p){
+  elegida = p;
+  $('q').value = p.nom; $('q').dataset.ci = p.ci; $('q').dataset.sat = p.sat;
+  $('res').style.display = 'none';
+  $('chips').innerHTML = chipsDe({ codigoInterno: p.ci, claveSAT: p.sat });
+  $('chips').style.display = 'flex';
+  $('alta').classList.add('listo');
+  $('prec').focus();
+}
+
+// ── Mandarle el enlace al cliente ───────────────────────────────────
+// AMARRE: si el vendedor ya anotó piezas, primero se guarda su mitad y el
+// enlace se lleva ese folio. Cuando el cliente llena la suya, las dos se
+// juntan en UNA sola solicitud. Sin esto llegarían dos pedazos sueltos y
+// Maura tendría que adivinar cuál va con cuál.
+let folioLink = null;
+
+// Arma el enlace. Si ya hay piezas anotadas, primero guarda esa mitad y le
+// cuelga el folio; si no, devuelve el enlace pelón (el mismo del QR).
+async function obtenerLink(btn){
+  const txtOrig = btn ? btn.textContent : '';
+  try {
+    if (ITEMS.length && !folioLink) {
+      if (btn) { btn.textContent = 'Preparando…'; btn.disabled = true; }
+      folioLink = 'sol_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      await db.collection('solicitudes_factura').doc(folioLink).set(armar(folioLink, 'esperando-cliente'));
+    }
+  } catch (e) {
+    console.error(e); folioLink = null;
+    // Si no se pudo guardar, el enlace se manda igual: más vale que el
+    // cliente mande sus datos a que se caiga todo por esto.
+  }
+  if (btn) { btn.textContent = txtOrig; btn.disabled = false; }
+  return location.href.replace(/factura-vendedor\.html.*$/, 'factura.html')
+       + (folioLink ? '?f=' + folioLink : '');
+}
+
+async function mandarLink(){
+  const url = await obtenerLink(document.querySelector('.wa'));
+  const txt = 'Hola, para hacerte tu factura llena aquí tus datos (te toma 1 minuto):\n' + url;
+  window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
+}
+
+async function copiarLink(){
+  const url = await obtenerLink(document.querySelector('.copiar'));
+  const caja = $('link-box');
+  let copiado = false;
+  try { await navigator.clipboard.writeText(url); copiado = true; } catch (e) {
+    // Sin permiso de portapapeles (pasa en algunos navegadores viejos y en
+    // páginas abiertas como archivo). Se muestra el enlace para copiarlo a mano.
+  }
+  caja.innerHTML = '<b>' + (copiado ? '✅ Copiado — ya lo puedes pegar' : '👇 Cópialo a mano')
+                 + (folioLink ? ' <span style="font-weight:400;color:#5c7a66">· amarrado a esta venta</span>' : '')
+                 + '</b>' + url;
+  caja.style.display = 'block';
+  if (!copiado) {
+    const r = document.createRange(); r.selectNodeContents(caja);
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+}
+
+function armar(id, estado){
+  const sub = ITEMS.reduce((s, r) => s + r.cantidad * r.precioSinIva, 0);
+  return {
+    id, estado, origen: 'vendedor',
+    nombre: $('cli-nombre').value.trim(),
+    rfc: $('cli-rfc').value.trim().toUpperCase(),
+    correo: $('cli-correo').value.trim(),
+    notas: $('notas').value.trim(),
+    piezas: ITEMS.map(it => {
+      const s = +(it.cantidad * it.precioSinIva).toFixed(2);
+      return Object.assign({}, it, {
+        importe: s, iva: +(s * IVA).toFixed(2),
+        precioUnitarioConIva: +(it.precioSinIva * (1 + IVA)).toFixed(2),
+        totalConIva: +(s * (1 + IVA)).toFixed(2)
+      });
+    }),
+    subtotal: +sub.toFixed(2), iva: +(sub * IVA).toFixed(2), total: +(sub * (1 + IVA)).toFixed(2),
+    creadoEn: new Date().toISOString()
+  };
+}
+
+let mandando = false;
+async function enviar(){
+  if (mandando) return;
+  $('e-general').style.display = 'none';
+  const falla = m => { $('e-general').textContent = m; $('e-general').style.display = 'block'; };
+  if (!ITEMS.length) return falla('Agrega al menos una pieza.');
+  if (editando !== null) return falla('Termina de guardar el cambio de la pieza que estás editando.');
+  if (!($('cli-nombre').value.trim() || $('cli-rfc').value.trim()))
+    return falla('Pon al menos el nombre o el RFC del cliente.');
+
+  mandando = true; $('enviar').disabled = true; $('enviar').textContent = 'Enviando…';
+  // Si ya se le mandó el enlace al cliente, se ACTUALIZA ese mismo folio en
+  // vez de crear otro — si no, Maura vería la misma venta dos veces.
+  const id = folioLink || ('sol_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8));
+  try {
+    await db.collection('solicitudes_factura').doc(id).set(armar(id, 'pendiente'), { merge: true });
+    $('form').style.display = 'none'; $('ok').style.display = 'block'; window.scrollTo(0, 0);
+  } catch (e) {
+    console.error(e);
+    mandando = false; $('enviar').disabled = false;
+    $('enviar').textContent = 'Reintentar envío';
+    falla('No se pudo enviar. Revisa tu internet y vuelve a intentar.');
+  }
+}
+
+pintarLista();
+</script>
+</body>
+</html>
