@@ -304,7 +304,24 @@ async function enviar(){
     if (archivo) {
       $('enviar').textContent = 'Subiendo tu constancia…';
       const ext = (archivo.name.match(/\.[a-z0-9]+$/i) || ['.jpg'])[0];
-      const ref = st.ref('constancias/' + id + ext);
+      // El nombre del archivo lleva 128 bits al azar además del folio.
+      //
+      // Por qué: la constancia trae el RFC y el domicilio fiscal del cliente,
+      // y la carpeta `constancias/` tiene la lectura abierta a propósito —
+      // sin ella, getDownloadURL() no le responde al cliente y se le cae la
+      // solicitud a medias. Con lectura abierta, quien adivine la ruta abre
+      // el archivo. Con este pedazo al azar la ruta ya no se adivina: son
+      // 340 sextillones de combinaciones, no se sacan probando.
+      //
+      // Se deja el folio adelante para poder rastrear de quién es cada
+      // archivo con solo verlo.
+      const azar = (function(){
+        const a = new Uint8Array(16);
+        (window.crypto || window.msCrypto).getRandomValues(a);
+        return Array.prototype.map.call(a, function(b){
+          return ('0' + b.toString(16)).slice(-2); }).join('');
+      })();
+      const ref = st.ref('constancias/' + id + '_' + azar + ext);
       await ref.put(archivo, { contentType: archivo.type || 'application/octet-stream' });
       urlArchivo = await ref.getDownloadURL();
       nombreArchivo = archivo.name;
