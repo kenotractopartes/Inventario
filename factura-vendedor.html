@@ -546,6 +546,7 @@ async function enviar(){
   const id = folioLink || ('sol_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8));
   try {
     await db.collection('solicitudes_factura').doc(id).set(armar(id, 'pendiente'), { merge: true });
+    recordarCorreo();   // para que la próxima vez ya salga solo
     $('form').style.display = 'none'; $('ok').style.display = 'block'; window.scrollTo(0, 0);
   } catch (e) {
     console.error(e);
@@ -574,6 +575,30 @@ async function enviar(){
 // propósito: nunca debe autollenarse.
 // ════════════════════════════════════════════════════════════════════
 let CLIENTES = [];
+let CORREOS = {};
+
+// El correo NO viene en la factura (se revisaron los 668 CFDI de 2026: cero
+// direcciones). Así que se aprende: cada solicitud que sale con RFC y correo
+// deja el dato guardado y la próxima vez se autollena solo.
+//
+// Nunca truena la venta por esto: si falla el guardado, se ignora en
+// silencio. La solicitud ya se mandó, que es lo que importa.
+function recordarCorreo(){
+  try {
+    const rfc = ($('cli-rfc').value || '').trim().toUpperCase();
+    const correo = ($('cli-correo').value || '').trim();
+    // El RFC es la llave, así que tiene que verse como RFC de verdad. Y
+    // Firebase no admite . # $ / [ ] en las llaves — un RFC nunca los trae,
+    // pero si alguien teclea basura, aquí se detiene.
+    if(!/^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/.test(rfc)) return;
+    if(!correo || correo.indexOf('@') < 1 || correo.length > 119) return;
+    if(!appInv.auth().currentUser) return;
+    if(CORREOS[rfc] && CORREOS[rfc].c === correo) return;   // ya estaba igual
+    appInv.database().ref('correos_clientes/' + rfc)
+      .set({ c: correo, t: new Date().toISOString() })
+      .catch(function(e){ console.warn('correo:', e); });
+  } catch(e){ console.warn('correo:', e); }
+}
 (function buscadorClientes(){
   const inp = $('cli-nombre'), caja = $('res-cli'), ayuda = $('ayuda-cli');
   let sel = -1, lista = [];
@@ -585,15 +610,28 @@ let CLIENTES = [];
       ayuda.textContent = 'Para que se autocompleten tus clientes, entra primero al inventario. Mientras, escríbelo a mano.';
       return;
     }
-    appInv.database().ref('catalogo_clientes').once('value').then(function(snap){
-      const v = snap.val() || {};
+    // Dos lecturas: el catálogo (sale de las 2,577 facturas viejas) y los
+    // correos. Van aparte porque el correo NO viene en la factura: el CFDI
+    // no lo trae. Se revisaron los 668 CFDI de 2026 y no hay una sola
+    // dirección. Así que el correo lo APRENDE el sistema: cada vez que se
+    // manda una solicitud con RFC y correo, se guarda para la próxima.
+    Promise.all([
+      appInv.database().ref('catalogo_clientes').once('value'),
+      appInv.database().ref('correos_clientes').once('value').catch(function(){ return null; })
+    ]).then(function(res){
+      const v = res[0].val() || {};
+      CORREOS = (res[1] && res[1].val()) || {};
       CLIENTES = Object.keys(v).map(function(k){
         const c = v[k];
+        const mail = CORREOS[c.r];
         return { rfc:c.r, nom:c.n, reg:c.g, uso:c.u, cp:c.c, n:c.f||0,
+                 correo: mail && mail.c ? mail.c : '',
                  revisar:!!c.v, obsoleto:!!c.o, busca: norm(c.n + ' ' + c.r) };
       });
+      const conCorreo = CLIENTES.filter(function(c){ return c.correo; }).length;
       ayuda.className = 'ayuda-cli bien';
-      ayuda.textContent = 'Escribe y busca entre tus ' + CLIENTES.length + ' clientes.';
+      ayuda.textContent = 'Escribe y busca entre tus ' + CLIENTES.length + ' clientes'
+        + (conCorreo ? ' · ' + conCorreo + ' ya traen correo guardado' : '') + '.';
     }).catch(function(e){
       console.warn('catalogo:', e);
       ayuda.className = 'ayuda-cli aviso';
@@ -645,16 +683,25 @@ let CLIENTES = [];
     escogido = c;
     inp.value = c.nom;
     $('cli-rfc').value = c.rfc;
+    // El correo solo se pone si el campo está vacío: si el vendedor ya
+    // escribió uno, ése manda — puede ser que el cliente lo cambió.
+    let correoPuesto = false;
+    if(c.correo && !$('cli-correo').value.trim()){
+      $('cli-correo').value = c.correo;
+      correoPuesto = true;
+    }
     caja.style.display = 'none';
     const h = $('cli-hit');
     h.innerHTML = '&#9989; <b>' + esc(c.nom) + '</b> &middot; RFC ' + c.rfc
       + (c.reg ? ' &middot; régimen ' + c.reg : '') + (c.cp ? ' &middot; CP ' + c.cp : '')
       + (c.uso ? ' &middot; uso ' + c.uso : '')
       + '<br><span style="color:#5c7a66">Le has facturado ' + c.n + (c.n === 1 ? ' vez' : ' veces') + '.</span>'
+      + (correoPuesto ? '<div style="color:#1A5C30;margin-top:3px">&#9993; Le puse el correo de la última vez: <b>'
+          + esc(c.correo) + '</b> — si cambió, corrígelo.</div>' : '')
       + (c.revisar ? '<div class="warn">&#9888; Ese RFC no pasa la verificación del SAT. Pídele su constancia.</div>' : '')
       + (c.obsoleto ? '<div class="obs">&#9888; Su régimen ' + c.reg + ' ya no existe (se derogó en 2022). Confirma su constancia.</div>' : '');
     h.style.display = 'block';
-    $('cli-correo').focus();
+    if(!correoPuesto) $('cli-correo').focus();
   }
 
   inp.oninput = function(){
