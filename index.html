@@ -132,6 +132,17 @@
   .btn-hdr:hover { background: rgba(255,255,255,.24); }
   .btn-hdr.deshacer { border-color: rgba(224,122,95,.9); color: #ffd9cf; }
   .btn-hdr.dormidas { border-color: rgba(140,175,210,.95); color: #dbe9f6; background: rgba(120,160,200,.20); }
+
+  /* ═══════════════ ENGRANES — SOLO EN EL CELULAR ═══════════════
+     En computadora NO existen: se quedan en display:none y la pantalla
+     de Raúl no cambia ni un pixel. Solo se encienden abajo, dentro del
+     @media de 480px. */
+  .eng, .eng-panel, .eng-tapa { display: none; }
+  /* El buscador duplicado también: solo existe en el celular.
+     Se esconde desde AQUÍ y no con style="display:none" en la etiqueta,
+     porque un estilo escrito en la etiqueta le gana a la hoja de estilos
+     y el @media del celular nunca lo hubiera podido prender. */
+  #buscador-arriba { display: none; }
   .info-bar strong { color: #1a1a1a; }
 
   /* RESPONSIVE TWEAKS */
@@ -162,6 +173,50 @@
     table { font-size: 14px; }
     table td { padding: 6px 8px !important; word-break: break-word; }
     .card-title { font-size: 15px; }
+
+    /* ═══════════ PANTALLA DE INICIO DEL CELULAR (ago 2026) ═══════════
+       En el teléfono cabía tan poco que la primera pantalla era pura
+       botonera y el buscador quedaba hasta abajo. Aquí se recoge todo:
+       los botones de arriba se meten en un engrane a la izquierda, y
+       Fotos / Registrar Camión / Compra de Mercancía en otro a la
+       derecha. El buscador se sube. NADA de esto pasa en computadora. */
+    header { position: relative; }
+    .eng { display: inline-flex; align-items: center; justify-content: center;
+           width: 36px; height: 36px; padding: 0; font-size: 17px; line-height: 1;
+           border-radius: 9px; border: 1px solid rgba(255,255,255,.35);
+           background: rgba(255,255,255,.14); color: #f2ede2; cursor: pointer; }
+    .eng:active { background: rgba(255,255,255,.3); }
+    /* Los originales se esconden: ahora viven adentro del engrane */
+    header .btn-hdr { display: none !important; }
+
+    .eng-panel.abierto { display: block; position: absolute; top: calc(100% + 8px);
+           z-index: 9200; background: #fff; border: 1px solid #d8d2c6;
+           border-radius: 11px; padding: 4px; min-width: 232px;
+           box-shadow: 0 12px 34px rgba(0,0,0,.32); }
+    .eng-panel.izq.abierto { left: 0; }
+    .eng-panel.der.abierto { right: 0; }
+    .eng-panel button { display: block; width: 100%; text-align: left; background: #fff;
+           border: 0; border-bottom: 1px solid #f2efe7; padding: 14px 13px;
+           font-size: 14.5px; font-weight: 700; color: #1a1a1a; cursor: pointer;
+           font-family: Arial, sans-serif; border-radius: 7px; }
+    .eng-panel button:last-child { border-bottom: 0; }
+    .eng-panel button:active { background: #f2efe7; }
+    /* Tapa transparente: un toque afuera cierra el engrane */
+    .eng-tapa.abierta { display: block; position: fixed; inset: 0; z-index: 9100; }
+
+    /* Los que se mudaron al engrane derecho */
+    #btn-fotos-inicio, #wrap-camion-nuevo, #wrap-compra-merc { display: none !important; }
+
+    /* El buscador duplicado, hasta arriba de Inicio */
+    #buscador-arriba { display: block; margin: 0 0 14px; }
+
+    /* Más delgaditos, para que suba toda la información. Solo los de la
+       pantalla de Inicio: los btn-mini de las demás vistas no se tocan. */
+    #view-camiones .btn-grid-mini .btn-mini {
+      padding: 7px 8px !important; font-size: 12.5px !important;
+      min-height: 34px !important; }
+    #view-camiones .btn-grid-mini { gap: 6px !important; margin-bottom: 12px !important; }
+    #view-camiones > h3:first-of-type { margin: 0 0 8px !important; font-size: 15px; }
   }
 
   /* PRINT */
@@ -176,6 +231,11 @@
 
 <header style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
   <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+    <!-- ENGRANE IZQUIERDO — SOLO EN EL CELULAR.
+         Adentro van los tres botones de al lado (Últimos, Historial, Deshacer)
+         más Dormidas cuando aparece. En la computadora este engrane NO existe
+         y los botones se ven sueltos, tal como Raúl los conoce. -->
+    <button class="eng" id="eng-izq" onclick="engAbrir('izq')" title="Herramientas" aria-label="Herramientas">⚙️</button>
     <button class="btn-hdr dormidas" id="btn-dormidas" onclick="verDormidas()" title="Piezas que llevan mucho sin venderse" style="display:none;">🐌 Dormidas</button>
     <button class="btn-hdr" onclick="renderCamiones(); openModal('modal-ultimos')" title="Últimos registros creados">📋 Últimos</button>
     <button class="btn-hdr solo-editor" onclick="renderHistorialAcciones(); openModal('modal-historial')" title="Historial de acciones de esta sesión">🕐 Historial</button>
@@ -184,8 +244,27 @@
   <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
     <div id="sync-estado" style="font-size:12px; color:#e8e2d5; font-family:Arial,sans-serif; font-weight:600; white-space:nowrap;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#c9a24b;margin-right:6px;"></span>Conectando…</div>
     <div id="modo-badge" style="background:#fff; padding:3px 10px; border-radius:2px;"></div>
+    <!-- ENGRANE DERECHO — SOLO EN EL CELULAR. Fotos, Registrar Camión y
+         Compra de Mercancía. Al vendedor en Solo Ver le sale nada más Fotos:
+         las otras dos llevan "solo-editor", igual que los botones originales. -->
+    <button class="eng" id="eng-der" onclick="engAbrir('der')" title="Más opciones" aria-label="Más opciones">⚙️</button>
+  </div>
+
+  <!-- Las dos cajitas que se abren. Viven aquí adentro para poder colgarse
+       del encabezado; en pantalla grande nunca se muestran. -->
+  <div class="eng-panel izq" id="eng-panel-izq">
+    <button id="eng-dormidas" onclick="engCerrar(); verDormidas()">🐌 Dormidas</button>
+    <button onclick="engCerrar(); renderCamiones(); openModal('modal-ultimos')">📋 Últimos registros</button>
+    <button class="solo-editor" onclick="engCerrar(); renderHistorialAcciones(); openModal('modal-historial')">🕐 Historial de acciones</button>
+    <button class="solo-editor" onclick="engCerrar(); deshacerUltima()">↩︎ Deshacer lo último</button>
+  </div>
+  <div class="eng-panel der" id="eng-panel-der">
+    <button onclick="engCerrar(); verPiezasConFotos()">📷 Fotos<span id="btn-fotos-count-eng"></span></button>
+    <button class="solo-editor" onclick="engCerrar(); openCamionModal()">🚛 Registrar Camión Nuevo</button>
+    <button class="solo-editor" onclick="engCerrar(); abrirCompraMercancia()">🛒 Compra de Mercancía</button>
   </div>
 </header>
+<div class="eng-tapa" id="eng-tapa" onclick="engCerrar()"></div>
 
 <!-- CANDADO DE ACCESO (login real — Firebase Auth, base inventario-julio-26) -->
 <div id="lock-screen" style="position:fixed;inset:0;z-index:100000;background:#17140f;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:Georgia,serif;">
@@ -230,6 +309,19 @@
 
 <!-- INICIO + CAMIONES UNIFICADOS -->
 <section class="view active" id="view-camiones">
+
+  <!-- BUSCADOR DE ARRIBA — SOLO CELULAR (ago 2026).
+       Es el MISMO buscador de hasta abajo, duplicado aquí. El de abajo se
+       queda donde estaba: en la computadora esta copia ni se dibuja.
+       Los dos escriben en la misma caja, así que no importa en cuál teclee. -->
+  <div id="buscador-arriba">
+    <div style="display:flex; gap:8px; align-items:center;">
+      <input type="text" id="filtro-camiones-top" placeholder="🔍 Buscar folio, marca, serie, VIN, motor..."
+             oninput="sincroBuscador(this)" style="flex:1; min-width:0;">
+      <button class="btn btn-mini" onclick="limpiarBuscador()" title="Limpiar búsqueda" style="white-space:nowrap;">✕ Limpiar</button>
+    </div>
+  </div>
+
   <h3 style="margin-top:0;">Ver todas las piezas de:</h3>
   <div class="btn-grid btn-grid-mini" style="margin-bottom:18px">
     <button class="btn btn-mini" style="background:#ffe9a8; color:#1a1a1a; border-color:#d4a017;" onclick="verTodasPiezas('motores')">Motor</button>
@@ -238,15 +330,22 @@
     <button class="btn btn-mini" style="background:#cfe9e9; color:#1a1a1a; border-color:#6db8a0;" onclick="verTodasPiezas('mancuernas')">Mancuerna</button>
     <button class="btn btn-mini" style="background:#f5d6e8; color:#1a1a1a; border-color:#c87da8;" onclick="verTodasPiezas('cabinas')">Cabina</button>
     <button class="btn btn-mini" style="background:#f0d8d0; color:#1a1a1a; border-color:#c89a8a;" onclick="verInyectoresEstados()">Inyectores</button>
-    <button class="btn btn-mini" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800; margin-left:16px;" onclick="verPiezasConFotos()" title="Ver las piezas que ya tienen fotos">📷 Fotos<span id="btn-fotos-count"></span></button>
+    <button class="btn btn-mini" id="btn-fotos-inicio" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800; margin-left:16px;" onclick="verPiezasConFotos()" title="Ver las piezas que ya tienen fotos">📷 Fotos<span id="btn-fotos-count"></span></button>
     <button class="btn btn-mini" style="background:#fff; color:#185FA5; border-color:#185FA5; font-weight:800;" onclick="verPiezasSinFotos()" title="Ver las piezas a las que les falta foto">📷❌ Sin fotos<span id="btn-sinfotos-count"></span></button>
   </div>
 
-  <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="openCamionModal()">🚛 Registrar Camión Nuevo 🚛</button>
-  <div style="height: 10px"></div>
+  <!-- Envueltos para poder esconderlos CON su espacio en el celular
+       (allá viven dentro del engrane de la derecha). En computadora los
+       envoltorios no hacen nada y todo se ve igual que siempre. -->
+  <div id="wrap-camion-nuevo" class="solo-editor">
+    <button class="btn btn-block" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="openCamionModal()">🚛 Registrar Camión Nuevo 🚛</button>
+    <div style="height: 10px"></div>
+  </div>
   <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #1a1a1a; color:#1a1a1a; font-weight:800;" onclick="addPiezaSuelta()">🔧 Agregar Pieza Suelta (sin camión) 🔧</button>
-  <div style="height: 10px"></div>
-  <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #2e7d46; color:#2e7d46; font-weight:800;" onclick="abrirCompraMercancia()">🛒 Compra de Mercancía 🛒</button>
+  <div id="wrap-compra-merc" class="solo-editor">
+    <div style="height: 10px"></div>
+    <button class="btn btn-block" style="background:#fff; border:2px solid #2e7d46; color:#2e7d46; font-weight:800;" onclick="abrirCompraMercancia()">🛒 Compra de Mercancía 🛒</button>
+  </div>
   <button class="btn btn-block solo-editor" style="background:#fff; border:2px solid #7a5ea8; color:#7a5ea8; font-weight:800;" onclick="abrirConteo()">📋 Conteo Físico (inventario cíclico) 📋</button>
 
   <!-- jul 2026 — ADELANTAR FACTURA.
@@ -264,11 +363,11 @@
 
   <h3 style="margin-top:24px">Buscador de Piezas y Camiones</h3>
   <div style="display:flex; gap:8px; align-items:center; max-width:640px;">
-    <input type="text" id="filtro-camiones" placeholder="🔍 Buscar folio, marca, serie, VIN, motor..." oninput="renderCamiones()" style="flex:1; min-width:0;">
-    <button class="btn btn-mini" onclick="document.getElementById('filtro-camiones').value=''; renderCamiones();" title="Limpiar búsqueda" style="white-space:nowrap;">✕ Limpiar</button>
+    <input type="text" id="filtro-camiones" placeholder="🔍 Buscar folio, marca, serie, VIN, motor..." oninput="sincroBuscador(this)" style="flex:1; min-width:0;">
+    <button class="btn btn-mini" onclick="limpiarBuscador()" title="Limpiar búsqueda" style="white-space:nowrap;">✕ Limpiar</button>
   </div>
   <div id="aviso-busqueda" style="display:none; margin-top:6px; padding:6px 12px; background:#fff3cd; border-radius:5px; font-size:12px; color:#856404; font-weight:600;">
-    🔍 Filtro activo: "<span id="aviso-busqueda-texto"></span>" · <a href="#" onclick="document.getElementById('filtro-camiones').value=''; renderCamiones(); return false;" style="color:#c0392b; text-decoration:underline;">✕ Limpiar</a>
+    🔍 Filtro activo: "<span id="aviso-busqueda-texto"></span>" · <a href="#" onclick="limpiarBuscador(); return false;" style="color:#c0392b; text-decoration:underline;">✕ Limpiar</a>
   </div>
   <div id="contador-camiones" style="margin-top:6px; font-size:12px; color:#888; font-weight:600;"></div>
 
@@ -6867,6 +6966,67 @@ function verPiezasSinFotos(){
   toggleSinFotosFiltro();
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// ENGRANES Y BUSCADOR DE ARRIBA — SOLO CELULAR (ago 2026)
+// ───────────────────────────────────────────────────────────────────
+// En el teléfono la primera pantalla era pura botonera. Los botones del
+// encabezado se metieron en un engrane a la izquierda, y Fotos /
+// Registrar Camión / Compra de Mercancía en otro a la derecha. Además
+// el buscador se duplicó hasta arriba.
+//
+// TODO esto es cosmético y vive detrás de un @media de 480px: en la
+// computadora de Raúl los engranes están en display:none y la pantalla
+// que él conoce no cambia ni un pixel. Estas funciones existen en las
+// dos, pero allá nadie las llama porque los engranes no se ven.
+// ═══════════════════════════════════════════════════════════════════
+function engCerrar(){
+  ['izq','der'].forEach(function(l){
+    var p = document.getElementById('eng-panel-' + l);
+    if(p) p.classList.remove('abierto');
+  });
+  var t = document.getElementById('eng-tapa');
+  if(t) t.classList.remove('abierta');
+}
+
+function engAbrir(lado){
+  var p = document.getElementById('eng-panel-' + lado);
+  if(!p) return;
+  var yaEstaba = p.classList.contains('abierto');
+  engCerrar();
+  if(yaEstaba) return;              // segundo toque en el mismo: se cierra
+
+  // "Dormidas" solo se ofrece cuando de verdad hay piezas dormidas. El
+  // botón original se prende y se apaga por JS con style.display, así que
+  // aquí se copia ese mismo estado en vez de adivinarlo.
+  if(lado === 'izq'){
+    var orig = document.getElementById('btn-dormidas');
+    var item = document.getElementById('eng-dormidas');
+    if(item) item.style.display = (orig && orig.style.display !== 'none') ? 'block' : 'none';
+  }
+  p.classList.add('abierto');
+  var t = document.getElementById('eng-tapa');
+  if(t) t.classList.add('abierta');
+}
+
+// Las dos cajas del buscador escriben en la MISMA: no importa en cuál
+// teclee Raúl, la lista se filtra igual y la otra caja queda al día.
+function sincroBuscador(quien){
+  var abajo  = document.getElementById('filtro-camiones');
+  var arriba = document.getElementById('filtro-camiones-top');
+  if(!abajo) return;
+  if(quien && quien.id === 'filtro-camiones-top') abajo.value = quien.value;
+  else if(arriba) arriba.value = abajo.value;
+  renderCamiones();
+}
+
+function limpiarBuscador(){
+  var abajo  = document.getElementById('filtro-camiones');
+  var arriba = document.getElementById('filtro-camiones-top');
+  if(abajo)  abajo.value  = '';
+  if(arriba) arriba.value = '';
+  renderCamiones();
+}
+
 // Contadores de los botones "📷 Fotos" y "Sin fotos" del Inicio.
 function actualizarContadorFotosInicio(){
   var con = 0, sin = 0;
@@ -6878,6 +7038,9 @@ function actualizarContadorFotosInicio(){
   });
   var a = document.getElementById('btn-fotos-count');
   if(a) a.textContent = con ? ' (' + con + ')' : '';
+  // El mismo número, en la copia que vive dentro del engrane del celular
+  var ae = document.getElementById('btn-fotos-count-eng');
+  if(ae) ae.textContent = con ? ' (' + con + ')' : '';
   var b = document.getElementById('btn-sinfotos-count');
   if(b) b.textContent = sin ? ' (' + sin + ')' : '';
 }
