@@ -113,6 +113,14 @@
             border-radius:10px;padding:11px 12px;font-size:12.5px;color:#1A5C30;
             font-family:ui-monospace,monospace;word-break:break-all;line-height:1.5}
   .link-box b{display:block;font-family:inherit;font-size:13px;margin-bottom:5px}
+  .ayuda-cli{font-size:12.5px;color:#8a8378;margin-top:6px;line-height:1.4}
+  .ayuda-cli.bien{color:#1A5C30}
+  .ayuda-cli.aviso{color:#8a6d1a}
+  .cli-hit{background:#EAF5EE;border:1px solid #B9D9C5;border-radius:9px;padding:9px 11px;
+           margin-top:8px;font-size:12.5px;color:#1A5C30;display:none}
+  .cli-hit b{font-weight:800}
+  .cli-hit .warn{color:#B03A2E;font-weight:700;margin-top:4px}
+  .cli-hit .obs{color:#8a6d1a;font-weight:700;margin-top:4px}
   .nota{background:#FFF8E7;border-left:4px solid #C9A24B;border-radius:8px;
         padding:11px 13px;font-size:13.5px;color:#6b5720;margin-top:14px;line-height:1.4}
   .ok{display:none;text-align:center;padding:34px 20px}
@@ -167,10 +175,16 @@
     </div>
 
     <label>A nombre de quién <span class="op">empresa o persona</span></label>
-    <input type="text" id="cli-nombre" placeholder="Como viene en su constancia">
+    <div class="buscador">
+      <input type="text" id="cli-nombre" autocomplete="off" placeholder="Escribe y busca en tus clientes">
+      <div class="res" id="res-cli"></div>
+    </div>
+    <div class="ayuda-cli" id="ayuda-cli">Buscando entre tus clientes…</div>
 
     <label>RFC <span class="op">si lo tienes</span></label>
     <input type="text" id="cli-rfc" maxlength="13" autocapitalize="characters" placeholder="ABC123456XYZ">
+
+    <div class="cli-hit" id="cli-hit"></div>
 
     <label>Correo para enviarle la factura</label>
     <input type="email" id="cli-correo" inputmode="email" placeholder="correo@ejemplo.com">
@@ -197,6 +211,10 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<!-- auth + database: para leer el catálogo de clientes del inventario
+     reusando la sesión que el vendedor ya abrió allá. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" crossorigin="anonymous"></script>
 <script src="piezas.js"></script>
 <script>
 const CFG = {
@@ -207,8 +225,35 @@ const CFG = {
   messagingSenderId: "279194148183",
   appId: "1:279194148183:web:f96d4d94dff8c8d2c7b212"
 };
-firebase.initializeApp(CFG);
-const db = firebase.firestore();
+// ── OJO CON EL ORDEN DE ESTAS DOS CONEXIONES ──────────────────────────
+// La del INVENTARIO tiene que ser la PRINCIPAL (la "[DEFAULT]") y la de
+// Maura la de apodo. No es capricho:
+//
+// Firebase guarda la sesión con una llave que incluye el nombre de la
+// conexión: `firebase:authUser:<apiKey>:<nombre>`. El inventario abre la
+// suya como principal, así que su sesión quedó guardada bajo `[DEFAULT]`.
+// Si aquí le pusiéramos apodo, buscaría bajo ese apodo, no la hallaría,
+// y el vendedor vería "entra primero al inventario" AUNQUE ya haya
+// entrado. Se comprobó leyendo el propio SDK (`firebase:${k}:${api}:${n}`).
+//
+// De ahí sale el catálogo de clientes y de ahí viene la sesión: el
+// vendedor ya entró al inventario con su correo y contraseña, en este
+// mismo navegador y mismo dominio. No se le pide nada otra vez.
+const CFG_INV = {
+  apiKey: "AIzaSyB8MRNvbAhk7tJa731DolvnnFr_1S9imLk",
+  authDomain: "inventario-julio-26.firebaseapp.com",
+  databaseURL: "https://inventario-julio-26-default-rtdb.firebaseio.com",
+  projectId: "inventario-julio-26",
+  storageBucket: "inventario-julio-26.firebasestorage.app",
+  messagingSenderId: "237695179240",
+  appId: "1:237695179240:web:57f16b77af33aa00cdec5d"
+};
+const appInv  = firebase.apps.length ? firebase.app() : firebase.initializeApp(CFG_INV);
+// Y ésta, la de Maura, va con apodo. Aquí solo se ESCRIBE la solicitud;
+// no necesita sesión, así que el apodo no le estorba.
+let appMaura; try { appMaura = firebase.app('maura'); } catch(e){ appMaura = firebase.initializeApp(CFG, 'maura'); }
+const db = appMaura.firestore();
+
 const $ = id => document.getElementById(id);
 const IVA = 0.16;
 const fmt = n => '$' + Number(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -510,7 +555,130 @@ async function enviar(){
   }
 }
 
+// ════════════════════════════════════════════════════════════════════
+// BUSCADOR DE CLIENTES — reusa el login que YA tiene el vendedor
+// ────────────────────────────────────────────────────────────────────
+// El catálogo de 1,145 clientes vive en el Firebase del INVENTARIO, no en
+// el de Maura. ¿Por qué? Porque el vendedor llega aquí desde el inventario,
+// donde ya entró con correo y contraseña de verdad. Esa sesión sirve para
+// este nodo también — así no se le pide login otra vez.
+//
+// Y el nodo está cerrado con `auth != null`: sin sesión devuelve 401. Los
+// 1,145 RFC NO quedan al alcance de cualquiera con el enlace, aunque esta
+// página sea pública.
+//
+// Si el vendedor abre esto SIN haber entrado al inventario, no truena: solo
+// no autocompleta y lo escribe a mano, como antes.
+//
+// El RFC genérico de "público en general" NO está en este catálogo, a
+// propósito: nunca debe autollenarse.
+// ════════════════════════════════════════════════════════════════════
+let CLIENTES = [];
+(function buscadorClientes(){
+  const inp = $('cli-nombre'), caja = $('res-cli'), ayuda = $('ayuda-cli');
+  let sel = -1, lista = [];
+
+  const authInv = appInv.auth();
+  authInv.onAuthStateChanged(function(user){
+    if(!user){
+      ayuda.className = 'ayuda-cli aviso';
+      ayuda.textContent = 'Para que se autocompleten tus clientes, entra primero al inventario. Mientras, escríbelo a mano.';
+      return;
+    }
+    appInv.database().ref('catalogo_clientes').once('value').then(function(snap){
+      const v = snap.val() || {};
+      CLIENTES = Object.keys(v).map(function(k){
+        const c = v[k];
+        return { rfc:c.r, nom:c.n, reg:c.g, uso:c.u, cp:c.c, n:c.f||0,
+                 revisar:!!c.v, obsoleto:!!c.o, busca: norm(c.n + ' ' + c.r) };
+      });
+      ayuda.className = 'ayuda-cli bien';
+      ayuda.textContent = 'Escribe y busca entre tus ' + CLIENTES.length + ' clientes.';
+    }).catch(function(e){
+      console.warn('catalogo:', e);
+      ayuda.className = 'ayuda-cli aviso';
+      ayuda.textContent = 'No se pudo cargar la lista de clientes. Escríbelo a mano.';
+    });
+  });
+
+  function buscarCli(q){
+    const qn = norm(q);
+    const t = qn.split(' ').filter(Boolean);
+    if(!t.length || !CLIENTES.length) return [];
+    return CLIENTES.map(function(c){
+      let s = 0, hits = 0;
+      t.forEach(function(x){ if(c.busca.indexOf(x) !== -1) hits++; });
+      if(!hits) return null;
+      const n = norm(c.nom);
+      if(n === qn) s += 500;
+      if(n.indexOf(qn) === 0) s += 250;
+      if(c.rfc.toLowerCase() === qn) s += 800;
+      s += hits * 100 - (t.length - hits) * 70;
+      s += Math.min(120, c.n * 3);
+      return { c: c, s: s };
+    }).filter(Boolean).sort(function(a,b){ return b.s - a.s; })
+      .slice(0, 25).map(function(x){ return x.c; });
+  }
+
+  function pintarCli(){
+    if(!lista.length){ caja.style.display = 'none'; return; }
+    caja.innerHTML = lista.map(function(c, k){
+      return '<div class="' + (k === sel ? 'sel' : '') + '" data-k="' + k + '">'
+        + '<div class="pz">' + esc(c.nom) + '</div>'
+        + '<div class="mt">' + c.rfc + (c.cp ? '  ·  CP ' + c.cp : '')
+        + '  ·  ' + c.n + (c.n === 1 ? ' factura' : ' facturas') + '</div></div>';
+    }).join('');
+    caja.style.display = 'block';
+    [...caja.children].forEach(function(el){
+      if(el.dataset.k !== undefined) el.onmousedown = function(ev){
+        ev.preventDefault(); escogerCli(lista[+el.dataset.k]);
+      };
+    });
+  }
+
+  // Guarda cuál se escogió, para poder soltar el RFC si después le cambian
+  // el nombre a mano. Si no, quedaría el nombre de uno con el RFC de otro y
+  // la factura saldría a nombre equivocado.
+  let escogido = null;
+
+  function escogerCli(c){
+    escogido = c;
+    inp.value = c.nom;
+    $('cli-rfc').value = c.rfc;
+    caja.style.display = 'none';
+    const h = $('cli-hit');
+    h.innerHTML = '&#9989; <b>' + esc(c.nom) + '</b> &middot; RFC ' + c.rfc
+      + (c.reg ? ' &middot; régimen ' + c.reg : '') + (c.cp ? ' &middot; CP ' + c.cp : '')
+      + (c.uso ? ' &middot; uso ' + c.uso : '')
+      + '<br><span style="color:#5c7a66">Le has facturado ' + c.n + (c.n === 1 ? ' vez' : ' veces') + '.</span>'
+      + (c.revisar ? '<div class="warn">&#9888; Ese RFC no pasa la verificación del SAT. Pídele su constancia.</div>' : '')
+      + (c.obsoleto ? '<div class="obs">&#9888; Su régimen ' + c.reg + ' ya no existe (se derogó en 2022). Confirma su constancia.</div>' : '');
+    h.style.display = 'block';
+    $('cli-correo').focus();
+  }
+
+  inp.oninput = function(){
+    sel = -1; lista = buscarCli(inp.value); pintarCli();
+    $('cli-hit').style.display = 'none';
+    // Le movió al nombre después de escoger: el RFC de antes ya no le
+    // corresponde. Se borra solo (nada más si lo pusimos nosotros).
+    if(escogido && inp.value.trim() !== escogido.nom){
+      if($('cli-rfc').value.trim().toUpperCase() === escogido.rfc) $('cli-rfc').value = '';
+      escogido = null;
+    }
+  };
+  inp.onblur  = function(){ setTimeout(function(){ caja.style.display = 'none'; }, 150); };
+  inp.onfocus = function(){ if(inp.value){ lista = buscarCli(inp.value); pintarCli(); } };
+  inp.onkeydown = function(e){
+    if(!lista.length) return;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); sel = Math.min(sel + 1, lista.length - 1); pintarCli(); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); sel = Math.max(sel - 1, 0); pintarCli(); }
+    else if(e.key === 'Enter' && sel >= 0){ e.preventDefault(); escogerCli(lista[sel]); }
+  };
+})();
+
 pintarLista();
+
 </script>
 </body>
 </html>
