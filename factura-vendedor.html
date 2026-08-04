@@ -154,7 +154,13 @@
       <div class="fila">
         <div><label>Cantidad</label><input type="number" id="cant" value="1" min="1" step="1"></div>
         <div><label>Precio sin IVA <span class="op">c/u</span></label>
-          <input type="number" id="prec" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></div>
+          <!-- Va de TEXTO, no de número, a propósito: un campo de tipo número
+               NO acepta comas — en cuanto se le mete una, el navegador tira el
+               valor y se queda vacío. Con texto sí se puede ir formateando
+               mientras se escribe. El inputmode deja el teclado numérico en el
+               celular igual que antes. Quien lo lea tiene que quitarle las
+               comas: para eso está numDe(). -->
+          <input type="text" id="prec" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>
       </div>
       <button class="agregar" type="button" id="btn-add" onclick="guardarPieza()">＋ Agregar esta pieza</button>
       <div class="msg-err" id="e-pieza"></div>
@@ -328,10 +334,43 @@ let ITEMS = [];
 let editando = null;          // índice que se está corrigiendo, o null
 let elegida = null;           // la pieza escogida en el buscador
 
+// ── EL PRECIO CON COMAS ─────────────────────────────────────────────
+// Se le van poniendo las comas mientras se escribe: 4500 → 4,500. Es el
+// mismo formato del sistema de Maura, para que se vea igual en los dos.
+//
+// numDe() es el ÚNICO camino para leer un campo de dinero. Si alguien
+// leyera con Number() directo, "4,500" se volvería 4 sin avisar y la
+// factura saldría por cuatro pesos. Por eso va aquí arriba y con nombre
+// corto: para que nadie se tiente a leerlo a mano.
+function numDe(id){
+  return Number(String(($(id).value || '')).replace(/,/g, '')) || 0;
+}
+function conComas(el){
+  const v = el.value;
+  const limpio = v.replace(/[^\d.]/g, '');          // solo dígitos y punto
+  const p = limpio.split('.');
+  const ent = p[0] || '';
+  const dec = p.length > 1 ? p.slice(1).join('').slice(0, 2) : null;
+  let out = ent.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  if(dec !== null) out += '.' + dec;               // deja seguir tecleando centavos
+  if(out === v) return;
+  // El cursor se recorre lo mismo que creció el texto, para que no brinque
+  // al principio cada vez que entra una coma.
+  const cursor = el.selectionStart, largoAntes = v.length;
+  el.value = out;
+  const nuevo = cursor + (out.length - largoAntes);
+  try { el.setSelectionRange(nuevo, nuevo); } catch(e){}
+}
+function precioConComas(n){
+  const x = Number(n) || 0;
+  const s = (Math.round(x * 100) / 100).toString().split('.');
+  return s[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (s[1] ? '.' + s[1] : '');
+}
+
 function guardarPieza(){
   const nom = ($('q').value || '').trim();
-  const cant = Number($('cant').value) || 0;
-  const prec = Number($('prec').value) || 0;
+  const cant = numDe('cant');
+  const prec = numDe('prec');
   const falla = m => { $('e-pieza').textContent = m; $('e-pieza').style.display = 'block'; };
   $('e-pieza').style.display = 'none';
   if (!nom) return falla('Escoge o escribe la pieza.');
@@ -360,7 +399,7 @@ function limpiarAlta(){
 function editarItem(i){
   const it = ITEMS[i];
   $('q').value = it.pieza; $('q').dataset.ci = it.codigoInterno; $('q').dataset.sat = it.claveSAT;
-  $('cant').value = it.cantidad; $('prec').value = it.precioSinIva;
+  $('cant').value = it.cantidad; $('prec').value = precioConComas(it.precioSinIva);
   elegida = { ci: it.codigoInterno, sat: it.claveSAT, nom: it.pieza };
   $('chips').innerHTML = chipsDe(it); $('chips').style.display = 'flex';
   $('alta').classList.add('listo');
@@ -722,6 +761,63 @@ function recordarCorreo(){
     else if(e.key === 'ArrowUp'){ e.preventDefault(); sel = Math.max(sel - 1, 0); pintarCli(); }
     else if(e.key === 'Enter' && sel >= 0){ e.preventDefault(); escogerCli(lista[sel]); }
   };
+})();
+
+// ════════════════════════════════════════════════════════════════════
+// TECLEAR SIN SOLTAR EL TECLADO (ago 2026)
+// ────────────────────────────────────────────────────────────────────
+// El vendedor está en el mostrador con el cliente enfrente: cada vez que
+// tiene que soltar el teclado y buscar el mouse, pierde tiempo. Con esto
+// va bajando con Enter y nunca levanta las manos:
+//
+//   pieza → Enter → cantidad → Enter → precio → Enter → botón Agregar
+//   → Enter → guardada, y el cursor regresa solo a la pieza
+//
+// Las notas NO llevan Enter a propósito: es un recuadro de varios
+// renglones y ahí Enter tiene que servir para bajar de línea.
+// ════════════════════════════════════════════════════════════════════
+(function enterEncadenado(){
+  // El precio se va formateando solo mientras se escribe
+  $('prec').addEventListener('input', function(){ conComas(this); });
+
+  // De dónde a dónde brinca cada Enter
+  const brincos = { 'cant':'prec', 'prec':'btn-add', 'cli-rfc':'cli-correo', 'cli-correo':'notas' };
+
+  Object.keys(brincos).forEach(function(de){
+    const el = $(de);
+    if(!el) return;
+    el.addEventListener('keydown', function(e){
+      if(e.key !== 'Enter') return;
+      e.preventDefault();          // que no mande el formulario antes de tiempo
+      const destino = $(brincos[de]);
+      if(!destino) return;
+      destino.focus();
+      // En un campo de escribir, dejar el cursor al final en vez de
+      // seleccionar todo: si Maura teclea encima, no borra lo que había.
+      if(destino.select && destino.tagName === 'INPUT'){
+        try { destino.setSelectionRange(destino.value.length, destino.value.length); } catch(err){}
+      }
+    });
+  });
+
+  // El buscador de piezas ya trae su propio Enter (para escoger de la
+  // lista). Aquí solo se le agrega el caso que le faltaba: si YA hay una
+  // pieza escogida y la lista está cerrada, Enter baja a la cantidad.
+  $('q').addEventListener('keydown', function(e){
+    if(e.key !== 'Enter') return;
+    if($('res').style.display !== 'none') return;   // la lista manda
+    e.preventDefault();
+    $('cant').focus();
+    try { $('cant').setSelectionRange(0, $('cant').value.length); } catch(err){}
+  });
+
+  // Lo mismo en el buscador de clientes: si no hay lista abierta, baja al RFC.
+  $('cli-nombre').addEventListener('keydown', function(e){
+    if(e.key !== 'Enter') return;
+    if($('res-cli').style.display !== 'none') return;
+    e.preventDefault();
+    $('cli-rfc').focus();
+  });
 })();
 
 pintarLista();
