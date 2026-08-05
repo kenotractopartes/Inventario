@@ -616,9 +616,10 @@ async function enviar(){
 let CLIENTES = [];
 let CORREOS = {};
 
-// El correo NO viene en la factura (se revisaron los 668 CFDI de 2026: cero
-// direcciones). Así que se aprende: cada solicitud que sale con RFC y correo
-// deja el dato guardado y la próxima vez se autollena solo.
+// El catálogo YA trae el correo de 3,232 clientes (ago 2026: Keno exportó
+// la lista del portal de facturación). Esto sigue existiendo para lo que el
+// catálogo NO sabe: clientes nuevos, o correos que cambiaron. Lo que se
+// guarda aquí GANA sobre el catálogo — es el más reciente.
 //
 // Nunca truena la venta por esto: si falla el guardado, se ignora en
 // silencio. La solicitud ya se mandó, que es lo que importa.
@@ -662,15 +663,21 @@ function recordarCorreo(){
       CORREOS = (res[1] && res[1].val()) || {};
       CLIENTES = Object.keys(v).map(function(k){
         const c = v[k];
-        const mail = CORREOS[c.r];
+        // El correo sale del catálogo (campo "e"). Si alguien ya corrigió uno
+        // desde este formulario, ESE gana: es más nuevo que el archivo.
+        const aprendido = CORREOS[c.r];
         return { rfc:c.r, nom:c.n, reg:c.g, uso:c.u, cp:c.c, n:c.f||0,
-                 correo: mail && mail.c ? mail.c : '',
-                 revisar:!!c.v, obsoleto:!!c.o, busca: norm(c.n + ' ' + c.r) };
+                 correo: (aprendido && aprendido.c) ? aprendido.c : (c.e || ''),
+                 tel: c.t || '',
+                 revisar:!!c.v, obsoleto:!!c.o, noSugerir:!!c.x,
+                 busca: norm(c.n + ' ' + c.r) };
       });
+      // El RFC genérico de "público en general" nunca se sugiere.
+      CLIENTES = CLIENTES.filter(function(c){ return !c.noSugerir; });
       const conCorreo = CLIENTES.filter(function(c){ return c.correo; }).length;
       ayuda.className = 'ayuda-cli bien';
       ayuda.textContent = 'Escribe y busca entre tus ' + CLIENTES.length + ' clientes'
-        + (conCorreo ? ' · ' + conCorreo + ' ya traen correo guardado' : '') + '.';
+        + (conCorreo ? ' · ' + conCorreo + ' ya traen su correo' : '') + '.';
     }).catch(function(e){
       console.warn('catalogo:', e);
       ayuda.className = 'ayuda-cli aviso';
