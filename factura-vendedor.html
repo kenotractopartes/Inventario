@@ -226,8 +226,15 @@
     </div>
     <div class="ayuda-cli" id="ayuda-cli">Buscando entre tus clientes…</div>
 
-    <label>RFC <span class="op">si lo tienes</span></label>
-    <input type="text" id="cli-rfc" maxlength="13" autocapitalize="characters" placeholder="ABC123456XYZ">
+    <!-- El RFC busca igual que el nombre. Muchas veces el vendedor tiene a la
+         mano el RFC (viene en la constancia, en el WhatsApp del cliente) y no
+         el nombre exacto como está dado de alta. -->
+    <label>RFC <span class="op">también busca · si lo tienes</span></label>
+    <div class="buscador">
+      <input type="text" id="cli-rfc" maxlength="13" autocapitalize="characters"
+             autocomplete="off" placeholder="ABC123456XYZ">
+      <div class="res" id="res-rfc"></div>
+    </div>
 
     <div class="cli-hit" id="cli-hit"></div>
 
@@ -601,7 +608,7 @@ async function copiarLink(){
     // páginas abiertas como archivo). Se muestra el enlace para copiarlo a mano.
   }
   caja.innerHTML = '<b>' + (copiado ? '✅ Copiado — ya lo puedes pegar' : '👇 Cópialo a mano')
-                 + (folioLink ? ' <span style="font-weight:400;color:#5c7a66">· amarrado a esta venta</span>' : '')
+                 + (folioLink ? ' <span style="font-weight:400;color:#6b6880">· amarrado a esta venta</span>' : '')
                  + '</b>' + url;
   caja.style.display = 'block';
   if (!copiado) {
@@ -808,8 +815,8 @@ function recordarCorreo(){
     h.innerHTML = '&#9989; <b>' + esc(c.nom) + '</b> &middot; RFC ' + c.rfc
       + (c.reg ? ' &middot; régimen ' + c.reg : '') + (c.cp ? ' &middot; CP ' + c.cp : '')
       + (c.uso ? ' &middot; uso ' + c.uso : '')
-      + '<br><span style="color:#5c7a66">Le has facturado ' + c.n + (c.n === 1 ? ' vez' : ' veces') + '.</span>'
-      + (correoPuesto ? '<div style="color:#1A5C30;margin-top:3px">&#9993; Le puse el correo de la última vez: <b>'
+      + '<br><span style="color:#6b6880">Le has facturado ' + c.n + (c.n === 1 ? ' vez' : ' veces') + '.</span>'
+      + (correoPuesto ? '<div style="color:#31156a;margin-top:3px">&#9993; Le puse el correo de la última vez: <b>'
           + esc(c.correo) + '</b> — si cambió, corrígelo.</div>' : '')
       + (c.revisar ? '<div class="warn">&#9888; Ese RFC no pasa la verificación del SAT. Pídele su constancia.</div>' : '')
       + (c.obsoleto ? '<div class="obs">&#9888; Su régimen ' + c.reg + ' ya no existe (se derogó en 2022). Confirma su constancia.</div>' : '');
@@ -835,6 +842,98 @@ function recordarCorreo(){
     else if(e.key === 'ArrowUp'){ e.preventDefault(); sel = Math.max(sel - 1, 0); pintarCli(); }
     else if(e.key === 'Enter' && sel >= 0){ e.preventDefault(); escogerCli(lista[sel]); }
   };
+
+  // ══════════════════════════════════════════════════════════════════
+  // EL RFC TAMBIÉN BUSCA (ago 2026)
+  // ──────────────────────────────────────────────────────────────────
+  // Muchas veces el vendedor tiene el RFC a la mano —viene en la
+  // constancia, en el WhatsApp del cliente— y NO el nombre tal como está
+  // dado de alta ("GARZA GARZA JORGE LUIS" vs "Jorge Garza"). Escribiendo
+  // el RFC sale todo igual que escribiendo el nombre.
+  //
+  // Esta dirección es la SEGURA. Al revés —adivinar el RFC a partir de un
+  // nombre parecido— ya nos había metido el RFC de otra empresa en la
+  // factura. El RFC es único: si empata completo, no hay duda de quién es.
+  // Por eso en cuanto se teclean los 12 o 13 caracteres exactos, se llena
+  // solo sin que el vendedor tenga que escoger de la lista.
+  // ══════════════════════════════════════════════════════════════════
+  const inpR = $('cli-rfc'), cajaR = $('res-rfc');
+  let selR = -1, listaR = [];
+
+  function buscarRfc(q){
+    const qn = (q || '').toUpperCase().replace(/[^A-ZÑ&0-9]/g, '');
+    if(qn.length < 2 || !CLIENTES.length) return [];
+    return CLIENTES.map(function(c){
+      const i = c.rfc.indexOf(qn);
+      if(i === -1) return null;
+      // Gana el que EMPIEZA con lo tecleado; entre iguales, el que más se
+      // ha facturado (es casi seguro el que busca).
+      return { c: c, s: (i === 0 ? 1000 : 200 - i) + Math.min(120, c.n * 3) };
+    }).filter(Boolean).sort(function(a,b){ return b.s - a.s; })
+      .slice(0, 25).map(function(x){ return x.c; });
+  }
+
+  function pintarRfc(){
+    if(!listaR.length){ cajaR.style.display = 'none'; return; }
+    cajaR.innerHTML = listaR.map(function(c, k){
+      return '<div class="' + (k === selR ? 'sel' : '') + '" data-k="' + k + '">'
+        + '<div class="pz" style="font-family:\'Courier New\',monospace">' + c.rfc + '</div>'
+        + '<div class="mt" style="font-family:Georgia,serif">' + esc(c.nom)
+        + '  ·  ' + c.n + (c.n === 1 ? ' factura' : ' facturas') + '</div></div>';
+    }).join('');
+    cajaR.style.display = 'block';
+    [...cajaR.children].forEach(function(el){
+      if(el.dataset.k !== undefined) el.onmousedown = function(ev){
+        ev.preventDefault(); escogerCli(listaR[+el.dataset.k]);
+        cajaR.style.display = 'none'; listaR = []; selR = -1;
+      };
+    });
+  }
+
+  inpR.oninput = function(){
+    // Los RFC van SIEMPRE en mayúsculas. Se corrige mientras teclea para que
+    // lo que se manda y lo que se busca sean lo mismo.
+    const cursor = inpR.selectionStart;
+    const arriba = inpR.value.toUpperCase();
+    if(arriba !== inpR.value){
+      inpR.value = arriba;
+      try { inpR.setSelectionRange(cursor, cursor); } catch(e){}
+    }
+    const q = inpR.value.trim();
+
+    // Le movió al RFC después de escoger: el nombre de antes ya no le
+    // corresponde. Se suelta (nada más si lo pusimos nosotros).
+    if(escogido && q !== escogido.rfc){
+      if(inp.value.trim() === escogido.nom) inp.value = '';
+      escogido = null;
+      $('cli-hit').style.display = 'none';
+    }
+
+    // ¿Empató uno completo? Entonces no hay nada que escoger.
+    // Se exigen 12 caracteres (moral) o 13 (física): en el catálogo hay unos
+    // cuantos RFC mal capturados, más cortos, y sin este piso uno de ésos
+    // podría empatar a media tecleada y llenar el nombre equivocado.
+    const exacto = q.length >= 12
+      ? CLIENTES.filter(function(c){ return c.rfc === q; }) : [];
+    if(exacto.length === 1){
+      cajaR.style.display = 'none'; listaR = []; selR = -1;
+      escogerCli(exacto[0]);
+      return;
+    }
+    selR = -1; listaR = buscarRfc(q); pintarRfc();
+  };
+  inpR.onblur  = function(){ setTimeout(function(){ cajaR.style.display = 'none'; }, 150); };
+  inpR.onfocus = function(){ if(inpR.value){ listaR = buscarRfc(inpR.value); pintarRfc(); } };
+  inpR.onkeydown = function(e){
+    if(!listaR.length) return;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); selR = Math.min(selR + 1, listaR.length - 1); pintarRfc(); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); selR = Math.max(selR - 1, 0); pintarRfc(); }
+    else if(e.key === 'Enter' && selR >= 0){
+      e.preventDefault(); escogerCli(listaR[selR]);
+      cajaR.style.display = 'none'; listaR = []; selR = -1;
+    }
+    else if(e.key === 'Escape'){ cajaR.style.display = 'none'; listaR = []; selR = -1; }
+  };
 })();
 
 // ════════════════════════════════════════════════════════════════════
@@ -858,11 +957,17 @@ function recordarCorreo(){
   const brincos = { 'cant':'prec', 'prec':'btn-add', 'cli-rfc':'cli-correo',
                     'cli-correo':'cli-forma', 'cli-forma':'notas' };
 
+  // Campos que TIENEN buscador: si su lista está abierta, el Enter es para
+  // escoger de la lista, no para brincar al siguiente campo.
+  const conLista = { 'cli-rfc': 'res-rfc' };
+
   Object.keys(brincos).forEach(function(de){
     const el = $(de);
     if(!el) return;
     el.addEventListener('keydown', function(e){
       if(e.key !== 'Enter') return;
+      const lista = conLista[de] && $(conLista[de]);
+      if(lista && lista.style.display !== 'none') return;   // manda la lista
       e.preventDefault();          // que no mande el formulario antes de tiempo
       const destino = $(brincos[de]);
       if(!destino) return;
