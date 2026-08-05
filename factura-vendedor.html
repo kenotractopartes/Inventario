@@ -162,6 +162,21 @@
          border-left:0;padding-left:0;text-align:center}
   .msg-err{color:#C41A11;font-size:14px;font-weight:700;margin-top:8px;display:none;
            text-align:center;font-family:Arial,sans-serif}
+  /* Subir la constancia — es el atajo para clientes nuevos, por eso se ve */
+  .csf{border:2px dashed #401C86;border-radius:3px;background:#f6f4fc;padding:16px 14px;
+       text-align:center;cursor:pointer;margin-top:16px;transition:.15s}
+  .csf:active,.csf.hover{background:#ece7f8}
+  .csf.leida{border-style:solid;border-color:#2e7d46;background:#f5faf6}
+  .csf .ic{font-size:30px;line-height:1}
+  .csf b{display:block;margin-top:5px;font-size:16px;color:#401C86;font-family:Georgia,serif}
+  .csf.leida b{color:#256339}
+  .csf span{display:block;font-size:12.5px;color:#6b6880;margin-top:3px;font-family:Arial,sans-serif}
+  .csf-hit{display:none;background:#f5faf6;border:1px solid #2e7d46;border-left:3px solid #2e7d46;
+           border-radius:2px;padding:10px 12px;margin-top:8px;font-size:12.5px;color:#1f5c36;
+           font-family:Arial,sans-serif;line-height:1.45}
+  .csf-hit b{color:#256339}
+  .csf-hit.malo{background:#fff6f5;border-color:#F9271D;border-left-color:#F9271D;color:#7d2019}
+  .csf-hit.malo b{color:#C41A11}
 </style>
 </head>
 <body>
@@ -238,8 +253,47 @@
 
     <div class="cli-hit" id="cli-hit"></div>
 
+    <!-- SUBIR LA CONSTANCIA Y QUE SE LLENE SOLA (ago 2026).
+         Para clientes NUEVOS, que son los que no están en el catálogo. El
+         cliente manda su constancia por WhatsApp, aquí se sube el PDF y de
+         ahí salen la razón social, el RFC, el régimen y el código postal.
+         El uso del CFDI y el correo NO vienen en la constancia: ésos los
+         pone el vendedor. -->
+    <div class="csf" id="csf-caja" onclick="document.getElementById('csf-file').click()">
+      <div class="ic">📄</div>
+      <b>Subir la constancia del cliente</b>
+      <span>El PDF que te mandó por WhatsApp · se llena solo</span>
+    </div>
+    <input type="file" id="csf-file" accept="application/pdf,.pdf,image/*" style="display:none"
+           onchange="leerCSF(this.files[0])">
+    <div class="csf-hit" id="csf-hit"></div>
+
     <label>Correo para enviarle la factura</label>
     <input type="email" id="cli-correo" inputmode="email" placeholder="correo@ejemplo.com">
+
+    <!-- Estos tres SÍ los pide el portal y antes Maura los sacaba a mano de
+         la constancia. El régimen y el CP salen del PDF; el uso del CFDI no
+         viene ahí — se lo dice el cliente. -->
+    <div class="fila">
+      <div>
+        <label>Régimen fiscal <span class="op">del cliente</span></label>
+        <select id="cli-regimen"><option value="">— sin poner —</option></select>
+      </div>
+      <div>
+        <label>Código postal</label>
+        <input type="text" id="cli-cp" inputmode="numeric" maxlength="5" placeholder="64550">
+      </div>
+    </div>
+
+    <label>Uso del CFDI <span class="op">te lo dice el cliente</span></label>
+    <select id="cli-uso">
+      <option value="G03">G03 · Gastos en general</option>
+      <option value="G01">G01 · Adquisición de mercancías</option>
+      <option value="S01">S01 · Sin efectos fiscales</option>
+      <option value="I03">I03 · Equipo de transporte</option>
+      <option value="I08">I08 · Otra maquinaria y equipo</option>
+      <option value="">— sin poner —</option>
+    </select>
 
     <!-- FORMA DE PAGO (ago 2026).
          Es el ÚNICO dato de la factura que cambia de verdad en cada venta, y
@@ -287,6 +341,9 @@
      reusando la sesión que el vendedor ya abrió allá. -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" crossorigin="anonymous"></script>
+<!-- Storage: para guardarle a Maura el PDF de la constancia, en la misma
+     carpeta donde ya caen las que sube el cliente desde factura.html -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js" crossorigin="anonymous"></script>
 <script src="piezas.js"></script>
 <script>
 const CFG = {
@@ -617,6 +674,37 @@ async function copiarLink(){
   }
 }
 
+// Guarda el PDF de la constancia en el Storage del inventario, en la misma
+// carpeta donde ya caen las que sube el cliente desde factura.html.
+//
+// NUNCA tumba la venta: si falla la subida, se manda la solicitud igual y
+// se avisa en las notas. Lo que importa es que Maura reciba la venta; el
+// archivo se le puede volver a pasar por WhatsApp.
+//
+// El nombre lleva 128 bits al azar además del folio: esa carpeta tiene la
+// lectura abierta a propósito (si no, se le cae la subida al cliente que no
+// tiene sesión), así que la ruta no se puede adivinar.
+async function subirConstancia(id){
+  if (!csfArchivo) return {};
+  try {
+    $('enviar').textContent = 'Guardando la constancia…';
+    const ext = (csfArchivo.name.match(/\.[a-z0-9]+$/i) || ['.pdf'])[0];
+    const a = new Uint8Array(16);
+    (window.crypto || window.msCrypto).getRandomValues(a);
+    const azar = Array.prototype.map.call(a, function(b){
+      return ('0' + b.toString(16)).slice(-2); }).join('');
+    const ref = appInv.storage().ref('constancias/' + id + '_' + azar + ext);
+    await ref.put(csfArchivo, { contentType: csfArchivo.type || 'application/pdf' });
+    const url = await ref.getDownloadURL();
+    $('enviar').textContent = 'Enviando…';
+    return { archivoUrl: url, archivoNombre: csfArchivo.name };
+  } catch (e) {
+    console.warn('constancia:', e);
+    $('enviar').textContent = 'Enviando…';
+    return { constanciaFalloSubir: true };
+  }
+}
+
 function armar(id, estado){
   const sub = ITEMS.reduce((s, r) => s + r.cantidad * r.precioSinIva, 0);
   return {
@@ -624,6 +712,11 @@ function armar(id, estado){
     nombre: $('cli-nombre').value.trim(),
     rfc: $('cli-rfc').value.trim().toUpperCase(),
     correo: $('cli-correo').value.trim(),
+    // Estos tres los pide el portal y antes Maura los sacaba a mano del PDF.
+    // El régimen y el CP salen de la constancia; el uso se lo dice el cliente.
+    cp: $('cli-cp').value.trim(),
+    regimen: $('cli-regimen').value,
+    uso: $('cli-uso').value,
     // La clave del SAT (03, 28, 04…) y el texto, para que Maura escoja la
     // misma opción en el portal sin tener que traducir nada.
     formaPago: $('cli-forma').value,
@@ -658,7 +751,11 @@ async function enviar(){
   // vez de crear otro — si no, Maura vería la misma venta dos veces.
   const id = folioLink || ('sol_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8));
   try {
-    await db.collection('solicitudes_factura').doc(id).set(armar(id, 'pendiente'), { merge: true });
+    // La constancia se guarda para Maura, aunque no se haya podido leer:
+    // es el respaldo de dónde salieron los datos fiscales.
+    const extra = await subirConstancia(id);
+    await db.collection('solicitudes_factura').doc(id)
+            .set(Object.assign(armar(id, 'pendiente'), extra), { merge: true });
     recordarCorreo();   // para que la próxima vez ya salga solo
     $('form').style.display = 'none'; $('ok').style.display = 'block'; window.scrollTo(0, 0);
   } catch (e) {
@@ -935,6 +1032,229 @@ function recordarCorreo(){
     else if(e.key === 'Escape'){ cajaR.style.display = 'none'; listaR = []; selR = -1; }
   };
 })();
+
+// ════════════════════════════════════════════════════════════════════
+// LEER LA CONSTANCIA DE SITUACIÓN FISCAL — sin bajar ninguna librería
+// ────────────────────────────────────────────────────────────────────
+// Para clientes NUEVOS: el cliente manda su constancia por WhatsApp, aquí
+// se sube el PDF y de ahí salen solos la razón social, el RFC, el régimen
+// y el código postal. Antes eso se tecleaba a mano leyendo el PDF.
+//
+// POR QUÉ NO HACE FALTA UNA LIBRERÍA
+// Se abrieron constancias de verdad para verlo, no se dio por hecho: el
+// SAT las genera con letra Helvetica y WinAnsiEncoding, sin fuentes
+// incrustadas ni tablas de caracteres propias. O sea, el texto está ahí
+// adentro comprimido con zlib — y el navegador ya sabe descomprimir zlib
+// solo, con DecompressionStream. Meter pdf.js habrían sido 1.5 MB extra
+// que el vendedor descargaría cada vez.
+//
+// LO QUE NO PUEDE
+// Si el cliente manda una FOTO de la constancia en vez del PDF, no hay
+// texto que leer: haría falta reconocimiento de imagen. En ese caso lo
+// dice claro y se escribe a mano, que es como se hace hoy.
+//
+// NADA SE LLENA A ESCONDIDAS: lo que sacó se muestra en una tarjeta para
+// que el vendedor lo compare contra el PDF antes de mandar.
+// ════════════════════════════════════════════════════════════════════
+const REGIMENES_SAT = [
+  ['601', 'General de Ley Personas Morales'],
+  ['603', 'Personas Morales con Fines no Lucrativos'],
+  ['605', 'Sueldos y Salarios e Ingresos Asimilados a Salarios'],
+  ['606', 'Arrendamiento'],
+  ['607', 'Enajenación o Adquisición de Bienes'],
+  ['608', 'Demás ingresos'],
+  ['610', 'Residentes en el Extranjero sin Establecimiento Permanente'],
+  ['611', 'Ingresos por Dividendos'],
+  ['612', 'Personas Físicas con Actividades Empresariales y Profesionales'],
+  ['614', 'Ingresos por intereses'],
+  ['615', 'Obtención de premios'],
+  ['616', 'Sin obligaciones fiscales'],
+  ['620', 'Sociedades Cooperativas de Producción'],
+  ['621', 'Incorporación Fiscal'],
+  ['622', 'Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras'],
+  ['623', 'Opcional para Grupos de Sociedades'],
+  ['624', 'Coordinados'],
+  ['625', 'Plataformas Tecnológicas'],
+  ['626', 'Simplificado de Confianza']
+];
+(function llenarRegimenes(){
+  const s = $('cli-regimen'); if(!s) return;
+  REGIMENES_SAT.forEach(function(r){
+    const o = document.createElement('option');
+    o.value = r[0]; o.textContent = r[0] + ' · ' + r[1];
+    s.appendChild(o);
+  });
+})();
+
+const _sinAcentos = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+
+// El archivo que se subió, para mandárselo también a Maura
+let csfArchivo = null;
+
+// Los pedacitos de texto de un PDF vienen así:  (TEXTO) Tj
+function _trozosPdf(bytes){
+  let s = '';
+  const paso = 8192;                       // de a poquito: fromCharCode se atraganta
+  for (let i = 0; i < bytes.length; i += paso)
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + paso));
+  const out = [];
+  const re = /\(((?:[^()\\]|\\[\s\S])*)\)/g;
+  s.split(/BT/).slice(1).forEach(function(p){
+    const fin = p.indexOf('ET');
+    const t = fin >= 0 ? p.slice(0, fin) : p;
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(t))) out.push(_desescapa(m[1]));
+  });
+  return out;
+}
+function _desescapa(x){
+  return x.replace(/\\([nrtbf()\\]|[0-7]{1,3})/g, function(_, c){
+    if (c === 'n' || c === 'r' || c === 't' || c === 'b' || c === 'f') return ' ';
+    if (/^[0-7]+$/.test(c)) return String.fromCharCode(parseInt(c, 8));
+    return c;
+  });
+}
+
+async function _inflar(bytes){
+  const ds = new DecompressionStream('deflate');
+  const r = new Blob([bytes]).stream().pipeThrough(ds);
+  return new Uint8Array(await new Response(r).arrayBuffer());
+}
+
+// Saca TODO el texto del PDF, en orden
+async function textoDelPdf(buffer){
+  const b = new Uint8Array(buffer);
+  let s = '';
+  const paso = 8192;
+  for (let i = 0; i < b.length; i += paso)
+    s += String.fromCharCode.apply(null, b.subarray(i, i + paso));
+  let trozos = [];
+  const re = /stream\r?\n/g;
+  let m;
+  while ((m = re.exec(s))){
+    // OJO CON ESTO — costó encontrarlo. La palabra "stream" también aparece
+    // DENTRO de las imágenes del PDF (una constancia trae 7). Si uno se fía
+    // de buscar "endstream" para saber dónde acaba, agarra pedazos falsos que
+    // se tragan a los buenos, y el texto se pierde. La constancia del negocio
+    // daba 20 "stream" y solo 10 son de verdad.
+    //
+    // Lo bueno: los de verdad SIEMPRE traen /Length en su diccionario, con
+    // los bytes exactos. Por ahí se corta, y de paso se piden los que van
+    // comprimidos con zlib, que son los únicos que traen texto.
+    const cab = s.slice(Math.max(0, m.index - 400), m.index);
+    const L = cab.match(/\/Length\s+(\d+)(?![\s\d]*R)/);
+    if (!L || !/FlateDecode/.test(cab)) continue;
+    const ini = m.index + m[0].length, fin = ini + (+L[1]);
+    let crudo;
+    try { crudo = await _inflar(b.subarray(ini, fin)); }
+    catch(e){ continue; }
+    let t = '';
+    const tope = Math.min(crudo.length, 3000);
+    for (let i = 0; i < tope; i += paso)
+      t += String.fromCharCode.apply(null, crudo.subarray(i, Math.min(i + paso, tope)));
+    if (t.indexOf('Tj') < 0 && t.indexOf('TJ') < 0) continue;
+    trozos = trozos.concat(_trozosPdf(crudo));
+  }
+  return trozos.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+// De ese texto, saca los datos que pide la factura
+function datosDeConstancia(T){
+  const d = { rfc:'', nombre:'', cp:'', estatus:'', esFisica:false, regimenes:[], ok:false };
+  // El bloque de la CÉDULA (arriba de la hoja) trae el RFC y el nombre
+  // COMPLETO de un tirón. En el cuerpo vienen partidos palabra por palabra
+  // ("TRACTOPARTES" | "MAGAÑA"), por eso se lee de arriba.
+  const m = T.match(/([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})\s+Registro Federal de Contribuyentes\s+(.+?)\s+Nombre,\s*denominaci[oó]n\s*o\s*raz[oó]n\s*social/i);
+  if (m) { d.rfc = m[1].toUpperCase(); d.nombre = m[2].trim(); }
+  if (!d.rfc) { const r = T.match(/RFC:\s*([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})/i); if (r) d.rfc = r[1].toUpperCase(); }
+  const cp = T.match(/C[oó]digo\s+Postal:\s*(\d{5})/i); if (cp) d.cp = cp[1];
+  const es = T.match(/Estatus\s+en\s+el\s+padr[oó]n:\s*([A-ZÁÉÍÓÚÑ ]+?)\s+Fecha/i);
+  if (es) d.estatus = es[1].trim();
+  d.esFisica = /\bCURP:\s*[A-Z0-9]{18}/i.test(T);
+
+  // Los regímenes van entre "Regímenes:" y "Obligaciones:". Se guardan en el
+  // MISMO orden en que los trae la constancia, no en orden de número: si el
+  // cliente tiene dos, el primero de la hoja es el que suele ir en la factura.
+  const zona = (T.split(/R[eé]g[ií]menes:/i)[1] || '').split(/Obligaciones:/i)[0] || '';
+  const z = _sinAcentos(zona);
+  REGIMENES_SAT.forEach(function(r){
+    const i = z.indexOf(_sinAcentos(r[1]));
+    if (i !== -1) d.regimenes.push({ clave:r[0], texto:r[1], donde:i });
+  });
+  d.regimenes.sort(function(a,b){ return a.donde - b.donde; });
+  d.ok = !!(d.rfc && d.nombre);
+  return d;
+}
+
+async function leerCSF(f){
+  if (!f) return;
+  const caja = $('csf-caja'), hit = $('csf-hit');
+  const decir = (clase, html) => { hit.className = 'csf-hit' + (clase ? ' ' + clase : '');
+                                   hit.innerHTML = html; hit.style.display = 'block'; };
+  csfArchivo = f;
+  caja.classList.remove('leida');
+  decir('', 'Leyendo la constancia…');
+
+  // Una FOTO no se puede leer: no trae texto, sería reconocer imagen.
+  if (!/pdf/i.test(f.type) && !/\.pdf$/i.test(f.name)) {
+    decir('malo', '<b>Esto no es un PDF.</b> Se va a guardar para Maura, pero los datos '
+        + 'hay que escribirlos a mano: de una foto no se puede leer el texto. '
+        + 'Si puedes, pídele el PDF que le da el SAT.');
+    return;
+  }
+
+  let d;
+  try {
+    d = datosDeConstancia(await textoDelPdf(await f.arrayBuffer()));
+  } catch (e) {
+    console.warn('constancia:', e);
+    decir('malo', '<b>No se pudo leer el PDF.</b> Se guarda igual para Maura; '
+        + 'escribe los datos a mano.');
+    return;
+  }
+
+  if (!d.ok) {
+    decir('malo', '<b>Es un PDF pero no parece una constancia del SAT.</b> '
+        + 'Se guarda igual para Maura; escribe los datos a mano.');
+    return;
+  }
+
+  // Se llena, pero NADA a escondidas: abajo se muestra qué se puso.
+  $('cli-nombre').value = d.nombre;
+  $('cli-rfc').value = d.rfc;
+  if (d.cp) $('cli-cp').value = d.cp;
+  if (d.regimenes.length) $('cli-regimen').value = d.regimenes[0].clave;
+  $('cli-hit').style.display = 'none';     // manda la constancia, no el catálogo
+
+  // Si ya lo teníamos en el catálogo, se aprovecha su correo.
+  const yaEsta = CLIENTES.filter(function(c){ return c.rfc === d.rfc; })[0];
+  let correoPuesto = '';
+  if (yaEsta && yaEsta.correo && !$('cli-correo').value.trim()) {
+    $('cli-correo').value = yaEsta.correo; correoPuesto = yaEsta.correo;
+  }
+
+  caja.classList.add('leida');
+  caja.querySelector('b').textContent = '✅ Constancia leída';
+  caja.querySelector('span').textContent = f.name;
+
+  decir('', '<b>' + esc(d.nombre) + '</b> · RFC ' + d.rfc
+      + (d.cp ? ' · CP ' + d.cp : '')
+      + (d.regimenes.length ? ' · régimen ' + d.regimenes[0].clave : '')
+      + ' · ' + (d.esFisica ? 'persona física' : 'persona moral')
+      + (d.estatus ? ' · ' + d.estatus : '')
+      + (d.regimenes.length > 1
+          ? '<div style="color:#8a6d1a;margin-top:5px">⚠️ Su constancia trae '
+            + d.regimenes.length + ' regímenes (' + d.regimenes.map(function(r){return r.clave;}).join(', ')
+            + '). Se puso el primero — confírmale al cliente cuál va en la factura.</div>' : '')
+      + (d.estatus && d.estatus !== 'ACTIVO'
+          ? '<div style="color:#C41A11;margin-top:5px">⚠️ En el padrón del SAT aparece como '
+            + esc(d.estatus) + '.</div>' : '')
+      + (correoPuesto ? '<div style="margin-top:5px">✉ Le puse el correo que ya teníamos: <b>'
+            + esc(correoPuesto) + '</b></div>' : '')
+      + '<div style="color:#6b6880;margin-top:5px">Falta el <b>uso del CFDI</b> y el <b>correo</b>: '
+      + 'ésos no vienen en la constancia, te los dice el cliente.</div>');
+}
 
 // ════════════════════════════════════════════════════════════════════
 // TECLEAR SIN SOLTAR EL TECLADO (ago 2026)
