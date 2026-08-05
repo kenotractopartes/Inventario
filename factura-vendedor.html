@@ -195,6 +195,26 @@
     <label>Correo para enviarle la factura</label>
     <input type="email" id="cli-correo" inputmode="email" placeholder="correo@ejemplo.com">
 
+    <!-- FORMA DE PAGO (ago 2026).
+         Es el ÚNICO dato de la factura que cambia de verdad en cada venta, y
+         el vendedor es el que sabe cómo le pagaron — Maura no. Antes ella
+         tenía que preguntar o adivinar.
+         El orden de la lista sale de contar las 2,577 facturas timbradas:
+         03 transferencia (1,327) · 28 débito (439) · 04 crédito (418) ·
+         99 por definir (204) · 01 efectivo (142) · 02 cheque (41).
+         Los números son las claves del SAT, y van en el texto para que Maura
+         escoja la misma opción en el portal sin traducir nada. -->
+    <label>¿Cómo te pagó? <span class="op">forma de pago</span></label>
+    <select id="cli-forma">
+      <option value="">— Escógela —</option>
+      <option value="03">03 · Transferencia electrónica</option>
+      <option value="28">28 · Tarjeta de débito</option>
+      <option value="04">04 · Tarjeta de crédito</option>
+      <option value="01">01 · Efectivo</option>
+      <option value="02">02 · Cheque nominativo</option>
+      <option value="99">99 · Por definir</option>
+    </select>
+
     <label>Notas para Maura <span class="op">opcional</span></label>
     <textarea id="notas" placeholder="Ej: ya pagó en efectivo · falta cobrarle el IVA"></textarea>
 
@@ -555,6 +575,11 @@ function armar(id, estado){
     nombre: $('cli-nombre').value.trim(),
     rfc: $('cli-rfc').value.trim().toUpperCase(),
     correo: $('cli-correo').value.trim(),
+    // La clave del SAT (03, 28, 04…) y el texto, para que Maura escoja la
+    // misma opción en el portal sin tener que traducir nada.
+    formaPago: $('cli-forma').value,
+    formaPagoTexto: $('cli-forma').selectedIndex > 0
+                    ? $('cli-forma').options[$('cli-forma').selectedIndex].text : '',
     notas: $('notas').value.trim(),
     piezas: ITEMS.map(it => {
       const s = +(it.cantidad * it.precioSinIva).toFixed(2);
@@ -788,7 +813,8 @@ function recordarCorreo(){
   $('prec').addEventListener('input', function(){ conComas(this); });
 
   // De dónde a dónde brinca cada Enter
-  const brincos = { 'cant':'prec', 'prec':'btn-add', 'cli-rfc':'cli-correo', 'cli-correo':'notas' };
+  const brincos = { 'cant':'prec', 'prec':'btn-add', 'cli-rfc':'cli-correo',
+                    'cli-correo':'cli-forma', 'cli-forma':'notas' };
 
   Object.keys(brincos).forEach(function(de){
     const el = $(de);
