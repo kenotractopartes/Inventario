@@ -433,8 +433,11 @@ function borrarItem(i){
   pintarLista();
 }
 function chipsDe(it){
-  return (it.codigoInterno ? '<span class="chip">Código ' + it.codigoInterno + '</span>' : '')
-       + (it.claveSAT ? '<span class="chip">SAT ' + it.claveSAT + '</span>'
+  // Van escapados: desde que el inventario puede mandar la pieza por la
+  // dirección (?pz=), estos dos textos ya no siempre salen del catálogo
+  // de aquí adentro.
+  return (it.codigoInterno ? '<span class="chip">Código ' + esc(it.codigoInterno) + '</span>' : '')
+       + (it.claveSAT ? '<span class="chip">SAT ' + esc(it.claveSAT) + '</span>'
                       : '<span class="chip" style="background:#FDECEA;border-color:#E4B3AC;color:#B03A2E">sin clave SAT</span>');
 }
 
@@ -851,6 +854,74 @@ function recordarCorreo(){
     e.preventDefault();
     $('cli-rfc').focus();
   });
+})();
+
+// ── LA PIEZA QUE VIENE DEL INVENTARIO (?pz=) ─────────────────────────
+// Del botón 🧾 de motores, chasis y cabinas. Ahí ya está capturado el
+// número de serie —un VIN son 17 caracteres— y teclearlo a mano es justo
+// donde uno se equivoca. Llega la descripción armada, la clave del SAT y
+// el precio.
+//
+// TODO lo que viene por la dirección se revisa antes de usarse: es texto
+// que cualquiera puede escribir. Se acepta solo lo que tiene forma de
+// dato bueno y se recorta; lo demás se ignora en silencio, porque el
+// vendedor no tiene por qué entender de esto — si algo no llegó, lo
+// escribe a mano como siempre.
+(function pzDelInventario(){
+  const cru = new URLSearchParams(location.search).get('pz');
+  if (!cru) return;
+  // La dirección se limpia SIEMPRE, aunque el dato venga mal: si se queda
+  // puesta, recargar la página metería la pieza dos veces.
+  try { history.replaceState(null, '', location.pathname); } catch(e){}
+
+  let d;
+  try { d = JSON.parse(decodeURIComponent(escape(atob(cru)))); } catch(e){ return; }
+  if (!d || typeof d !== 'object') return;
+
+  // Se le quitan los caracteres de control (los invisibles) y se recorta.
+  const texto = (s, max) => String(s == null ? '' : s)
+                              .replace(/[\u0000-\u001F\u007F]/g, ' ')
+                              .replace(/\s+/g, ' ').trim().slice(0, max);
+  const pieza = texto(d.pieza, 300);
+  if (!pieza) return;
+
+  const it = {
+    pieza: pieza,
+    // La clave del SAT son 8 dígitos, ni uno más.
+    claveSAT: /^\d{8}$/.test(String(d.claveSAT || '')) ? String(d.claveSAT) : '',
+    codigoInterno: texto(d.codigoInterno, 30).replace(/[^A-Za-z0-9\-_.]/g, ''),
+    cantidad: Math.min(999, Math.max(1, Math.floor(Number(d.cantidad) || 1))),
+    precioSinIva: Math.max(0, Number(d.precioSinIva) || 0)
+  };
+
+  if (it.precioSinIva > 0) {
+    // Con precio, ya es un renglón hecho: el vendedor solo captura al cliente.
+    ITEMS.push(it);
+    pintarLista();
+    setTimeout(function(){ window.scrollTo(0, 0); }, 60);   // que abra arriba, viendo la pieza
+  } else {
+    // Sin precio no se puede anotar (guardarPieza lo rechazaría). Se deja
+    // cargada en el formulario con el cursor en el precio.
+    $('q').value = it.pieza;
+    $('q').dataset.ci = it.codigoInterno;
+    $('q').dataset.sat = it.claveSAT;
+    $('cant').value = it.cantidad;
+    elegida = { ci: it.codigoInterno, sat: it.claveSAT, nom: it.pieza };
+    $('chips').innerHTML = chipsDe(it);
+    $('chips').style.display = 'flex';
+    $('alta').classList.add('listo');
+    $('e-pieza').textContent = 'Esta pieza no trae precio en el inventario. Ponle el precio y pícale a “Agregar esta pieza”.';
+    $('e-pieza').style.display = 'block';
+    // Se enfoca el precio SIN dejar que el navegador mueva la página, y se
+    // manda arriba a mano. La caja de alta es lo primero del formulario, así
+    // que arriba ya se ve completa. (Con scrollIntoView no: si el navegador
+    // todavía no acomoda la altura de la ventana, manda la página al fondo
+    // y el vendedor abre el enlace mirando un espacio en blanco.)
+    setTimeout(function(){
+      window.scrollTo(0, 0);
+      try { $('prec').focus({ preventScroll: true }); } catch(e){ $('prec').focus(); }
+    }, 60);
+  }
 })();
 
 pintarLista();

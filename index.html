@@ -3204,6 +3204,133 @@ function abrirAdelantarFactura(){
   window.open(base + 'factura-vendedor.html', '_blank', 'noopener');
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// FACTURAR UNA PIEZA CON SU NÚMERO DE SERIE (ago 2026)
+// ──────────────────────────────────────────────────────────────────────
+// Solo para MOTORES, CHASIS y CABINAS. Son las tres familias donde la
+// factura lleva el número de serie adentro de la descripción, y donde
+// teclearlo a mano es donde uno se equivoca: un VIN son 17 caracteres.
+//
+// El dato ya está aquí (Raúl lo captura al dar de alta la pieza), así que
+// esto NO baja nada de la nube: arma el texto y lo pasa por la dirección.
+//
+// Los formatos y las claves del SAT NO son inventados — salen de contar
+// cómo redacta Maura en las 2,577 facturas ya timbradas:
+//   motores  26101504 (106 de 107)   MOTOR <modelo> NO. SERIE: <serie> USADO
+//   chasis   25102100 (78 de 87)     TRACTOCAMION USADO EN LAS CONDICIONES…
+//   cabinas  25181607 (60 de 60)     CABINA <marca> <modelo> <año> NO. SERIE…
+// ══════════════════════════════════════════════════════════════════════
+var FACTURA_FAMILIAS = {
+  motores: { sat: '26101504' },
+  chasis:  { sat: '25102100' },
+  cabinas: { sat: '25181607' }
+};
+// El código interno de chasis y cabinas depende de la MARCA. Sale de los
+// que Maura ya usó: TCF001 Freightliner, TCK001 Kenworth, TCI001
+// International, TCV001 Volvo, TCD001 Dina.
+var COD_MARCA_CHASIS = { FREIGHTLINER:'TCF001', KENWORTH:'TCK001',
+                         INTERNATIONAL:'TCI001', VOLVO:'TCV001', DINA:'TCD001' };
+
+// Distancia de edición (cuántos dedazos hay de una palabra a la otra).
+// Se corta de volada si las longitudes ni se parecen.
+function _dedazos(a, b){
+  if (Math.abs(a.length - b.length) > 2) return 99;
+  var prev = [], cur = [], i, j;
+  for (j = 0; j <= b.length; j++) prev[j] = j;
+  for (i = 1; i <= a.length; i++) {
+    cur = [i];
+    for (j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j-1] + 1,
+                        prev[j-1] + (a.charAt(i-1) === b.charAt(j-1) ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+// En chasis y cabinas la marca y el modelo vienen JUNTOS en un solo campo,
+// tal como Raúl los capturó: "KENWORTH T600B", "FREIGHTLINER COLUMBIA".
+// Devuelve los dos por separado, que es como los pide la factura.
+function _marcaModeloDe(p){
+  var t = ((p.camionMarca || p.marca || (p.extras||{}).fichaMarca || '') + '')
+            .toUpperCase().replace(/\s+/g, ' ').trim();
+  if (!t) return { marca: '', modelo: '' };
+  // Hay capturas tipo "FREIGHTLINER/AMERICANO": la diagonal separa igual
+  // que un espacio.
+  var palabras = t.replace(/\//g, ' ').split(' ').filter(Boolean);
+  if (!palabras.length) return { marca: '', modelo: '' };
+  var primera = palabras[0];
+  // 30 años de capturas traen la marca escrita de mil formas: en el
+  // inventario de hoy hay dos chasis que dicen FREIHGTLINER. Se aceptan
+  // hasta dos dedazos, y solo en palabras largas para no confundir marcas
+  // cortas entre sí.
+  var marca = Object.keys(COD_MARCA_CHASIS).find(function(k){
+    return k === primera || (primera.length >= 6 && _dedazos(primera, k) <= 2);
+  }) || primera;
+  return { marca: marca, modelo: palabras.slice(1).join(' ') };
+}
+
+// Arma la descripción tal como la escribe Maura. Devuelve null si a la
+// pieza le falta el número de serie: mejor no ofrecer el botón que mandar
+// una descripción a medias.
+function descripcionFactura(p){
+  if (!p) return null;
+  var e = p.extras || {};
+  var serie = (e.serie || e.fichaVin || '').trim();
+  if (!serie) return null;
+  var fam = p.familia;
+  var anio = (p.año || e.fichaAño || '').trim();
+  var mm = _marcaModeloDe(p);
+  var marca = mm.marca;
+  // El modelo puede venir en su propio campo o pegado a la marca. En chasis
+  // el campo "modelo" dice literalmente "Chasis", que no sirve de nada.
+  var propio = (e.fichaModelo || p.modelo || '').trim();
+  if (/^(chasis|cabina)$/i.test(propio)) propio = '';
+  var modelo = propio || mm.modelo;
+
+  if (fam === 'motores') {
+    // El modelo del motor ya trae la marca adentro (ISX-CM870, N14 Celect…)
+    var est = (e.estadoMotor || '').toUpperCase() === 'RECONSTRUIDO' ? 'RECONSTRUIDO' : 'USADO';
+    return { texto: ('MOTOR ' + modelo + ' NO. SERIE: ' + serie + ' ' + est).replace(/\s+/g,' ').trim(),
+             sat: FACTURA_FAMILIAS.motores.sat, cod: '' };
+  }
+  if (fam === 'chasis') {
+    var partes = ['MARCA: ' + marca];
+    if (modelo) partes.push('MODELO: ' + modelo);
+    if (anio) partes.push('AÑO: ' + anio);
+    partes.push('NO. SERIE: ' + serie);
+    return { texto: 'TRACTOCAMION USADO EN LAS CONDICIONES EN QUE SE ENCUENTRA AL MOMENTO DE SU VENTA: '
+                    + partes.join(', '),
+             sat: FACTURA_FAMILIAS.chasis.sat, cod: COD_MARCA_CHASIS[marca] || '' };
+  }
+  if (fam === 'cabinas') {
+    return { texto: ('CABINA ' + marca + ' ' + modelo + ' ' + anio
+                     + ' NO. SERIE: ' + serie + ' USADA').replace(/\s+/g,' ').trim(),
+             sat: FACTURA_FAMILIAS.cabinas.sat, cod: '' };
+  }
+  return null;
+}
+
+function puedeFacturarse(p){ return !!(p && FACTURA_FAMILIAS[p.familia] && descripcionFactura(p)); }
+
+function facturarPieza(id){
+  var p = DATA.piezas.find(function(x){ return x && x.id === id; });
+  var d = descripcionFactura(p);
+  if (!d) { toast('A esta pieza le falta el número de serie', 'error'); return; }
+  var carga = {
+    pieza: d.texto,
+    claveSAT: d.sat,
+    codigoInterno: d.cod || p.folioInterno || '',
+    cantidad: 1,
+    precioSinIva: Number(p.precioSugerido) || 0,
+    folio: p.folioInterno || ''
+  };
+  // Se pasa por la dirección, codificado, para que aguante acentos y comas.
+  var base = location.href.replace(/[^/]*$/, '');
+  window.open(base + 'factura-vendedor.html?pz=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(carga))))),
+              '_blank', 'noopener');
+}
+
 function abrirConteo(){
   _conteoFam = null; _conteoVals = {};
   renderConteoFamilias();
@@ -4318,6 +4445,7 @@ function renderCamiones() {
               ${qrBtn}
               ${estadoInyBotones(p)}
               ${(estadoIny(p) && estadoIny(p) !== 'reconstruido') ? '' : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
+              ${puedeFacturarse(p) ? `<button class="btn btn-small btn-mini" style="background:#1A3A2E;color:#fff;border-color:#1A3A2E;" onclick="facturarPieza('${p.id}')" title="Adelantar la factura con el número de serie ya puesto">🧾</button>` : ''}
               ${botonApartar(p)}
               ${botonFotos(p)}
                             <button class="btn btn-small btn-mini solo-editor" onclick="editarPieza('${p.id}')">Editar</button>
@@ -5345,6 +5473,7 @@ function renderPiezaItem(p) {
         ${p.vendida
           ? `<button class="btn btn-small solo-editor" onclick="reactivarPieza('${p.id}')">↶</button>`
           : `<button class="btn btn-small btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
+        ${puedeFacturarse(p) ? `<button class="btn btn-small btn-mini" style="background:#1A3A2E;color:#fff;border-color:#1A3A2E;" onclick="facturarPieza('${p.id}')" title="Adelantar la factura con el número de serie ya puesto">🧾</button>` : ''}
         ${botonApartar(p)}
         ${botonFotos(p)}
         ${qrBtn}
@@ -5478,6 +5607,7 @@ function renderPiezaItemConCamion(p) {
             : (estadoIny(p) && estadoIny(p) !== 'reconstruido'
                 ? estadoInyBotones(p)
                 : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`)}
+          ${puedeFacturarse(p) ? `<button class="btn btn-small btn-mini" style="background:#1A3A2E;color:#fff;border-color:#1A3A2E;" onclick="facturarPieza('${p.id}')" title="Adelantar la factura con el número de serie ya puesto">🧾</button>` : ''}
           ${botonApartar(p)}
           ${botonFotos(p)}
                     
@@ -5888,6 +6018,7 @@ function renderApartados(){
           </div>
           <div style="display:flex; flex-direction:column; gap:5px; flex-shrink:0;">
             <button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>
+            ${puedeFacturarse(p) ? `<button class="btn btn-small btn-mini" style="background:#1A3A2E;color:#fff;border-color:#1A3A2E;" onclick="facturarPieza('${p.id}')" title="Adelantar la factura con el número de serie ya puesto">🧾</button>` : ''}
             <button class="btn btn-small btn-mini solo-editor" style="background:#7e57c2;color:#fff;border-color:#7e57c2;" onclick="liberarApartado('${p.id}')">Liberar</button>
           </div>
         </div>
@@ -7296,6 +7427,7 @@ function _renderResultadosBusqueda() {
                     ${p.bajoPedido ? '<span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : ''}
                     ${estadoInyBotones(p)}
                     ${(estadoIny(p) && estadoIny(p) !== 'reconstruido') ? '' : `<button class="btn btn-small btn-mini btn-success solo-editor" onclick="venderPieza('${p.id}')">Vendí</button>`}
+                    ${puedeFacturarse(p) ? `<button class="btn btn-small btn-mini" style="background:#1A3A2E;color:#fff;border-color:#1A3A2E;" onclick="facturarPieza('${p.id}')" title="Adelantar la factura con el número de serie ya puesto">🧾</button>` : ''}
                     ${botonApartar(p)}
                     ${botonFotos(p)}
                                         
