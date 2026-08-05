@@ -29,61 +29,79 @@
   ════════════════════════════════════════════════════════════════════
 -->
 <style>
+  /* ══════════════════════════════════════════════════════════════════
+     ESTILO DE LA CASA — el mismo del inventario y de factura-vendedor.
+     Ésta la ve el CLIENTE, así que con más razón tiene que verse de la
+     empresa y no de una plantilla cualquiera.
+        letra    Georgia serif · Arial para etiquetas y botones
+        fondo    #f2efe9        negro de la casa  #17140f
+        rojo     #b03a2e        oro               #c9a24b
+     El verde se queda SOLO donde significa "hecho" (subir la constancia
+     y el acuse), que es justo lo que el cliente tiene que ver claro.
+     ══════════════════════════════════════════════════════════════════ */
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-       background:#EFE9DC;color:#1a1a1a;font-size:17px;line-height:1.45;
+  body{margin:0;font-family:Georgia,'Times New Roman',serif;
+       background:#f2efe9;color:#1a1a1a;font-size:17px;line-height:1.5;
        padding:0 0 40px;-webkit-text-size-adjust:100%}
-  .top{background:#1A3A2E;color:#fff;padding:22px 20px 26px;text-align:center}
-  .top h1{margin:0 0 4px;font-size:21px;font-weight:800;letter-spacing:.3px}
-  .top p{margin:0;font-size:14px;opacity:.85}
+  .top{background:#17140f;color:#fff;padding:20px 20px 22px;text-align:center;
+       border-bottom:3px solid #b03a2e}
+  .top h1{margin:0 0 5px;font-size:24px;font-weight:700;letter-spacing:.5px;font-family:Georgia,serif}
+  .top p{margin:0;font-size:11px;color:#c9a24b;font-weight:700;text-transform:uppercase;
+         letter-spacing:2px;font-family:Arial,sans-serif}
   .wrap{max-width:520px;margin:0 auto;padding:0 16px}
-  .card{background:#fff;border-radius:14px;padding:20px 18px;margin-top:-14px;
-        box-shadow:0 3px 14px rgba(0,0,0,.10)}
-  label{display:block;font-weight:700;font-size:15px;margin:20px 0 7px;color:#243}
-  label .op{font-weight:400;color:#8a8a8a;font-size:13.5px}
+  .card{background:#fff;border:1px solid #ddd6c8;border-radius:3px;padding:22px 20px;
+        margin-top:18px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  label{display:block;font-weight:700;font-size:11px;margin:22px 0 7px;color:#6b6459;
+        text-transform:uppercase;letter-spacing:1px;font-family:Arial,sans-serif}
+  label .op{font-weight:400;color:#9a9284;letter-spacing:.3px;text-transform:none}
   input[type=text],input[type=email],input[type=tel],select,textarea{
-    width:100%;padding:14px 14px;font-size:17px;font-family:inherit;
-    border:2px solid #d8d2c6;border-radius:10px;background:#fff;color:#111}
-  input:focus,select:focus,textarea:focus{outline:none;border-color:#2E7D46;
-    box-shadow:0 0 0 3px rgba(46,125,70,.15)}
+    width:100%;padding:13px 14px;font-size:17px;font-family:Arial,sans-serif;
+    border:1px solid #cec7b8;border-radius:2px;background:#fff;color:#111}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:#b03a2e}
   textarea{min-height:78px;resize:vertical}
-  .ayuda{font-size:13.5px;color:#7b7b7b;margin-top:6px;line-height:1.4}
-  .err{border-color:#C0392B !important;background:#FFF6F5}
-  .msg-err{color:#C0392B;font-size:14px;font-weight:600;margin-top:6px;display:none}
+  .ayuda{font-size:13px;color:#8a8378;margin-top:6px;line-height:1.4;font-family:Arial,sans-serif}
+  .err{border-color:#b03a2e !important;background:#FDF3F1}
+  .msg-err{color:#b03a2e;font-size:14px;font-weight:700;margin-top:6px;display:none;
+           font-family:Arial,sans-serif}
 
-  /* Subir la constancia — es el camino principal, por eso es grande */
-  .drop{border:2.5px dashed #2E7D46;border-radius:14px;background:#F2F9F4;
+  /* Subir la constancia — es el camino principal, por eso es grande.
+     Aquí SÍ va verde: es la acción que queremos que el cliente haga. */
+  .drop{border:2px dashed #2e7d46;border-radius:3px;background:#f5faf6;
         padding:26px 16px;text-align:center;cursor:pointer;transition:.15s}
-  .drop:active,.drop.hover{background:#E3F1E8;border-color:#1A5C30}
+  .drop:active,.drop.hover{background:#e8f3ec;border-color:#256339}
   .drop .ic{font-size:38px;line-height:1}
-  .drop b{display:block;margin-top:8px;font-size:17px;color:#1A5C30}
-  .drop span{display:block;font-size:14px;color:#5c7a66;margin-top:3px}
-  .listo{display:none;background:#E3F1E8;border:2px solid #2E7D46;border-radius:12px;
-         padding:14px;margin-top:10px;font-size:15px}
-  .listo b{color:#1A5C30}
-  .quitar{background:none;border:0;color:#C0392B;font-weight:700;font-size:14px;
-          padding:6px 0;cursor:pointer;text-decoration:underline}
+  .drop b{display:block;margin-top:8px;font-size:18px;color:#256339;font-family:Georgia,serif}
+  .drop span{display:block;font-size:13px;color:#6b6459;margin-top:4px;font-family:Arial,sans-serif}
+  .listo{display:none;background:#f5faf6;border:1px solid #2e7d46;border-left:3px solid #2e7d46;
+         border-radius:2px;padding:14px;margin-top:10px;font-size:15px;font-family:Arial,sans-serif}
+  .listo b{color:#256339}
+  .quitar{background:none;border:0;color:#b03a2e;font-weight:700;font-size:14px;
+          padding:6px 0;cursor:pointer;text-decoration:underline;font-family:Arial,sans-serif}
 
-  .otro{background:none;border:0;color:#1A5C30;font-weight:700;font-size:15px;
+  .otro{background:none;border:0;color:#17140f;font-weight:700;font-size:14px;
         text-decoration:underline;padding:14px 0;cursor:pointer;display:block;
-        margin:6px auto 0;text-align:center}
+        margin:6px auto 0;text-align:center;font-family:Arial,sans-serif}
   #manual{display:none}
 
-  .enviar{width:100%;padding:18px;font-size:19px;font-weight:800;color:#fff;
-          background:#2E7D46;border:0;border-radius:12px;margin-top:26px;cursor:pointer}
-  .enviar:active{background:#1A5C30}
-  .enviar:disabled{background:#9db8a6;cursor:default}
+  .enviar{width:100%;padding:18px;font-size:16px;font-weight:700;color:#fff;
+          background:#17140f;border:1px solid #17140f;border-radius:2px;margin-top:26px;
+          cursor:pointer;font-family:Arial,sans-serif;letter-spacing:.5px;text-transform:uppercase}
+  .enviar:active{background:#333}
+  .enviar:disabled{background:#8d877c;border-color:#8d877c;opacity:.6;cursor:default}
 
   .ok{display:none;text-align:center;padding:34px 20px}
   .ok .tick{font-size:60px}
-  .ok h2{font-size:23px;margin:12px 0 8px;color:#1A5C30}
-  .ok p{color:#555;font-size:16px;margin:0 0 6px}
-  .pie{text-align:center;font-size:13px;color:#8a8378;margin-top:18px;padding:0 20px}
-  .aviso{background:#FFF8E7;border:1px solid #E8C97A;border-radius:10px;
-         padding:12px 14px;font-size:14px;color:#6b5720;margin-top:18px}
+  .ok h2{font-size:24px;margin:12px 0 8px;color:#17140f;font-family:Georgia,serif}
+  .ok p{color:#6b6459;font-size:16px;margin:0 0 6px;font-family:Arial,sans-serif}
+  .pie{text-align:center;font-size:12px;color:#8a8378;margin-top:18px;padding:0 20px;
+       font-family:Arial,sans-serif}
+  .aviso{background:#faf8f3;border:1px solid #c9a24b;border-left:3px solid #c9a24b;
+         border-radius:2px;padding:12px 14px;font-size:14px;color:#6b5720;margin-top:18px;
+         font-family:Arial,sans-serif}
   /* Aviso del IVA — va hasta arriba, antes de que el cliente llene nada. */
-  .nota-iva{background:#FFF8E7;border-left:4px solid #C9A24B;border-radius:8px;
-            padding:11px 13px;font-size:14.5px;color:#6b5720;line-height:1.4}
+  .nota-iva{background:#faf8f3;border:1px solid #c9a24b;border-left:3px solid #c9a24b;
+            border-radius:2px;padding:12px 14px;font-size:14.5px;color:#6b5720;line-height:1.45;
+            font-family:Arial,sans-serif}
 </style>
 </head>
 <body>
