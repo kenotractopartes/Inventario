@@ -831,9 +831,31 @@ const FAMILIAS = [
   // entre zonas, por eso va en la ubicación y NO en el folio interno.
   { id: 'arneses', nombre: 'Arneses', nombreSingular: 'Arnés', color: '#ffd9c9', tipo: 'libre',
     botones: [], placeholderLibre: 'Ej. KW – ISX – Café' },
+  // ── RICARDO (ago 2026) ────────────────────────────────────────────
+  // Aquí Ricardo registra lo que va a FOTOGRAFIAR y GRABAR para los posts
+  // y los videos. Son piezas que el negocio sí maneja, pero que no tienen
+  // que estar en el inventario de Raúl.
+  //
+  // Antes esto se metía en "Otros", y ahí se revolvía con piezas que sí
+  // están a la venta. Por eso va aparte: NO cuenta en "piezas en patio" y
+  // NO se le ofrece a la tienda en línea.
+  //
+  // El botón de "Vendí" SÍ se le deja, y el precio sigue siendo opcional
+  // (siempre lo fue). Si algún día se vende una de estas, se puede marcar
+  // igual que cualquier otra.
+  { id: 'ricardo', nombre: 'Ricardo', nombreSingular: 'Producto de Ricardo', color: '#e0d4f7', tipo: 'libre',
+    soloContenido: true,
+    botones: [], placeholderLibre: '¿Qué le vas a tomar foto o video?' },
   { id: 'otros', nombre: 'Otros', nombreSingular: 'Otro', color: '#e8e8e8', tipo: 'libre',
     botones: [], placeholderLibre: '¿Qué pieza es?' }
 ];
+
+// Familias que NO son inventario de venta: existen para hacer publicidad.
+// Se declara UNA sola vez y de aquí lo leen el contador de patio y los dos
+// filtros de la tienda en línea — así no hay que acordarse de tres lugares
+// distintos si mañana se agrega otra.
+const FAMILIAS_SOLO_CONTENIDO = FAMILIAS.filter(f => f.soloContenido).map(f => f.id);
+function esSoloContenido(p){ return !!(p && FAMILIAS_SOLO_CONTENIDO.includes(p.familia)); }
 // Zonas del cuarto de arneses (orden de la pared/tubos) y tipos de arnés.
 const ARNES_ZONAS = [
   { id:'TUBO_PRINCIPAL', nombre:'Tubo principal' },
@@ -4227,7 +4249,8 @@ function renderCamiones() {
   // Contador de camiones
   const totalActivos = DATA.camiones.filter(c => !c.desmantelado).length;
   const totalDesm = DATA.camiones.filter(c => c.desmantelado).length;
-  const totalPiezas = DATA.piezas.filter(p => !p.vendida).length;
+  // Lo de Ricardo no es inventario de patio: es material para publicidad.
+  const totalPiezas = DATA.piezas.filter(p => !p.vendida && !esSoloContenido(p)).length;
   document.getElementById('contador-camiones').innerHTML = `${totalActivos} camión(es) activo(s)${totalDesm ? ` · ${totalDesm} desmantelado(s)` : ''} · ${totalPiezas} pieza(s) en patio`;
   if (typeof actualizarBannerDormidas === 'function') actualizarBannerDormidas();
 
@@ -5952,7 +5975,7 @@ function renderWeb(){
   // únicas que sabemos con certeza que están allá y hay que quitar. Las demás
   // se cargaron a mano y no tenemos forma de saber cómo se llaman en su panel.
   const pendientesBaja = DATA.piezas.filter(p => p.enWeb && p.vendida);
-  const subir = DATA.piezas.filter(p => !p.vendida && !p.noWeb && !p.enWeb && (p.fechaRegistro || 0) >= desde)
+  const subir = DATA.piezas.filter(p => !p.vendida && !p.noWeb && !p.enWeb && !esSoloContenido(p) && (p.fechaRegistro || 0) >= desde)
     .sort((a,b) => (b.fechaRegistro||0) - (a.fechaRegistro||0));
   // Para irse a Leadway una pieza necesita foto Y precio web. Se separan para
   // que se vea CLARO qué le falta a cada una en vez de un montón indistinto.
@@ -6176,7 +6199,7 @@ function exportarLeadway(limite){
   // SUBIR: con foto, con precio web, no vendidas, no excluidas y —muy importante—
   // que NO se hayan mandado antes: si una ya está en Leadway, su Handle repetido
   // tumbaría toda la importación.
-  let subir = DATA.piezas.filter(p => !p.vendida && !p.noWeb && !p.enWeb &&
+  let subir = DATA.piezas.filter(p => !p.vendida && !p.noWeb && !p.enWeb && !esSoloContenido(p) &&
     p.precioWeb > 0 && mediaDePieza(p.id).length > 0);
   // De piezas idénticas (mismo modelo) solo va UNA, con la cantidad correcta:
   // si no, la tienda mostraría 8 inyectores repetidos.
