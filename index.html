@@ -110,9 +110,18 @@
   .pieza-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 
   /* DASHBOARD STATS */
-  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
-  .stat { background: #fff; border: 1px solid #ddd6c8; border-radius: 3px; padding: 18px; text-align: center; }
-  .stat-num { font-size: 36px; font-weight: 700; color: #17140f; line-height: 1; font-family: Georgia, serif; }
+  /* ago 2026 — EL TOTAL SALÍA CORTADO.
+     Medido: "$1,260,450" a 36px Georgia necesita 206px y la tarjeta solo daba
+     132 útiles. Se salía 73px y la tarjeta de al lado se lo tapaba, así que el
+     número se leía a medias ("$1,260,45") sin que nada avisara.
+     Ahora la columna arranca en 265px y el número en 28px: entra hasta
+     "$11,368,500.50", que es el valor completo del patio con centavos — el
+     número más grande que puede aparecer aquí. Si algún día saliera uno más
+     largo, se parte en dos renglones (overflow-wrap) en vez de esconderse, y
+     overflow:hidden garantiza que NUNCA invada la tarjeta de al lado. */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(265px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .stat { background: #fff; border: 1px solid #ddd6c8; border-radius: 3px; padding: 18px; text-align: center; min-width: 0; overflow: hidden; }
+  .stat-num { font-size: 28px; font-weight: 700; color: #17140f; line-height: 1.15; font-family: Georgia, serif; overflow-wrap: anywhere; }
   .stat-label { font-size: 11px; color: #6b6459; text-transform: uppercase; letter-spacing: 1px; margin-top: 8px; font-weight: 700; font-family: Arial, sans-serif; }
 
   /* TOAST */
@@ -2130,12 +2139,54 @@ function empujarAFirebase() {
   var cuenta = { n: 0 };
   _limpiarLlaves(DATA, cuenta);
   if (cuenta.n) { console.warn('Se corrigieron ' + cuenta.n + ' llaves inválidas antes de subir'); guardarLocal(); }
+  // ══════════════════════════════════════════════════════════════════
+  // CANDADO CONTRA EL BORRADO MASIVO (10 ago 2026)
+  // ──────────────────────────────────────────────────────────────────
+  // El 8 de agosto había 709 piezas y el 10 amanecieron 484: se
+  // perdieron 243, incluidos los 111 arneses completos, 15 ventas
+  // atendidas y 5 salidas. Nadie borró nada.
+  //
+  // Qué pasó: el inventario se sube en UN SOLO bloque que reemplaza todo.
+  // Si una computadora no logra aplicar lo que llega de la nube — se cayó
+  // el internet un momento, o falló al redibujar — se queda con su copia
+  // vieja. Y en cuanto esa persona edita CUALQUIER cosa, sube su copia
+  // vieja encima de la buena. Un cambio de una pieza borró 243.
+  //
+  // El candado: antes de subir se compara contra lo que hay en la nube.
+  // Si esta computadora va a mandar MENOS del 85% de las piezas que ya
+  // están allá, NO se sube y se avisa en grande. Perder inventario ahora
+  // exige ignorar un aviso a propósito, no un descuido.
+  //
+  // Se deja pasar hasta un 15% menos para no estorbar en lo normal: una
+  // tanda de ventas o una limpieza de faltantes baja el número de a poco.
+  // ══════════════════════════════════════════════════════════════════
+  const _miasVivas = (DATA.piezas || []).length;
+  fbRef.once('value').then(function(snap){
+    const remoto = snap.val();
+    const _nubeVivas = (remoto && Array.isArray(remoto.piezas)) ? remoto.piezas.length : 0;
+    if (_nubeVivas >= 20 && _miasVivas < _nubeVivas * 0.85) {
+      setEstadoSync('offline', 'NO se guardó — revisa');
+      avisarFallaGuardado(
+        'NO SE GUARDÓ, a propósito.\n\n'
+        + 'Esta computadora tiene ' + _miasVivas + ' piezas y en la nube hay ' + _nubeVivas + '. '
+        + 'Subirlas borraría ' + (_nubeVivas - _miasVivas) + ' piezas del inventario de todos.\n\n'
+        + 'Casi siempre es que esta compu se quedó con datos viejos. '
+        + 'RECARGA LA PÁGINA (Ctrl+Shift+R) y vuelve a intentar. '
+        + 'Si después de recargar sigue saliendo esto, mándale esta foto a Eugenio y NO sigas capturando aquí.',
+        new Error('bloqueado: ' + _miasVivas + ' local vs ' + _nubeVivas + ' en la nube'));
+      return;
+    }
+    _subirDeVerdad();
+  }).catch(function(){ _subirDeVerdad(); });   // sin red, se intenta igual
+
+  function _subirDeVerdad(){
   const payload = { ...DATA, _origen: DEVICE_ID, _ts: Date.now(), _key: EDITOR_KEY };
   fbRef.set(payload).then(() => setEstadoSync('ok', 'Sincronizado'))
     .catch((e) => {
       setEstadoSync('offline', 'Sin permiso o sin conexión');
       avisarFallaGuardado('La nube RECHAZÓ el cambio. Quedó solo en esta computadora.', e);
     });
+  }
 }
 
 function normalizarData(obj) {
