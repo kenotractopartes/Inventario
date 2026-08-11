@@ -133,6 +133,57 @@
   /* INFO BAR */
   .info-bar { background: #faf8f3; border: 1px solid #c9a24b; border-left: 3px solid #c9a24b; padding: 12px 16px; border-radius: 2px; font-size: 14px; color: #6b6459; margin-bottom: 18px; font-family: Arial, sans-serif; }
 
+  /* ══ 🫏 EL BURRITO FELIZ ══════════════════════════════════════════
+     El menú siempre a la mano, y unos burros paseándose por la pantalla.
+     Todo con CSS puro: cero librerías, cero peso extra. */
+  .burro-btn { background:#c9a24b !important; color:#17140f !important; border-color:#c9a24b !important; font-weight:800 !important; }
+  .burro-btn:hover { background:#b8923f !important; color:#17140f !important; }
+  #burro-tel { position:fixed; inset:0; z-index:100050; background:rgba(23,20,15,.92);
+    display:none; overflow-y:auto; padding:14px; }
+  #burro-tel.abierto { display:block; }
+  /* Las hojas van ENCIMA de los burros. Primero se probó al revés y los
+     burros tapaban los precios: el menú se volvía ilegible, que es justo
+     lo contrario de para qué existe el botón. Ahora cruzan por detrás y
+     asoman por los lados — se ve más chistoso y se lee perfecto. */
+  .burro-hoja { display:block; max-width:min(660px, 88vw); width:100%; margin:0 auto 14px;
+    border-radius:6px; box-shadow:0 10px 40px rgba(0,0,0,.55);
+    position:relative; z-index:5; }
+  .burro-cerrar { position:fixed; top:14px; right:16px; z-index:100060; background:#F9271D; color:#fff;
+    border:0; border-radius:3px; padding:11px 18px; font-weight:800; font-size:15px; cursor:pointer;
+    font-family:Arial,sans-serif; box-shadow:0 4px 16px rgba(0,0,0,.4); }
+  .burro-titulo { text-align:center; color:#c9a24b; font-family:Georgia,serif; font-size:22px;
+    font-weight:700; margin:6px 0 14px; position:relative; z-index:6; }
+  /* Los burros que se pasean. Cada uno con su carril, su paso y su tamaño. */
+  .burro { position:fixed; z-index:2; pointer-events:auto; cursor:pointer;
+    width:120px; will-change:transform; filter:drop-shadow(0 6px 14px rgba(0,0,0,.45)); }
+  .burro img { width:100%; display:block; animation:burro-brinca .55s ease-in-out infinite; }
+  @keyframes burro-brinca {                    /* el trote: sube y baja */
+    0%,100% { transform:translateY(0) rotate(-2deg); }
+    50%     { transform:translateY(-13px) rotate(2deg); }
+  }
+  @keyframes burro-cruza {                     /* cruza la pantalla y regresa */
+    0%   { transform:translateX(-24vw) scaleX(1); }
+    48%  { transform:translateX(104vw) scaleX(1); }
+    50%  { transform:translateX(104vw) scaleX(-1); }
+    98%  { transform:translateX(-24vw) scaleX(-1); }
+    100% { transform:translateX(-24vw) scaleX(1); }
+  }
+  .burro.giro { animation:burro-vuelta .7s ease-in-out; }   /* al picarle */
+  @keyframes burro-vuelta {
+    0%   { transform:rotate(0) scale(1); }
+    50%  { transform:rotate(360deg) scale(1.5); }
+    100% { transform:rotate(720deg) scale(1); }
+  }
+  .burro-globo { position:fixed; z-index:8; background:#fff; color:#17140f; border:2px solid #17140f;
+    border-radius:14px; padding:8px 14px; font-family:Arial,sans-serif; font-weight:800; font-size:14px;
+    white-space:nowrap; box-shadow:0 4px 14px rgba(0,0,0,.35); animation:burro-globo-sube 2.2s ease-out forwards; }
+  @keyframes burro-globo-sube {
+    0%   { opacity:0; transform:translateY(10px) scale(.8); }
+    15%  { opacity:1; transform:translateY(0) scale(1); }
+    80%  { opacity:1; }
+    100% { opacity:0; transform:translateY(-40px); }
+  }
+
   /* MODO SOLO VER: ocultar todo lo que edita */
   body.modo-ver .solo-editor { display: none !important; }
   body.modo-ver nav button[data-view="admin"] { display: none !important; }
@@ -253,6 +304,10 @@
   <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
     <div id="sync-estado" style="font-size:12px; color:#e8e2d5; font-family:Arial,sans-serif; font-weight:600; white-space:nowrap;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#c9a24b;margin-right:6px;"></span>Conectando…</div>
     <div id="modo-badge" style="background:#fff; padding:3px 10px; border-radius:2px;"></div>
+    <!-- 🫏 EL BURRITO FELIZ — el menú de los mariscos que siempre piden,
+         a la mano y sin buscarlo en WhatsApp. Y de paso, un rato de risa
+         en una pantalla que se usa todo el día. -->
+    <button class="btn-hdr burro-btn" onclick="abrirBurrito()" title="El menú de los mariscos… y algo más">🫏 El Burrito Feliz</button>
     <!-- ENGRANE DERECHO — SOLO EN EL CELULAR. Fotos, Registrar Camión y
          Compra de Mercancía. Al vendedor en Solo Ver le sale nada más Fotos:
          las otras dos llevan "solo-editor", igual que los botones originales. -->
@@ -9647,7 +9702,90 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
   setTimeout(function(){ window.pendRefrescar(); }, 4000);
   setTimeout(function(){ window.pendRefrescar(); }, 12000);
 })();
+
+// ════════════════════════════════════════════════════════════════════
+// 🫏 EL BURRITO FELIZ — el menú a la mano, y un rato de risa
+// ────────────────────────────────────────────────────────────────────
+// Pedido de Keno: el menú de los mariscos que siempre piden, sin andarlo
+// buscando en WhatsApp. Y ya que estamos, unos burros paseándose por la
+// pantalla, porque esta app se ve todo el día.
+//
+// Las tres imágenes van como archivos al lado del index (no incrustadas):
+// pesan 860 KB entre las tres y el navegador las guarda en caché la
+// primera vez. Meterlas en base64 habría engordado el HTML 1.1 MB que se
+// descargan SIEMPRE, se abra o no el menú.
+//
+// Todo el movimiento es CSS: ninguna librería, y si el navegador está
+// ocupado la animación se degrada sola en vez de trabar la página.
+// ════════════════════════════════════════════════════════════════════
+var _burrosVivos = [];
+var BURRO_DICHOS = ['¡Aguachiles!', '¡Ya es hora de comer!', '¿Tacos gobernador?',
+                    '¡Iaaa!', 'Yo pido mojarra 🐟', '¡Camarones al coco!',
+                    '¿Quién invita? 🫏', '¡Vuelve a la vida!'];
+
+function abrirBurrito(){
+  var tel = document.getElementById('burro-tel');
+  tel.classList.add('abierto');
+  document.body.style.overflow = 'hidden';
+  _soltarBurros();
+  document.addEventListener('keydown', _burroEsc);
+}
+function cerrarBurrito(){
+  document.getElementById('burro-tel').classList.remove('abierto');
+  document.body.style.overflow = '';
+  _burrosVivos.forEach(function(b){ if(b.parentNode) b.parentNode.removeChild(b); });
+  _burrosVivos = [];
+  document.removeEventListener('keydown', _burroEsc);
+}
+function _burroEsc(e){ if(e.key === 'Escape') cerrarBurrito(); }
+
+// Tres burros, cada uno con su carril, su tamaño y su paso, para que no
+// se vean marchando en fila.
+function _soltarBurros(){
+  var recetas = [
+    { alto:'12%',  ancho:150, seg:17, retraso:0,   trote:'.55s' },
+    { alto:'46%',  ancho:100, seg:24, retraso:-6,  trote:'.7s'  },
+    { alto:'76%',  ancho:190, seg:13, retraso:-11, trote:'.45s' }
+  ];
+  recetas.forEach(function(r){
+    var d = document.createElement('div');
+    d.className = 'burro';
+    d.style.cssText = 'top:' + r.alto + ';left:0;width:' + r.ancho + 'px;'
+      + 'animation:burro-cruza ' + r.seg + 's linear ' + r.retraso + 's infinite;';
+    var im = document.createElement('img');
+    im.src = 'burro.png';
+    im.alt = 'El Burrito Feliz';
+    im.style.animationDuration = r.trote;
+    d.appendChild(im);
+    d.onclick = function(ev){ _burroPicado(d, ev); };
+    document.getElementById('burro-tel').appendChild(d);
+    _burrosVivos.push(d);
+  });
+}
+
+// Si le picas al burro: da la vuelta de campana y suelta un dicho.
+function _burroPicado(d, ev){
+  var im = d.querySelector('img');
+  im.classList.remove('giro');
+  void im.offsetWidth;                     // reiniciar la animación
+  im.classList.add('giro');
+  setTimeout(function(){ im.classList.remove('giro'); }, 750);
+  var g = document.createElement('div');
+  g.className = 'burro-globo';
+  g.textContent = BURRO_DICHOS[Math.floor(Math.random() * BURRO_DICHOS.length)];
+  g.style.left = Math.max(8, Math.min(window.innerWidth - 190, ev.clientX - 60)) + 'px';
+  g.style.top = Math.max(8, ev.clientY - 54) + 'px';
+  document.getElementById('burro-tel').appendChild(g);
+  setTimeout(function(){ if(g.parentNode) g.parentNode.removeChild(g); }, 2300);
+}
 </script>
 <!-- ═══════════ FIN PENDIENTES POR DAR DE BAJA ═══════════ -->
+<!-- ══ 🫏 EL BURRITO FELIZ ══ el menú, y los burros paseándose ══ -->
+<div id="burro-tel">
+  <button class="burro-cerrar" onclick="cerrarBurrito()">✕ Cerrar</button>
+  <div class="burro-titulo">🦐 Mariscos «El Burro Feliz» · 811-2806-325</div>
+  <img class="burro-hoja" src="burro-menu-1.jpg" alt="Menú página 1">
+  <img class="burro-hoja" src="burro-menu-2.jpg" alt="Menú página 2">
+</div>
 </body>
 </html>
