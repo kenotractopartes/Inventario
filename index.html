@@ -4626,7 +4626,15 @@ function detalleDePiezas(piezas) {
       if (ex.fichaVin) filas.push(['VIN', escapeHtml(ex.fichaVin)]);
       if (ex.fichaNoMotor) filas.push(['N° Motor', escapeHtml(ex.fichaNoMotor)]);
       if (ex.consecutivo) filas.push(['Consecutivo', escapeHtml(ex.consecutivo)]);
-      if (ex.baja) filas.push(['Baja federal', ex.baja==='SI' ? 'Sí tiene ✔' : (ex.baja==='NO' ? 'No tiene ✗' : escapeHtml(ex.baja))]);
+      // ago 2026 — La baja federal que FALTA va con fondo rojo. Pedido de Keno:
+      // en una lista de 52 chasis, "Sí tiene ✔" y "No tiene ✗" se leen igual de
+      // rápido y se confunden. El color hace el trabajo que el texto no alcanza.
+      // Aplica a los que ya están y a cualquier chasis nuevo, porque se pinta
+      // aquí, al dibujar la ficha — no es un dato que haya que capturar.
+      if (ex.baja) filas.push(['Baja federal',
+        ex.baja === 'SI' ? '<span style="background:#e8f5ea;color:#1f5c36;font-weight:700;padding:2px 9px;border-radius:3px;">Sí tiene ✔</span>'
+        : (ex.baja === 'NO' ? '<span style="background:#F9271D;color:#fff;font-weight:700;padding:2px 9px;border-radius:3px;">No tiene ✗</span>'
+        : escapeHtml(ex.baja))]);
       if (ex.fichaExtra) filas.push(['Extra', escapeHtml(ex.fichaExtra)]);
       if (p.notas) filas.push(['Notas', `<em style="color:#888;">${escapeHtml(p.notas)}</em>`]);
 
@@ -7049,6 +7057,65 @@ let _filtroChasisAnio = null;
 // Filtros EXCLUSIVOS de Arneses (zona del cuarto + tipo). null = todos.
 let _filtroArnesZona = null;
 let _filtroArnesTipo = null;
+// Libraje, para Diferenciales y Mancuernas. null = todos. 0 = sin libraje.
+let _filtroLibras = null;
+
+// ══════════════════════════════════════════════════════════════════
+// EL LIBRAJE DE DIFERENCIALES Y MANCUERNAS (ago 2026)
+// ──────────────────────────────────────────────────────────────────
+// Las dos familias se distinguen por libraje, pero NO se escribe igual:
+// en diferenciales va completo ("40000 lbs") y en mancuernas abreviado
+// ("Mancuerna 44k"). El filtro entiende las dos formas y las guarda como
+// un solo número, así que 44k y 44000 son lo mismo y caen juntas.
+//
+// MANDA EL CAMPO, no el título. Se auditaron los 65 registros: el campo
+// "libras" está lleno en 51 de 53 diferenciales y en 12 de 12 mancuernas,
+// y donde vienen los dos SIEMPRE coinciden — ni una sola discrepancia.
+// El título se usa solo de respaldo, que rescata 1 diferencial más
+// ("14/45 Spicer Delantero 46000 lbs", con el campo vacío).
+//
+// Queda 1 diferencial sin libraje por ningún lado ("18/43 Meritor
+// Delantero", patio B5 C2). Ése sale en "— sin libraje —" a la vista, no
+// escondido: es una captura que hay que completar, no un caso que tapar.
+// ══════════════════════════════════════════════════════════════════
+function _librasDeTexto(t){
+  t = (t == null ? '' : t).toString().toUpperCase();
+  var m = t.match(/\b(\d{2})\s*K\b/);          // 44k · 44 K
+  if (m) return +m[1] * 1000;
+  m = t.match(/\b(\d{2})[,.](\d{3})\b/);       // 44,000 · 44.000
+  if (m) return +(m[1] + m[2]);
+  m = t.match(/\b(\d{5,6})\b/);                // 44000 · 44000 lbs
+  if (m) return +m[1];
+  return 0;
+}
+// El libraje de una pieza: primero el campo, y si está vacío, el título.
+function librasDePieza(p){
+  if (!p) return 0;
+  return _librasDeTexto((p.extras || {}).libras) || _librasDeTexto(p.modelo);
+}
+function _fmtLibras(n){ return n ? (n.toLocaleString('en-US') + ' lb') : '— sin libraje —'; }
+function setFiltroLibras(v){
+  _filtroLibras = (v === '__TODOS__') ? null : (+v);
+  renderBusqueda();
+}
+// Panel del filtro por libraje. Solo salen los librajes que HAY en esa
+// familia en ese momento — nunca un catálogo fijo.
+function panelFiltroLibras(fam){
+  var base = DATA.piezas.filter(function(p){ return p && !p.vendida && p.familia === fam; });
+  var cuenta = {};
+  base.forEach(function(p){ var l = librasDePieza(p); cuenta[l] = (cuenta[l] || 0) + 1; });
+  if (_filtroLibras !== null && !(_filtroLibras in cuenta)) cuenta[_filtroLibras] = 0;
+  var llaves = Object.keys(cuenta).map(Number).sort(function(a,b){ return a - b; });
+  var opts = '<option value="__TODOS__"' + (_filtroLibras === null ? ' selected' : '') + '>— Todos los librajes — (' + base.length + ')</option>';
+  llaves.filter(function(k){ return k > 0; }).forEach(function(k){
+    opts += '<option value="' + k + '"' + (_filtroLibras === k ? ' selected' : '') + '>' + _fmtLibras(k) + ' (' + cuenta[k] + ')</option>';
+  });
+  if (cuenta[0]) opts += '<option value="0"' + (_filtroLibras === 0 ? ' selected' : '') + '>— sin libraje — (' + cuenta[0] + ')</option>';
+  return '<div style="background:#eef3f8;border:2px solid #7fa3c8;border-radius:10px;padding:12px;margin-bottom:14px;">' +
+    '<div style="font-size:12px;font-weight:800;color:#2a5580;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">⚖️ Filtrar por libraje</div>' +
+    '<select onchange="setFiltroLibras(this.value)" style="width:100%;padding:11px;font-size:15px;border:2px solid #7fa3c8;border-radius:8px;">' + opts + '</select>' +
+  '</div>';
+}
 
 function setFiltroArnesZona(v){ _filtroArnesZona = v; renderBusqueda(); }
 function setFiltroArnesTipo(v){ _filtroArnesTipo = v; renderBusqueda(); }
@@ -7400,6 +7467,7 @@ function renderBusqueda() {
 
   // Panel de filtros SOLO cuando estás en la familia Chasis.
   if (_filtroFamilia === 'chasis') filtros.innerHTML += panelFiltrosChasis();
+  if (_filtroFamilia === 'diferenciales' || _filtroFamilia === 'mancuernas') filtros.innerHTML += panelFiltroLibras(_filtroFamilia);
   // Panel de filtros SOLO cuando estás en la familia Arneses (zona del cuarto + tipo).
   if (_filtroFamilia === 'arneses') filtros.innerHTML += panelFiltrosArnes();
 
@@ -7424,6 +7492,10 @@ function _renderResultadosBusqueda() {
     if (_filtroChasisBaja !== null) piezas = piezas.filter(p => ((p.extras && p.extras.baja) || '') === _filtroChasisBaja);
     if (_filtroChasisMarca !== null) piezas = piezas.filter(p => marcaDeFiltro(p) === _filtroChasisMarca);
     if (_filtroChasisAnio !== null) piezas = piezas.filter(p => anioDeFiltro(p) === _filtroChasisAnio);
+  }
+  // Libraje, en las dos familias que se distinguen por eso.
+  if ((_filtroFamilia === 'diferenciales' || _filtroFamilia === 'mancuernas') && _filtroLibras !== null) {
+    piezas = piezas.filter(p => librasDePieza(p) === _filtroLibras);
   }
   // Filtros exclusivos de Arneses (Zona + Tipo, se combinan).
   if (_filtroFamilia === 'arneses') {
@@ -7605,6 +7677,7 @@ function setFiltro(id) {
   _filtroEstadoIny = null;
   // Al cambiar de familia, resetear los filtros de chasis.
   if (id !== 'chasis') { _filtroChasisConsec = null; _filtroChasisBaja = null; _filtroChasisMarca = null; _filtroChasisAnio = null; }
+  if (id !== 'diferenciales' && id !== 'mancuernas') _filtroLibras = null;
   if (id !== 'arneses') { _filtroArnesZona = null; _filtroArnesTipo = null; }
   _acordeonesAbiertos.clear();
   renderBusqueda();
