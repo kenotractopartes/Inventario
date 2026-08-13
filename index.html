@@ -138,6 +138,43 @@
      Todo con CSS puro: cero librerías, cero peso extra. */
   .burro-btn { background:#c9a24b !important; color:#17140f !important; border-color:#c9a24b !important; font-weight:800 !important; }
   .burro-btn:hover { background:#b8923f !important; color:#17140f !important; }
+  /* 🔎 BUSCADOR SAT — el mismo azul del buscador propio, para que se reconozca */
+  .sat-btn { background:linear-gradient(135deg,#1e3a6b,#2c5f9e) !important; color:#fff !important;
+             border-color:#1e3a6b !important; font-weight:800 !important; }
+  .sat-btn:hover { background:linear-gradient(135deg,#172e55,#244d80) !important; color:#fff !important; }
+  #sat-tel { position:fixed; inset:0; z-index:100000; background:rgba(15,23,35,.78);
+             display:none; overflow:auto; padding:18px 12px 40px; }
+  #sat-tel.abierto { display:block; }
+  .sat-caja { max-width:min(820px,94vw); margin:0 auto; }
+  .sat-cab { background:linear-gradient(135deg,#1e3a6b,#2c5f9e); color:#fff; border-radius:16px 16px 0 0;
+             padding:16px 22px; display:flex; align-items:center; gap:12px; }
+  .sat-cab h2 { margin:0; font-family:Arial,Helvetica,sans-serif; font-size:22px; font-weight:800; flex:1; }
+  .sat-cerrar { background:rgba(255,255,255,.16); border:0; color:#fff; font-size:20px; font-weight:700;
+                width:36px; height:36px; border-radius:10px; cursor:pointer; line-height:1; }
+  .sat-cerrar:hover { background:rgba(255,255,255,.3); }
+  .sat-cuerpo { background:#f7f9fb; border-radius:0 0 16px 16px; padding:18px 22px 24px; }
+  .sat-lbl { font-family:Arial,Helvetica,sans-serif; font-size:13px; font-weight:700; color:#334155; margin-bottom:7px; }
+  .sat-fila { display:flex; gap:10px; align-items:stretch; }
+  .sat-input { flex:1; font-family:Arial,Helvetica,sans-serif; font-size:17px; padding:13px 15px;
+               border:2px solid #1e3a6b; border-radius:11px; outline:none; background:#fff; color:#0f172a; min-width:0; }
+  .sat-limpiar { background:#fff; border:2px solid #dbe2ea; color:#64748b; font-size:17px; font-weight:700;
+                 border-radius:11px; padding:0 15px; cursor:pointer; }
+  .sat-cuenta { font-family:Arial,Helvetica,sans-serif; font-size:15px; font-weight:800; color:#0f172a; margin:16px 0 10px; }
+  .sat-cuenta span { background:#e6ecf3; color:#334155; border-radius:20px; padding:2px 11px; font-size:13px; margin-left:7px; }
+  .sat-r { background:#fff; border:1px solid #e3e9ef; border-radius:13px; padding:14px 16px; margin-bottom:9px; }
+  .sat-r.con { background:#f4fbf6; border-color:#8fd3a8; border-left:5px solid #34a853; }
+  .sat-r-top { display:flex; align-items:center; gap:11px; }
+  .sat-r-tit { flex:1; font-family:Arial,Helvetica,sans-serif; font-size:17px; font-weight:800; color:#0f172a; min-width:0; overflow-wrap:anywhere; }
+  .sat-cod { background:#34a853; color:#fff; font-family:Arial,Helvetica,sans-serif; font-size:17px;
+             font-weight:800; border-radius:9px; padding:8px 15px; white-space:nowrap; }
+  .sat-cod.vacio { background:#c2cbd4; }
+  .sat-copiar { background:none; border:0; font-size:19px; cursor:pointer; padding:3px 5px; border-radius:7px; }
+  .sat-copiar:hover { background:#eef2f6; }
+  .sat-meta { margin-top:8px; font-family:Arial,Helvetica,sans-serif; font-size:13px; color:#0f172a;
+              display:flex; flex-wrap:wrap; gap:5px 20px; }
+  .sat-meta b { color:#94a3b8; font-weight:700; letter-spacing:.4px; }
+  .sat-aviso { font-family:Arial,Helvetica,sans-serif; font-size:13px; color:#64748b; text-align:center; padding:26px 10px; line-height:1.55; }
+  @media (max-width:520px){ .sat-cab h2 { font-size:18px; } .sat-cuerpo { padding:14px 13px 20px; } .sat-r-tit { font-size:15px; } }
   #burro-tel { position:fixed; inset:0; z-index:100050; background:rgba(23,20,15,.92);
     display:none; overflow-y:auto; padding:14px; }
   #burro-tel.abierto { display:block; }
@@ -307,6 +344,9 @@
     <!-- 🫏 EL BURRITO FELIZ — el menú de los mariscos que siempre piden,
          a la mano y sin buscarlo en WhatsApp. Y de paso, un rato de risa
          en una pantalla que se usa todo el día. -->
+    <!-- 🔎 BUSCADOR SAT — la clave del SAT de cualquier pieza, sin salirse del
+         inventario. Es SOLO LECTURA: aquí se busca, se edita en el HTML de SAT. -->
+    <button class="btn-hdr sat-btn" onclick="abrirSat()" title="Buscar la clave del SAT de una pieza">🔎 Buscador SAT</button>
     <button class="btn-hdr burro-btn" onclick="abrirBurrito()" title="El menú de los mariscos… y algo más">🫏 El Burrito Feliz</button>
     <!-- ENGRANE DERECHO — SOLO EN EL CELULAR. Fotos, Registrar Camión y
          Compra de Mercancía. Al vendedor en Solo Ver le sale nada más Fotos:
@@ -9787,5 +9827,234 @@ function _burroPicado(d, ev){
   <img class="burro-hoja" src="burro-menu-1.jpg" alt="Menú página 1">
   <img class="burro-hoja" src="burro-menu-2.jpg" alt="Menú página 2">
 </div>
+
+<!-- ═══════════════ 🔎 BUSCADOR SAT ═══════════════ -->
+<div id="sat-tel" role="dialog" aria-label="Buscador SAT">
+  <div class="sat-caja">
+    <div class="sat-cab">
+      <h2>🔎 Buscador SAT</h2>
+      <button class="sat-cerrar" onclick="cerrarSat()" title="Cerrar (Esc)">✕</button>
+    </div>
+    <div class="sat-cuerpo">
+      <div class="sat-lbl">Buscar por pieza, SAT o interno</div>
+      <div class="sat-fila">
+        <input class="sat-input" id="sat-q" type="text" placeholder="turbo, monoblock, 26101700, L051…"
+               autocomplete="off" oninput="satBuscar()">
+        <button class="sat-limpiar" onclick="satLimpiar()" title="Limpiar">✕</button>
+      </div>
+      <div class="sat-cuenta" id="sat-cuenta" style="display:none;">Resultados <span id="sat-n">0</span></div>
+      <div id="sat-res"></div>
+      <div class="sat-aviso" id="sat-aviso">Escribe para buscar entre las piezas del catálogo.</div>
+    </div>
+  </div>
+</div>
+<script>
+// ══════════════════════════════════════════════════════════════════
+// 🔎 BUSCADOR SAT — la clave del SAT de cualquier pieza, sin salirse
+// del inventario.
+// ──────────────────────────────────────────────────────────────────
+// Es SOLO LECTURA. Aquí se BUSCA; se edita en el HTML de SAT.
+//
+// De dónde salen los datos, que son DOS piezas a propósito:
+//
+//   1. `sat-base.json` — las 1,908 piezas de la base maestra. Va en un
+//      archivo APARTE y NO se baja al abrir el inventario: solo la primera
+//      vez que se pica este botón, y de ahí el navegador lo guarda. Así el
+//      inventario no engorda ni un byte para quien nunca lo use.
+//
+//   2. El nodo `buscador_sat_v3/data` de Firebase (proyecto `buscado-sat`),
+//      que NO guarda la base: guarda solo los CAMBIOS — lo que se agrega,
+//      corrige o borra desde el HTML de SAT en cualquiera de las compus.
+//      Se aplica encima de la base, así que lo que hagas allá aparece aquí
+//      solo, sin que nadie tenga que tocar este archivo.
+//
+// ⚠️ Los cambios se guardan por ÍNDICE dentro del arreglo. Por eso
+// `sat-base.json` conserva el orden EXACTO del original, INCLUIDO el renglón
+// de encabezado que va en la posición 0. Si se reordenara o se quitara algo,
+// una corrección guardada caería encima de otra pieza.
+// ══════════════════════════════════════════════════════════════════
+(function(){
+  var SAT_URL  = 'sat-base.json';
+  var SAT_NUBE = 'https://buscado-sat-default-rtdb.firebaseio.com/buscador_sat_v3/data.json';
+  var SAT_TOPE = 100;              // igual que el buscador original
+  var base = null, cambios = null, cargando = false, fallo = '';
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  // Misma normalización que el buscador original, para que ordene igualito.
+  function norm(s){
+    return (s == null ? '' : String(s))
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toUpperCase().replace(/[^A-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function aviso(txt){
+    var a = document.getElementById('sat-aviso');
+    if(a){ a.innerHTML = txt; a.style.display = 'block'; }
+    var c = document.getElementById('sat-cuenta'); if(c) c.style.display = 'none';
+    var r = document.getElementById('sat-res'); if(r) r.innerHTML = '';
+  }
+
+  function cargar(){
+    if(base || cargando) return;
+    cargando = true; fallo = '';
+    aviso('Cargando el catálogo…');
+    // La base y los cambios se piden juntos. Si los cambios fallan no importa:
+    // se trabaja con la base sola y se avisa — vale más el catálogo de ayer
+    // que una pantalla vacía.
+    var pBase = fetch(SAT_URL, {cache:'no-cache'}).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    var pNube = fetch(SAT_NUBE).then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(t){ try { return t ? JSON.parse(t) : null; } catch(e){ return null; } })
+      .catch(function(){ return null; });
+    Promise.all([pBase, pNube]).then(function(res){
+      base = Array.isArray(res[0]) ? res[0] : [];
+      cambios = res[1] || {edits:{}, adds:[], deletes:[]};
+      cargando = false;
+      aviso('Escribe para buscar entre las ' + (lista().length) + ' piezas del catálogo.');
+      satBuscar();
+    }).catch(function(e){
+      cargando = false; fallo = (e && e.message) ? e.message : 'error';
+      aviso('<b>No se pudo cargar el catálogo.</b><br>Revisa tu internet y vuelve a abrirlo.<br>' +
+            '<span style="font-size:11px;color:#94a3b8;">(' + esc(fallo) + ')</span>');
+    });
+  }
+
+  // Base + cambios, igual que lo arma el buscador original.
+  function lista(){
+    if(!base) return [];
+    var ed = (cambios && cambios.edits) || {};
+    var del = (cambios && cambios.deletes) || [];
+    var borradas = {}; del.forEach(function(i){ borradas[i] = true; });
+    var out = [];
+    for(var i = 0; i < base.length; i++){
+      if(borradas[i]) continue;
+      var r = base[i];
+      if(ed[i]){ r = Object.assign({}, r, ed[i]); }
+      // El renglón 0 es el encabezado del Excel original: no es una pieza.
+      if(String(r['# INTERNO'] || '') === '# INTERNO') continue;
+      out.push(r);
+    }
+    ((cambios && cambios.adds) || []).forEach(function(a){ if(a) out.push(a); });
+    return out;
+  }
+
+  window.satBuscar = function(){
+    var caja = document.getElementById('sat-q');
+    if(!caja) return;
+    var q = norm(caja.value);
+    if(!base){ if(!cargando) cargar(); return; }
+    if(!q){ aviso('Escribe para buscar entre las ' + lista().length + ' piezas del catálogo.'); return; }
+
+    var tokens = q.split(' ').filter(Boolean);
+    var qJunto = q.replace(/\s+/g, '');
+    var puntos = [];
+    lista().forEach(function(r){
+      var pieza = norm(r['PIEZA']), sat = norm(r['# SAT']), interno = norm(r['# INTERNO']);
+      var pajar = pieza + ' ' + sat + ' ' + interno + ' ' + norm(r['FAMILIA']) + ' ' + norm(r['CATEGORÍA']);
+      // Cada palabra escrita tiene que aparecer en algún lado, en cualquier orden.
+      for(var t = 0; t < tokens.length; t++){ if(pajar.indexOf(tokens[t]) === -1) return; }
+      var s = 0, piezaJunto = pieza.replace(/\s+/g, '');
+      if(piezaJunto === qJunto) s += 1000;
+      else if(pieza.indexOf(q) === 0) s += 500;
+      else if(pieza.indexOf(q) !== -1) s += 300;
+      if(sat && sat === qJunto) s += 900;
+      if(interno && interno === qJunto) s += 900;
+      var palabras = pieza.split(' ');
+      tokens.forEach(function(t){
+        if(palabras.some(function(w){ return w.indexOf(t) === 0; })) s += 20;
+        if(pieza.indexOf(t) !== -1) s += 5;
+      });
+      if(r['# SAT']) s += 2;
+      s -= Math.min(pieza.length, 120) * 0.05;   // a igualdad, gana la más corta
+      puntos.push({ r:r, s:s });
+    });
+    puntos.sort(function(a, b){ return b.s - a.s; });
+
+    var res = document.getElementById('sat-res');
+    var cnt = document.getElementById('sat-cuenta');
+    var av  = document.getElementById('sat-aviso');
+    if(!puntos.length){
+      res.innerHTML = ''; cnt.style.display = 'none';
+      av.innerHTML = 'Ninguna pieza con esa búsqueda.<br>' +
+        '<span style="font-size:12px;">Si de verdad falta, se agrega desde tu HTML de SAT — aquí solo se consulta.</span>';
+      av.style.display = 'block'; return;
+    }
+    av.style.display = 'none';
+    cnt.style.display = 'block';
+    document.getElementById('sat-n').textContent =
+      puntos.length > SAT_TOPE ? (SAT_TOPE + ' de ' + puntos.length) : String(puntos.length);
+    res.innerHTML = puntos.slice(0, SAT_TOPE).map(function(x){
+      var r = x.r, cod = String(r['# SAT'] || '').trim();
+      return '<div class="sat-r' + (cod ? ' con' : '') + '">'
+        + '<div class="sat-r-top">'
+          + '<div class="sat-r-tit">' + esc(r['PIEZA'] || '—') + '</div>'
+          + '<div class="sat-cod' + (cod ? '' : ' vacio') + '">' + (cod ? esc(cod) : 'SIN SAT') + '</div>'
+          + (cod ? '<button class="sat-copiar" onclick="satCopiar(\'' + esc(cod) + '\', this)" title="Copiar la clave">📋</button>' : '')
+        + '</div>'
+        + '<div class="sat-meta">'
+          + '<div><b>INTERNO:</b> ' + esc(r['# INTERNO'] || '—') + '</div>'
+          + '<div><b>FAMILIA:</b> ' + esc(r['FAMILIA'] || '—') + '</div>'
+          + '<div><b>CATEGORÍA:</b> ' + esc(r['CATEGORÍA'] || '—') + '</div>'
+        + '</div>'
+      + '</div>';
+    }).join('');
+  };
+
+  window.satCopiar = function(txt, btn){
+    function ok(){ if(btn){ var v = btn.textContent; btn.textContent = '✅'; setTimeout(function(){ btn.textContent = v; }, 900); } }
+    try {
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(txt).then(ok, function(){ viejo(); }); return;
+      }
+    } catch(e){}
+    viejo();
+    function viejo(){
+      // Sin permiso de portapapeles (pasa en http o en navegadores viejos):
+      // se copia con el truco de siempre en vez de dejar al usuario sin nada.
+      try {
+        var t = document.createElement('textarea');
+        t.value = txt; t.style.position = 'fixed'; t.style.opacity = '0';
+        document.body.appendChild(t); t.select(); document.execCommand('copy');
+        document.body.removeChild(t); ok();
+      } catch(e){ alert('Copia a mano: ' + txt); }
+    }
+  };
+
+  window.satLimpiar = function(){
+    var c = document.getElementById('sat-q');
+    if(c){ c.value = ''; c.focus(); }
+    satBuscar();
+  };
+
+  window.abrirSat = function(){
+    var t = document.getElementById('sat-tel');
+    if(!t) return;
+    t.classList.add('abierto');
+    cargar();
+    var c = document.getElementById('sat-q');
+    if(c) setTimeout(function(){ c.focus(); c.select(); }, 60);
+  };
+
+  window.cerrarSat = function(){
+    var t = document.getElementById('sat-tel');
+    if(t) t.classList.remove('abierto');
+  };
+
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){
+      var t = document.getElementById('sat-tel');
+      if(t && t.classList.contains('abierto')) cerrarSat();
+    }
+  });
+  // Picar el fondo oscuro también cierra.
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.id === 'sat-tel') cerrarSat();
+  });
+})();
+</script>
+<!-- ═══════════════ FIN BUSCADOR SAT ═══════════════ -->
+
 </body>
 </html>
