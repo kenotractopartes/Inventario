@@ -10232,14 +10232,14 @@ function _burroPicado(d, ev){
 
       <div class="env-p">¿Cómo se entregó?</div>
       <div class="env-op">
-        <button type="button" id="env-f-dom" class="on" onclick="envToggle('entrega','dom')">🏠 A domicilio</button>
-        <button type="button" id="env-f-ocu"        onclick="envToggle('entrega','ocu')">🏢 Ocurre (lo recogen)</button>
+        <button type="button" id="env-f-dom" onclick="envToggle('entrega','dom')">🏠 A domicilio</button>
+        <button type="button" id="env-f-ocu" class="on" onclick="envToggle('entrega','ocu')">🏢 Ocurre (lo recogen)</button>
       </div>
 
       <div class="env-p">¿Quién pagó el flete?</div>
       <div class="env-op">
-        <button type="button" id="env-f-pcli" class="on" onclick="envToggle('pago','cli')">El cliente</button>
-        <button type="button" id="env-f-pnos"        onclick="envToggle('pago','nos')">Nosotros</button>
+        <button type="button" id="env-f-pcli" onclick="envToggle('pago','cli')">El cliente</button>
+        <button type="button" id="env-f-pnos" class="on" onclick="envToggle('pago','nos')">Nosotros</button>
       </div>
 
       <div class="env-calc" id="env-f-calc">Llena peso y medidas para ver el peso que te van a cobrar.</div>
@@ -10290,7 +10290,7 @@ function _burroPicado(d, ev){
   var ORIGEN = { lat:25.6866, lon:-100.3161, nombre:'Monterrey' };
 
   var _map = null, _capa = null, _envios = [], _apagadas = {}, _leafletListo = false;
-  var _f = { paq:'paquete', entrega:'dom', pago:'cli', lat:null, lon:null, ciudad:'', estado:'', km:null };
+  var _f = { paq:'paquete', entrega:'ocu', pago:'nos', lat:null, lon:null, ciudad:'', estado:'', km:null };
 
   function paqDe(id){ for(var i=0;i<PAQS.length;i++) if(PAQS[i].id===id) return PAQS[i]; return PAQS[PAQS.length-1]; }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
@@ -10780,7 +10780,7 @@ function _burroPicado(d, ev){
   };
 
   window.envAbrirForm = function(){
-    _f = { paq:'paquete', entrega:'dom', pago:'cli', lat:null, lon:null, ciudad:'', estado:'', km:null };
+    _f = { paq:'paquete', entrega:'ocu', pago:'nos', lat:null, lon:null, ciudad:'', estado:'', km:null };
     ['ciudad','pieza','peso','largo','ancho','alto','costo','otra'].forEach(function(k){
       var el = document.getElementById('env-f-'+k); if(el) el.value = '';
     });
@@ -10788,7 +10788,7 @@ function _burroPicado(d, ev){
     document.getElementById('env-f-error').style.display = 'none';
     document.getElementById('env-f-otra').style.display = 'none';
     _pz = { fam:null, texto:'' }; pintarPiezaZona();
-    pintarBotonesPaq(); envToggle('entrega','dom'); envToggle('pago','cli'); envCalcular();
+    pintarBotonesPaq(); envToggle('entrega','ocu'); envToggle('pago','nos'); envCalcular();
     document.getElementById('env-form').classList.add('abierto');
     var c = document.getElementById('env-f-ciudad');
     c.oninput = function(){ clearTimeout(_tBusca); _tBusca = setTimeout(buscarCiudadForm, 450); };
