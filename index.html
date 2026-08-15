@@ -14,6 +14,82 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js" crossorigin="anonymous"></script>
+<!-- ═══════════════ 📦 ENVÍOS — estilos ═══════════════ -->
+<style>
+  .envios-btn { background:#1e6f5c !important; color:#fff !important; border-color:#1e6f5c !important; font-weight:800 !important; }
+  .envios-btn:hover { background:#17594a !important; color:#fff !important; }
+
+  #env-tel { position:fixed; inset:0; z-index:100001; background:#0f1417; display:none; }
+  #env-tel.abierto { display:flex; flex-direction:column; }
+
+  .env-cab { background:#17140f; color:#fff; padding:11px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; border-bottom:3px solid #1e6f5c; }
+  .env-cab h2 { margin:0; font-family:Georgia,'Times New Roman',serif; font-size:20px; font-weight:700; }
+  .env-cab .sub { font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#b9b2a4; }
+  .env-x { margin-left:auto; background:rgba(255,255,255,.14); border:0; color:#fff; font-size:19px; font-weight:700; width:34px; height:34px; border-radius:9px; cursor:pointer; line-height:1; }
+  .env-x:hover { background:rgba(255,255,255,.28); }
+
+  .env-barra { background:#fff; border-bottom:1px solid #d8d2c6; padding:9px 14px; display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
+  .env-paq { display:inline-flex; align-items:center; gap:6px; border:2px solid #d8d2c6; background:#fff; border-radius:20px;
+             padding:5px 13px; font-family:Arial,Helvetica,sans-serif; font-size:13px; font-weight:800; cursor:pointer; color:#17140f; }
+  .env-paq .pt { width:11px; height:11px; border-radius:50%; display:inline-block; }
+  .env-paq.off { opacity:.36; }
+  .env-busca { border:2px solid #d8d2c6; border-radius:9px; padding:7px 11px; font-family:Arial; font-size:14px; min-width:150px; max-width:34vw; }
+  .env-chip { background:#eef2f0; color:#2b4a42; border:1px solid #b9cdc6; border-radius:20px; padding:4px 11px; font-family:Arial; font-size:12px; font-weight:700; }
+  .env-nuevo { background:#1e6f5c; color:#fff; border:0; border-radius:9px; padding:8px 15px; font-family:Arial; font-size:14px; font-weight:800; cursor:pointer; margin-left:auto; }
+  .env-nuevo:hover { background:#17594a; }
+
+  .env-cuerpo { flex:1; display:flex; min-height:0; }
+  #env-mapa { flex:1; min-width:0; background:#0f1417; }
+  .env-lado { width:min(390px, 40vw); background:#faf7f1; border-left:1px solid #d8d2c6; overflow:auto; padding:14px; }
+  @media (max-width:820px){
+    .env-cuerpo { flex-direction:column; }
+    #env-mapa { height:48vh; flex:none; }
+    .env-lado { width:auto; border-left:0; border-top:1px solid #d8d2c6; }
+  }
+
+  .env-kpi { background:#fff; border:1px solid #e0dccf; border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+  .env-kpi .k { font-family:Arial; font-size:11px; font-weight:800; letter-spacing:.7px; text-transform:uppercase; color:#8a8375; }
+  .env-kpi .v { font-family:Arial; font-size:25px; font-weight:900; color:#17140f; line-height:1.15; }
+  .env-kpi .n { font-family:Arial; font-size:12px; color:#6b6459; margin-top:3px; line-height:1.45; }
+
+  .env-fila { background:#fff; border:1px solid #e0dccf; border-radius:10px; padding:10px 12px; margin-bottom:7px; font-family:Arial; font-size:13px; }
+  .env-fila .top { display:flex; align-items:center; gap:8px; }
+  .env-fila .pieza { flex:1; font-weight:800; color:#17140f; overflow-wrap:anywhere; }
+  .env-fila .costo { font-weight:900; color:#1e6f5c; white-space:nowrap; }
+  .env-fila .meta { color:#6b6459; font-size:12px; margin-top:4px; line-height:1.5; }
+  .env-fila .et { display:inline-block; border-radius:9px; padding:0 7px; font-size:10px; font-weight:800; color:#fff; }
+
+  .env-vacio { font-family:Arial; font-size:13px; color:#6b6459; text-align:center; padding:26px 12px; line-height:1.6; }
+
+  /* El pin: finito, con puntita — como lo pidió Keno */
+  .env-pin { filter:drop-shadow(0 2px 3px rgba(0,0,0,.45)); }
+  .env-pin .num { position:absolute; top:3px; left:0; width:100%; text-align:center;
+                  font-family:Arial; font-size:10px; font-weight:900; color:#fff; }
+
+  /* Hoja de captura */
+  #env-form { position:fixed; inset:0; z-index:100002; background:rgba(15,20,23,.72); display:none; overflow:auto; padding:18px 12px 40px; }
+  #env-form.abierto { display:block; }
+  .env-hoja { max-width:min(560px,94vw); margin:0 auto; background:#faf7f1; border-radius:14px; overflow:hidden; }
+  .env-hoja .hcab { background:#1e6f5c; color:#fff; padding:13px 18px; font-family:Georgia,serif; font-size:19px; font-weight:700; display:flex; align-items:center; }
+  .env-hoja .hcue { padding:16px 18px 20px; }
+  .env-p { font-family:Arial; font-size:13px; font-weight:800; color:#17140f; margin:14px 0 6px; }
+  .env-p:first-child { margin-top:0; }
+  .env-p .ayuda { display:block; font-weight:400; color:#6b6459; font-size:12px; margin-top:2px; }
+  .env-in { width:100%; box-sizing:border-box; border:2px solid #d8d2c6; border-radius:9px; padding:10px 12px; font-family:Arial; font-size:15px; background:#fff; color:#17140f; }
+  .env-in:focus { outline:none; border-color:#1e6f5c; }
+  .env-tres { display:flex; gap:8px; }
+  .env-tres .env-in { text-align:center; }
+  .env-op { display:flex; gap:8px; flex-wrap:wrap; }
+  .env-op button { flex:1; min-width:110px; border:2px solid #d8d2c6; background:#fff; border-radius:9px; padding:9px 8px;
+                   font-family:Arial; font-size:13px; font-weight:800; cursor:pointer; color:#17140f; display:flex; align-items:center; justify-content:center; gap:6px; }
+  .env-op button.on { border-color:#1e6f5c; background:#eaf5f1; }
+  .env-calc { background:#eef2f0; border:1px solid #b9cdc6; border-radius:10px; padding:10px 12px; font-family:Arial; font-size:13px; color:#2b4a42; margin-top:12px; line-height:1.6; }
+  .env-acc { display:flex; gap:9px; margin-top:18px; }
+  .env-acc button { flex:1; border:0; border-radius:10px; padding:12px; font-family:Arial; font-size:15px; font-weight:800; cursor:pointer; }
+  .env-guardar { background:#1e6f5c; color:#fff; }
+  .env-cancelar { background:#fff; color:#6b6459; border:2px solid #d8d2c6 !important; }
+  .env-error { background:#f5eae8; border:1px solid #b03a2e; color:#b03a2e; border-radius:9px; padding:9px 12px; font-family:Arial; font-size:13px; margin-top:12px; display:none; }
+</style>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { font-family: Georgia, 'Times New Roman', serif; background: #f2efe9; color: #1a1a1a; font-size: 16px; line-height: 1.5; }
@@ -346,6 +422,9 @@
          en una pantalla que se usa todo el día. -->
     <!-- 🔎 BUSCADOR SAT — la clave del SAT de cualquier pieza, sin salirse del
          inventario. Es SOLO LECTURA: aquí se busca, se edita en el HTML de SAT. -->
+    <!-- 📦 ENVÍOS — cuánto nos ha costado mandar una pieza y a dónde, en un mapa.
+         Ver lo puede cualquiera; capturar, solo Raúl (el botón lleva solo-editor). -->
+    <button class="btn-hdr envios-btn" onclick="abrirEnvios()" title="Cuánto ha costado enviar a cada ciudad">📦 Envíos</button>
     <button class="btn-hdr sat-btn" onclick="abrirSat()" title="Buscar la clave del SAT de una pieza">🔎 Buscador SAT</button>
     <button class="btn-hdr burro-btn" onclick="abrirBurrito()" title="El menú de los mariscos… y algo más">🫏 El Burrito Feliz</button>
     <!-- ENGRANE DERECHO — SOLO EN EL CELULAR. Fotos, Registrar Camión y
@@ -10055,6 +10134,480 @@ function _burroPicado(d, ev){
 })();
 </script>
 <!-- ═══════════════ FIN BUSCADOR SAT ═══════════════ -->
+
+
+<!-- ═══════════════ 📦 ENVÍOS — la pantalla ═══════════════ -->
+<div id="env-tel" role="dialog" aria-label="Envíos">
+  <div class="env-cab">
+    <div>
+      <h2>📦 Envíos</h2>
+      <div class="sub">Lo que de verdad hemos pagado de flete · sale de Monterrey</div>
+    </div>
+    <button class="env-nuevo solo-editor" onclick="envAbrirForm()">➕ Nuevo envío</button>
+    <button class="env-x" onclick="envCerrar()" title="Cerrar (Esc)">✕</button>
+  </div>
+
+  <div class="env-barra">
+    <div id="env-paqs" style="display:flex;gap:7px;flex-wrap:wrap;"></div>
+    <input class="env-busca" id="env-q-pieza"  placeholder="🔍 pieza…"        oninput="envPintar()">
+    <input class="env-busca" id="env-q-ciudad" placeholder="📍 ciudad o CP…"  oninput="envPintar()">
+    <span class="env-chip" id="env-cuenta">—</span>
+  </div>
+
+  <div class="env-cuerpo">
+    <div id="env-mapa"></div>
+    <div class="env-lado" id="env-lado"></div>
+  </div>
+</div>
+
+<!-- Hoja para capturar un envío — SOLO Raúl -->
+<div id="env-form">
+  <div class="env-hoja">
+    <div class="hcab">➕ Nuevo envío</div>
+    <div class="hcue">
+      <div class="env-p">1 · ¿Con cuál paquetería?</div>
+      <div class="env-op" id="env-f-paqs"></div>
+      <input class="env-in" id="env-f-otra" placeholder="Escribe el nombre" style="margin-top:8px;display:none;">
+
+      <div class="env-p">2 · ¿A qué ciudad?
+        <span class="ayuda">Escribe ciudad y estado. Ej: Guadalajara, Jalisco</span></div>
+      <input class="env-in" id="env-f-ciudad" placeholder="Ciudad, Estado" autocomplete="off">
+      <div class="env-calc" id="env-f-lugar" style="display:none;"></div>
+
+      <div class="env-p">3 · ¿Qué mandaste?</div>
+      <input class="env-in" id="env-f-pieza" placeholder="Ej: Turbo ISX HX55 · o el folio de la pieza" autocomplete="off">
+
+      <div class="env-p">4 · ¿Cuánto pesó? <span class="ayuda">En kilos, aunque sea aproximado</span></div>
+      <input class="env-in" id="env-f-peso" type="number" inputmode="decimal" placeholder="kg" oninput="envCalcular()">
+
+      <div class="env-p">5 · ¿De qué tamaño? <span class="ayuda">Largo × ancho × alto en centímetros. Esto es lo que más mueve el precio en piezas grandes.</span></div>
+      <div class="env-tres">
+        <input class="env-in" id="env-f-largo" type="number" inputmode="decimal" placeholder="largo" oninput="envCalcular()">
+        <input class="env-in" id="env-f-ancho" type="number" inputmode="decimal" placeholder="ancho" oninput="envCalcular()">
+        <input class="env-in" id="env-f-alto"  type="number" inputmode="decimal" placeholder="alto"  oninput="envCalcular()">
+      </div>
+
+      <div class="env-p">6 · ¿Cuánto costó el flete?</div>
+      <input class="env-in" id="env-f-costo" type="number" inputmode="decimal" placeholder="$" oninput="envCalcular()">
+
+      <div class="env-p">¿Cómo se entregó?</div>
+      <div class="env-op">
+        <button type="button" id="env-f-dom" class="on" onclick="envToggle('entrega','dom')">🏠 A domicilio</button>
+        <button type="button" id="env-f-ocu"        onclick="envToggle('entrega','ocu')">🏢 Ocurre (lo recogen)</button>
+      </div>
+
+      <div class="env-p">¿Quién pagó el flete?</div>
+      <div class="env-op">
+        <button type="button" id="env-f-pcli" class="on" onclick="envToggle('pago','cli')">El cliente</button>
+        <button type="button" id="env-f-pnos"        onclick="envToggle('pago','nos')">Nosotros</button>
+      </div>
+
+      <div class="env-calc" id="env-f-calc">Llena peso y medidas para ver el peso que te van a cobrar.</div>
+      <div class="env-error" id="env-f-error"></div>
+
+      <div class="env-acc">
+        <button class="env-cancelar" onclick="envCerrarForm()">Cancelar</button>
+        <button class="env-guardar" id="env-f-ok" onclick="envGuardar()">Guardar envío</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// 📦 ENVÍOS — cuánto nos ha costado mandar una pieza, y a dónde
+// ──────────────────────────────────────────────────────────────────────
+// PARA QUÉ. Cuando un cliente pregunta "¿cuánto me sale el envío a X?",
+// hoy se contesta de memoria o marcándole a la paquetería. Aquí se ve, en
+// un mapa, TODO lo que ya se ha mandado: con quién, a dónde, qué pesaba y
+// cuánto costó de verdad.
+//
+// ⚠️ NO HAY TARIFAS INVENTADAS. Keno fue explícito: tienen convenios
+// especiales con cada paquetería, así que ningún precio publicado sirve.
+// Todo lo que se ve aquí son envíos REALES que Raúl capturó a mano. Si no
+// hay historial parecido, se dice — no se adivina.
+//
+// ⚠️ EL PESO VOLUMÉTRICO ES LO QUE MÁS IMPORTA. Las paqueterías cobran por
+// lo que pesa O por lo que ocupa, lo que salga MÁS CARO:
+//        volumétrico = largo × ancho × alto ÷ 5000
+// Con piezas de camión eso decide el precio: un cofre pesa 25 kg pero se
+// cobra como 90. Por eso las medidas son pregunta obligatoria.
+//
+// Datos: Firebase RTDB del inventario, nodo `envios`. Solo Raúl escribe
+// (misma regla que inventario_patio); todos los vendedores pueden ver.
+// ══════════════════════════════════════════════════════════════════════
+(function(){
+  // ⚠️ COLORES PROVISIONALES — Keno pidió que sean fieles a cada marca y
+  //    todavía no me los pasa. Están todos aquí para cambiarlos en un
+  //    minuto sin tocar nada más.
+  var PAQS = [
+    { id:'paquete',  nombre:'Paquete Express', color:'#E4322B', factor:5000 },
+    { id:'castores', nombre:'Castores',        color:'#1B4E9B', factor:5000 },
+    { id:'guerras',  nombre:'Tres Guerras',    color:'#E8A33D', factor:5000 },
+    { id:'afimex',   nombre:'Afimex',          color:'#2E8B57', factor:5000 },
+    { id:'otra',     nombre:'Otra',            color:'#6b6459', factor:5000 }
+  ];
+  var ORIGEN = { lat:25.6866, lon:-100.3161, nombre:'Monterrey' };
+
+  var _map = null, _capa = null, _envios = [], _apagadas = {}, _leafletListo = false;
+  var _f = { paq:'paquete', entrega:'dom', pago:'cli', lat:null, lon:null, ciudad:'', estado:'', km:null };
+
+  function paqDe(id){ for(var i=0;i<PAQS.length;i++) if(PAQS[i].id===id) return PAQS[i]; return PAQS[PAQS.length-1]; }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function pesos(n){ return '$' + Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:0, maximumFractionDigits:0}); }
+  function norm(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim(); }
+
+  // Peso volumétrico y peso cobrado — la cuenta que decide el precio.
+  function pesoCobrado(e){
+    var vol = (e.largo && e.ancho && e.alto)
+      ? (Number(e.largo)*Number(e.ancho)*Number(e.alto)) / (paqDe(e.paq).factor || 5000) : 0;
+    return { vol: vol, cobrado: Math.max(Number(e.peso)||0, vol) };
+  }
+
+  // Distancia en línea recta, de respaldo cuando el servicio de rutas no
+  // contesta. Se multiplica por 1.25 porque la carretera nunca va derecha.
+  function kmRecta(lat, lon){
+    var R = 6371, dLat = (lat-ORIGEN.lat)*Math.PI/180, dLon = (lon-ORIGEN.lon)*Math.PI/180;
+    var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
+            Math.cos(ORIGEN.lat*Math.PI/180)*Math.cos(lat*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+    return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * 1.25);
+  }
+
+  // Leaflet se baja SOLO cuando se abre esta pantalla: el inventario no
+  // engorda ni un byte para quien nunca la use.
+  function cargarLeaflet(cuando){
+    if(_leafletListo || window.L){ _leafletListo = true; cuando(); return; }
+    var css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(css);
+    var js = document.createElement('script');
+    js.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    js.onload = function(){ _leafletListo = true; cuando(); };
+    js.onerror = function(){
+      var l = document.getElementById('env-lado');
+      if(l) l.innerHTML = '<div class="env-vacio"><b>No se pudo cargar el mapa.</b><br>Revisa tu internet y vuelve a abrirlo.</div>';
+    };
+    document.head.appendChild(js);
+  }
+
+  function iniciarMapa(){
+    if(_map){ setTimeout(function(){ _map.invalidateSize(); }, 60); return; }
+    _map = L.map('env-mapa', { zoomControl:true, scrollWheelZoom:true })
+             .setView([ORIGEN.lat, ORIGEN.lon], 5);
+    var calle = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom:19, subdomains:'abcd',
+      attribution:'&copy; OpenStreetMap &copy; CARTO' }).addTo(_map);
+    var satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom:19, attribution:'Esri' });
+    L.control.layers({ 'Mapa':calle, 'Satélite':satelite }, null, { position:'topright' }).addTo(_map);
+    // De dónde sale todo
+    L.marker([ORIGEN.lat, ORIGEN.lon], { icon: L.divIcon({
+      className:'', iconSize:[22,22], iconAnchor:[11,11],
+      html:'<div style="width:22px;height:22px;border-radius:50%;background:#17140f;border:3px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.5)"></div>'
+    })}).addTo(_map).bindTooltip('Aquí: Monterrey', {direction:'top'});
+    _capa = L.layerGroup().addTo(_map);
+    setTimeout(function(){ _map.invalidateSize(); }, 80);
+  }
+
+  // El pin finito, con puntita, del color de su paquetería.
+  function icono(color, n){
+    return L.divIcon({
+      className:'env-pin', iconSize:[20,30], iconAnchor:[10,30], popupAnchor:[0,-28],
+      html:'<svg width="20" height="30" viewBox="0 0 20 30" xmlns="http://www.w3.org/2000/svg">'
+         + '<path d="M10 0C4.9 0 .8 4.1.8 9.2.8 16.1 10 30 10 30s9.2-13.9 9.2-20.8C19.2 4.1 15.1 0 10 0z" '
+         + 'fill="'+color+'" stroke="#fff" stroke-width="1.6"/>'
+         + '<circle cx="10" cy="9.2" r="3.4" fill="#fff"/></svg>'
+         + (n > 1 ? '<div class="num" style="top:5px;color:'+color+';">'+n+'</div>' : '')
+    });
+  }
+
+  function filtrados(){
+    var qp = norm((document.getElementById('env-q-pieza')||{}).value);
+    var qc = norm((document.getElementById('env-q-ciudad')||{}).value);
+    return _envios.filter(function(e){
+      if(_apagadas[e.paq]) return false;
+      if(qp && norm(e.pieza).indexOf(qp) === -1) return false;
+      if(qc && (norm(e.ciudad)+' '+norm(e.estado)+' '+String(e.cp||'')).indexOf(qc) === -1) return false;
+      return true;
+    });
+  }
+
+  window.envPintar = function(){
+    var lista = filtrados();
+    var cta = document.getElementById('env-cuenta');
+    if(cta) cta.textContent = lista.length + (lista.length===1 ? ' envío' : ' envíos');
+
+    if(_capa){
+      _capa.clearLayers();
+      // Un pin por ciudad + paquetería: si mandaron 6 veces lo mismo a
+      // Guadalajara con Castores, es UN pin con un 6, no seis encimados.
+      var grupos = {};
+      lista.forEach(function(e){
+        if(e.lat == null || e.lon == null) return;
+        var k = norm(e.ciudad) + '|' + e.paq;
+        (grupos[k] = grupos[k] || { e:e, n:0, total:0, envs:[] });
+        grupos[k].n++; grupos[k].total += Number(e.costo)||0; grupos[k].envs.push(e);
+      });
+      Object.keys(grupos).forEach(function(k){
+        var g = grupos[k], p = paqDe(g.e.paq);
+        var prom = g.total / g.n;
+        L.marker([g.e.lat, g.e.lon], { icon: icono(p.color, g.n) }).addTo(_capa)
+         .bindPopup('<div style="font-family:Arial;font-size:13px;min-width:170px">'
+           + '<div style="font-weight:800;font-size:14px;margin-bottom:2px">'+esc(g.e.ciudad)+'</div>'
+           + '<div style="color:#6b6459;margin-bottom:6px">'+esc(g.e.estado||'')
+           + (g.e.km ? ' · '+g.e.km+' km' : '')+'</div>'
+           + '<div><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+p.color+'"></span> '
+           + '<b>'+esc(p.nombre)+'</b></div>'
+           + '<div style="margin-top:4px">'+g.n+(g.n===1?' envío':' envíos')+' · promedio <b>'+pesos(prom)+'</b></div>'
+           + '</div>');
+      });
+    }
+    pintarLado(lista);
+  };
+
+  function pintarLado(lista){
+    var el = document.getElementById('env-lado');
+    if(!el) return;
+    if(!_envios.length){
+      el.innerHTML = '<div class="env-vacio"><b>Todavía no hay ningún envío capturado.</b><br><br>'
+        + 'Cada uno que Raúl agregue hace la herramienta más útil: con 10 ya se puede dar un aproximado, '
+        + 'y con 30 se puede comparar entre paqueterías.</div>';
+      return;
+    }
+    if(!lista.length){
+      el.innerHTML = '<div class="env-vacio">Ningún envío con esos filtros.<br>'
+        + '<span style="font-size:12px">Prueba con menos palabras o prende más paqueterías.</span></div>';
+      return;
+    }
+    // El resumen: lo que sirve para contestarle al cliente.
+    var tot = 0, kg = 0, kmT = 0, nKm = 0;
+    lista.forEach(function(e){
+      tot += Number(e.costo)||0;
+      kg  += pesoCobrado(e).cobrado;
+      if(e.km){ kmT += e.km; nKm++; }
+    });
+    var porKg = kg > 0 ? tot/kg : 0;
+    var h = '<div class="env-kpi"><div class="k">Promedio por envío</div>'
+          + '<div class="v">'+pesos(tot/lista.length)+'</div>'
+          + '<div class="n">'+lista.length+(lista.length===1?' envío':' envíos')
+          + (nKm ? ' · '+Math.round(kmT/nKm)+' km en promedio' : '')+'</div></div>';
+    if(porKg > 0){
+      h += '<div class="env-kpi"><div class="k">Por kilo cobrado</div>'
+         + '<div class="v">'+pesos(porKg)+' <span style="font-size:14px;color:#6b6459">/ kg</span></div>'
+         + '<div class="n">Con esto puedes estimar una ciudad a la que nunca hayas mandado: '
+         + 'multiplica los kilos que te van a cobrar por este número.</div></div>';
+    }
+    if(lista.length < 5){
+      h += '<div class="env-kpi" style="border-color:#c9a24b;background:#fffdf6"><div class="k">Ojo</div>'
+         + '<div class="n" style="margin-top:0">Son <b>pocos envíos</b> para sacar un promedio confiable. '
+         + 'Tómalo como referencia, no como precio.</div></div>';
+    }
+    h += lista.slice().sort(function(a,b){ return String(b.fecha).localeCompare(String(a.fecha)); })
+      .slice(0, 60).map(function(e){
+        var p = paqDe(e.paq), pc = pesoCobrado(e);
+        return '<div class="env-fila"><div class="top">'
+          + '<span class="et" style="background:'+p.color+'">'+esc(e.paq==='otra' ? (e.otra||'Otra') : p.nombre)+'</span>'
+          + '<span class="pieza">'+esc(e.pieza||'—')+'</span>'
+          + '<span class="costo">'+pesos(e.costo)+'</span></div>'
+          + '<div class="meta">📍 '+esc(e.ciudad)+(e.estado?', '+esc(e.estado):'')
+          + (e.km ? ' · '+e.km+' km' : '')
+          + '<br>⚖️ '+(Number(e.peso)||0)+' kg reales'
+          + (pc.vol > (Number(e.peso)||0) ? ' → <b>'+Math.round(pc.vol)+' kg cobrados</b> (por el tamaño)' : '')
+          + ' · '+(e.entrega==='ocu' ? 'ocurre' : 'a domicilio')
+          + '<br>'+esc(e.fecha||'')+' · lo pagó '+(e.pago==='nos' ? 'la casa' : 'el cliente')
+          + '</div></div>';
+      }).join('');
+    el.innerHTML = h;
+  }
+
+  function pintarBotonesPaq(){
+    var c = document.getElementById('env-paqs');
+    if(c) c.innerHTML = PAQS.map(function(p){
+      return '<button class="env-paq'+(_apagadas[p.id]?' off':'')+'" onclick="envTogglePaq(\''+p.id+'\')">'
+           + '<span class="pt" style="background:'+p.color+'"></span>'+esc(p.nombre)+'</button>';
+    }).join('');
+    var f = document.getElementById('env-f-paqs');
+    if(f) f.innerHTML = PAQS.map(function(p){
+      return '<button type="button" id="env-fp-'+p.id+'" class="'+(_f.paq===p.id?'on':'')+'" onclick="envToggle(\'paq\',\''+p.id+'\')">'
+           + '<span class="pt" style="width:11px;height:11px;border-radius:50%;background:'+p.color+';display:inline-block"></span>'+esc(p.nombre)+'</button>';
+    }).join('');
+  }
+
+  window.envTogglePaq = function(id){
+    _apagadas[id] = !_apagadas[id];
+    pintarBotonesPaq(); envPintar();
+  };
+
+  window.envToggle = function(grupo, val){
+    _f[grupo] = val;
+    if(grupo === 'paq'){
+      pintarBotonesPaq();
+      var otra = document.getElementById('env-f-otra');
+      if(otra) otra.style.display = (val === 'otra') ? 'block' : 'none';
+      envCalcular();
+    } else {
+      var pares = { entrega:['dom','ocu'], pago:['cli','nos'] };
+      var ids = { dom:'env-f-dom', ocu:'env-f-ocu', cli:'env-f-pcli', nos:'env-f-pnos' };
+      (pares[grupo]||[]).forEach(function(v){
+        var b = document.getElementById(ids[v]);
+        if(b) b.classList.toggle('on', v === val);
+      });
+    }
+  };
+
+  window.envCalcular = function(){
+    var el = document.getElementById('env-f-calc');
+    if(!el) return;
+    var peso  = Number((document.getElementById('env-f-peso')||{}).value) || 0;
+    var largo = Number((document.getElementById('env-f-largo')||{}).value) || 0;
+    var ancho = Number((document.getElementById('env-f-ancho')||{}).value) || 0;
+    var alto  = Number((document.getElementById('env-f-alto')||{}).value) || 0;
+    var costo = Number((document.getElementById('env-f-costo')||{}).value) || 0;
+    if(!peso && !largo){ el.innerHTML = 'Llena peso y medidas para ver el peso que te van a cobrar.'; return; }
+    var vol = (largo && ancho && alto) ? (largo*ancho*alto) / (paqDe(_f.paq).factor||5000) : 0;
+    var cob = Math.max(peso, vol);
+    var t = '⚖️ Pesa <b>'+peso+' kg</b>';
+    if(vol) t += ' · por tamaño equivale a <b>'+vol.toFixed(1)+' kg</b>';
+    t += '<br>Te van a cobrar por <b>'+cob.toFixed(1)+' kg</b>'
+       + (vol > peso ? ' — <b>manda el tamaño, no el peso</b>' : '');
+    if(costo && cob) t += '<br>💰 Sale a <b>'+pesos(costo/cob)+' por kilo</b>';
+    el.innerHTML = t;
+  };
+
+  // ── Buscar la ciudad y sacar los kilómetros ────────────────────────
+  var _tBusca = null;
+  function buscarCiudad(){
+    var caja = document.getElementById('env-f-ciudad');
+    var box  = document.getElementById('env-f-lugar');
+    var q = (caja.value || '').trim();
+    if(q.length < 3){ box.style.display = 'none'; _f.lat = _f.lon = null; return; }
+    box.style.display = 'block';
+    box.innerHTML = 'Buscando…';
+    // Si esa ciudad YA se capturó antes, se reusa: ni se busca ni se
+    // vuelven a pedir los kilómetros. Gratis y al instante.
+    var ya = _envios.filter(function(e){ return norm(e.ciudad).indexOf(norm(q)) === 0 && e.lat != null; })[0];
+    if(ya){
+      _f.lat = ya.lat; _f.lon = ya.lon; _f.ciudad = ya.ciudad; _f.estado = ya.estado; _f.km = ya.km;
+      box.innerHTML = '📍 <b>'+esc(ya.ciudad)+'</b>'+(ya.estado?', '+esc(ya.estado):'')
+                    + (ya.km ? ' · <b>'+ya.km+' km</b> desde Monterrey' : '')
+                    + '<br><span style="font-size:12px">Ya la tenías capturada.</span>';
+      return;
+    }
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=mx&q=' + encodeURIComponent(q))
+      .then(function(r){ return r.json(); })
+      .then(function(a){
+        if(!a || !a.length){ box.innerHTML = '⚠️ No encontré esa ciudad. Escríbela como "Ciudad, Estado".'; _f.lat = null; return; }
+        var d = a[0], partes = String(d.display_name||'').split(',');
+        _f.lat = Number(d.lat); _f.lon = Number(d.lon);
+        _f.ciudad = (partes[0]||q).trim();
+        _f.estado = (partes.length > 2 ? partes[partes.length-2] : '').trim();
+        _f.km = kmRecta(_f.lat, _f.lon);
+        box.innerHTML = '📍 <b>'+esc(_f.ciudad)+'</b>'+(_f.estado?', '+esc(_f.estado):'')
+                      + ' · <b>'+_f.km+' km</b> aprox. desde Monterrey';
+        // Los kilómetros de carretera, si el servicio contesta.
+        fetch('https://router.project-osrm.org/route/v1/driving/'+ORIGEN.lon+','+ORIGEN.lat+';'+_f.lon+','+_f.lat+'?overview=false')
+          .then(function(r){ return r.json(); })
+          .then(function(j){
+            if(j && j.routes && j.routes[0]){
+              _f.km = Math.round(j.routes[0].distance / 1000);
+              box.innerHTML = '📍 <b>'+esc(_f.ciudad)+'</b>'+(_f.estado?', '+esc(_f.estado):'')
+                            + ' · <b>'+_f.km+' km</b> por carretera desde Monterrey';
+            }
+          }).catch(function(){});
+      })
+      .catch(function(){ box.innerHTML = '⚠️ No pude buscar la ciudad. Revisa tu internet.'; _f.lat = null; });
+  }
+
+  window.envAbrirForm = function(){
+    _f = { paq:'paquete', entrega:'dom', pago:'cli', lat:null, lon:null, ciudad:'', estado:'', km:null };
+    ['ciudad','pieza','peso','largo','ancho','alto','costo','otra'].forEach(function(k){
+      var el = document.getElementById('env-f-'+k); if(el) el.value = '';
+    });
+    document.getElementById('env-f-lugar').style.display = 'none';
+    document.getElementById('env-f-error').style.display = 'none';
+    document.getElementById('env-f-otra').style.display = 'none';
+    pintarBotonesPaq(); envToggle('entrega','dom'); envToggle('pago','cli'); envCalcular();
+    document.getElementById('env-form').classList.add('abierto');
+    var c = document.getElementById('env-f-ciudad');
+    c.oninput = function(){ clearTimeout(_tBusca); _tBusca = setTimeout(buscarCiudad, 700); };
+  };
+  window.envCerrarForm = function(){ document.getElementById('env-form').classList.remove('abierto'); };
+
+  window.envGuardar = function(){
+    var err = document.getElementById('env-f-error');
+    function alto(m){ err.textContent = m; err.style.display = 'block'; }
+    var pieza = (document.getElementById('env-f-pieza').value||'').trim();
+    var peso  = Number(document.getElementById('env-f-peso').value) || 0;
+    var costo = Number(document.getElementById('env-f-costo').value) || 0;
+    if(_f.lat == null)  return alto('Falta la ciudad — escríbela y espera a que aparezca el punto.');
+    if(!pieza)          return alto('Falta qué se mandó.');
+    if(!peso)           return alto('Falta el peso en kilos.');
+    if(!costo)          return alto('Falta cuánto costó el flete.');
+    if(_f.paq === 'otra' && !(document.getElementById('env-f-otra').value||'').trim())
+                        return alto('Escribe el nombre de la paquetería.');
+    err.style.display = 'none';
+    var hoy = new Date();
+    var reg = {
+      paq: _f.paq, otra: (document.getElementById('env-f-otra').value||'').trim(),
+      ciudad: _f.ciudad, estado: _f.estado, lat: _f.lat, lon: _f.lon, km: _f.km,
+      pieza: pieza, peso: peso,
+      largo: Number(document.getElementById('env-f-largo').value) || 0,
+      ancho: Number(document.getElementById('env-f-ancho').value) || 0,
+      alto:  Number(document.getElementById('env-f-alto').value)  || 0,
+      costo: costo, entrega: _f.entrega, pago: _f.pago,
+      fecha: hoy.toISOString().slice(0,10),
+      creadoEn: hoy.toISOString()
+    };
+    var btn = document.getElementById('env-f-ok');
+    btn.disabled = true; btn.textContent = 'Guardando…';
+    firebase.database().ref('envios').push(reg)
+      .then(function(){ envCerrarForm(); })
+      .catch(function(e){
+        // Si no se pudo, SE DICE. Nada de "guardado" cuando no se guardó.
+        alto('NO se guardó: ' + (e && e.code ? e.code : e) + '. Revisa tu internet y vuelve a intentar.');
+      })
+      .then(function(){ btn.disabled = false; btn.textContent = 'Guardar envío'; });
+  };
+
+  var _escuchando = false;
+  window.abrirEnvios = function(){
+    var t = document.getElementById('env-tel');
+    if(!t) return;
+    t.classList.add('abierto');
+    pintarBotonesPaq();
+    cargarLeaflet(function(){
+      iniciarMapa();
+      if(!_escuchando && window.firebase && firebase.database){
+        _escuchando = true;
+        firebase.database().ref('envios').on('value', function(s){
+          var v = s.val() || {}, arr = [];
+          Object.keys(v).forEach(function(k){ var e = v[k] || {}; e._id = k; arr.push(e); });
+          _envios = arr;
+          envPintar();
+        }, function(e){
+          console.warn('envios:', e);
+          var l = document.getElementById('env-lado');
+          if(l) l.innerHTML = '<div class="env-vacio"><b>No se pudieron leer los envíos.</b><br>'
+            + (e && e.code === 'PERMISSION_DENIED'
+                ? 'Falta el permiso en Firebase — avísale a Eugenio.'
+                : 'Revisa tu internet.') + '</div>';
+        });
+      }
+      envPintar();
+    });
+  };
+  window.envCerrar = function(){ document.getElementById('env-tel').classList.remove('abierto'); };
+
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Escape') return;
+    var f = document.getElementById('env-form'), t = document.getElementById('env-tel');
+    if(f && f.classList.contains('abierto')) return envCerrarForm();
+    if(t && t.classList.contains('abierto')) envCerrar();
+  });
+})();
+</script>
+<!-- ═══════════════ FIN ENVÍOS ═══════════════ -->
 
 </body>
 </html>
