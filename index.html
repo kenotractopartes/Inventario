@@ -28,7 +28,8 @@
   .env-x { margin-left:auto; background:rgba(255,255,255,.14); border:0; color:#fff; font-size:19px; font-weight:700; width:34px; height:34px; border-radius:9px; cursor:pointer; line-height:1; }
   .env-x:hover { background:rgba(255,255,255,.28); }
 
-  .env-barra { background:#fff; border-bottom:1px solid #d8d2c6; padding:9px 14px; display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
+  .env-barra { background:#fff; border-bottom:1px solid #d8d2c6; padding:9px 14px; display:flex; gap:9px; align-items:center; flex-wrap:wrap;
+               position:relative; z-index:1200; }
   .env-paq { display:inline-flex; align-items:center; gap:6px; border:2px solid #d8d2c6; background:#fff; border-radius:20px;
              padding:5px 13px; font-family:Arial,Helvetica,sans-serif; font-size:13px; font-weight:800; cursor:pointer; color:#17140f; }
   .env-paq .pt { width:11px; height:11px; border-radius:50%; display:inline-block; }
@@ -90,7 +91,7 @@
   .env-cancelar { background:#fff; color:#6b6459; border:2px solid #d8d2c6 !important; }
   /* Listas desplegables inteligentes — se arman con lo que ya está capturado */
   .env-caja { position:relative; }
-  .env-lista { position:absolute; left:0; right:0; top:100%; z-index:30; background:#fff;
+  .env-lista { position:absolute; left:0; right:0; top:100%; z-index:1300; background:#fff;
     border:2px solid #1e6f5c; border-top:0; border-radius:0 0 10px 10px; max-height:240px; overflow:auto;
     box-shadow:0 10px 24px rgba(0,0,0,.22); display:none; }
   .env-lista.abierta { display:block; }
