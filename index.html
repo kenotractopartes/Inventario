@@ -10722,11 +10722,6 @@ function _burroPicado(d, ev){
          + '<div class="n">Con esto puedes estimar una ciudad a la que nunca hayas mandado: '
          + 'multiplica los kilos que te van a cobrar por este número.</div></div>';
     }
-    if(lista.length < 5){
-      h += '<div class="env-kpi" style="border-color:#c9a24b;background:#fffdf6"><div class="k">Ojo</div>'
-         + '<div class="n" style="margin-top:0">Son <b>pocos envíos</b> para sacar un promedio confiable. '
-         + 'Tómalo como referencia, no como precio.</div></div>';
-    }
     h += lista.slice().sort(function(a,b){ return String(b.fecha).localeCompare(String(a.fecha)); })
       .slice(0, 60).map(function(e){
         var p = paqDe(e.paq), pc = pesoCobrado(e);
