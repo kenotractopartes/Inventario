@@ -10172,7 +10172,7 @@ function _burroPicado(d, ev){
       <h2>📦 Envíos</h2>
       <div class="sub">Lo que de verdad hemos pagado de flete · sale de Monterrey</div>
     </div>
-    <button class="env-nuevo solo-editor" onclick="envAbrirForm()">➕ Nuevo envío</button>
+    <button class="env-nuevo" onclick="envAbrirForm()">➕ Nuevo envío</button>
     <button class="env-x" onclick="envCerrar()" title="Cerrar (Esc)">✕</button>
   </div>
 
@@ -10611,6 +10611,9 @@ function _burroPicado(d, ev){
       html:'<div style="width:22px;height:22px;border-radius:50%;background:#17140f;border:3px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.5)"></div>'
     })}).addTo(_map).bindTooltip('Aquí: Monterrey', {direction:'top'});
     _capa = L.layerGroup().addTo(_map);
+    // Como el abanico se mide en pixeles, al cambiar el zoom hay que
+    // recalcularlo o los pines se despegarían de su ciudad.
+    _map.on('zoomend', function(){ envPintar(); });
     setTimeout(function(){ _map.invalidateSize(); }, 80);
   }
 
@@ -10646,17 +10649,34 @@ function _burroPicado(d, ev){
       _capa.clearLayers();
       // Un pin por ciudad + paquetería: si mandaron 6 veces lo mismo a
       // Guadalajara con Castores, es UN pin con un 6, no seis encimados.
-      var grupos = {};
+      var grupos = {}, porCiudad = {};
       lista.forEach(function(e){
         if(e.lat == null || e.lon == null) return;
-        var k = norm(e.ciudad) + '|' + e.paq;
-        (grupos[k] = grupos[k] || { e:e, n:0, total:0, envs:[] });
-        grupos[k].n++; grupos[k].total += Number(e.costo)||0; grupos[k].envs.push(e);
+        var c = norm(e.ciudad), k = c + '|' + e.paq;
+        (grupos[k] = grupos[k] || { e:e, n:0, total:0, ciudad:c });
+        grupos[k].n++; grupos[k].total += Number(e.costo)||0;
+        (porCiudad[c] = porCiudad[c] || {})[e.paq] = 1;
       });
+      // ⚠️ Si a una ciudad se mandó con VARIAS paqueterías, los pines caen en
+      //    la MISMA coordenada y solo se ve el de hasta arriba — Keno lo cachó
+      //    con Michoacán: había Paquete Express y Tres Guerras y solo salía uno.
+      //    Se abren en abanico alrededor del punto, separados por PIXELES (no
+      //    por grados), para que la separación se vea igual en cualquier zoom.
+      var puestos = {};
       Object.keys(grupos).forEach(function(k){
         var g = grupos[k], p = paqDe(g.e.paq);
         var prom = g.total / g.n;
-        L.marker([g.e.lat, g.e.lon], { icon: icono(p.color, g.n) }).addTo(_capa)
+        var cuantas = Object.keys(porCiudad[g.ciudad] || {}).length;
+        var pos = [g.e.lat, g.e.lon];
+        if(cuantas > 1){
+          var i = (puestos[g.ciudad] = (puestos[g.ciudad] || 0)); puestos[g.ciudad]++;
+          var ang = (Math.PI * 2 * i) / cuantas - Math.PI/2, r = 17 + cuantas * 2;
+          var pt = _map.latLngToLayerPoint(pos);
+          var nuevo = _map.layerPointToLatLng(
+            L.point(pt.x + Math.cos(ang) * r, pt.y + Math.sin(ang) * r));
+          pos = [nuevo.lat, nuevo.lng];
+        }
+        L.marker(pos, { icon: icono(p.color, g.n) }).addTo(_capa)
          .bindPopup('<div style="font-family:Arial;font-size:13px;min-width:170px">'
            + '<div style="font-weight:800;font-size:14px;margin-bottom:2px">'+esc(g.e.ciudad)+'</div>'
            + '<div style="color:#6b6459;margin-bottom:6px">'+esc(g.e.estado||'')
@@ -10714,7 +10734,7 @@ function _burroPicado(d, ev){
           + '<span class="et" style="background:'+p.color+'">'+esc(e.paq==='otra' ? (e.otra||'Otra') : p.nombre)+'</span>'
           + '<span class="pieza">'+esc(e.pieza||'—')+'</span>'
           + '<span class="costo">'+pesos(e.costo)+'</span>'
-          + '<button class="env-borrar solo-editor" title="Borrar este envío" onclick="envBorrar(\''+e._id+'\')">🗑</button></div>'
+          + '<button class="env-borrar" title="Borrar este envío" onclick="envBorrar(\''+e._id+'\')">🗑</button></div>'
           + '<div class="meta">📍 '+esc(e.ciudad)+(e.estado?', '+esc(e.estado):'')
           + (e.km ? ' · '+e.km+' km' : '')
           + '<br>⚖️ '+(Number(e.peso)||0)+' kg reales'
