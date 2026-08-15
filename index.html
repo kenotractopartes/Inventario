@@ -88,6 +88,34 @@
   .env-acc button { flex:1; border:0; border-radius:10px; padding:12px; font-family:Arial; font-size:15px; font-weight:800; cursor:pointer; }
   .env-guardar { background:#1e6f5c; color:#fff; }
   .env-cancelar { background:#fff; color:#6b6459; border:2px solid #d8d2c6 !important; }
+  /* Listas desplegables inteligentes — se arman con lo que ya está capturado */
+  .env-caja { position:relative; }
+  .env-lista { position:absolute; left:0; right:0; top:100%; z-index:30; background:#fff;
+    border:2px solid #1e6f5c; border-top:0; border-radius:0 0 10px 10px; max-height:240px; overflow:auto;
+    box-shadow:0 10px 24px rgba(0,0,0,.22); display:none; }
+  .env-lista.abierta { display:block; }
+  .env-op-lista { padding:10px 13px; font-family:Arial; font-size:14px; cursor:pointer; border-bottom:1px solid #f0ece3; }
+  .env-op-lista:hover, .env-op-lista.sel { background:#eaf5f1; }
+  .env-op-lista b { color:#17140f; }
+  .env-op-lista .d { display:block; font-size:12px; color:#6b6459; margin-top:1px; }
+  .env-op-lista .ya { float:right; font-size:11px; font-weight:800; color:#1e6f5c; }
+  .env-lista .cargando { padding:11px 13px; font-family:Arial; font-size:13px; color:#6b6459; }
+
+  /* Elegir la pieza: familia y luego modelo, igual que al dar de alta */
+  .env-fams { display:flex; flex-wrap:wrap; gap:6px; }
+  .env-fams button { border:2px solid #d8d2c6; background:#fff; border-radius:9px; padding:7px 11px;
+    font-family:Arial; font-size:13px; font-weight:700; cursor:pointer; color:#17140f; }
+  .env-fams button.on { border-color:#1e6f5c; background:#eaf5f1; }
+  .env-elegido { background:#17140f; color:#fff; border-radius:9px; padding:8px 12px; font-family:Arial;
+    font-size:14px; font-weight:800; display:flex; align-items:center; gap:9px; }
+  .env-elegido button { margin-left:auto; background:rgba(255,255,255,.18); border:0; color:#fff;
+    border-radius:7px; padding:3px 9px; font-size:12px; font-weight:700; cursor:pointer; }
+
+  .env-borrar { background:none; border:0; color:#b9b2a4; font-size:15px; cursor:pointer; padding:2px 5px; border-radius:6px; }
+  .env-borrar:hover { background:#f5eae8; color:#b03a2e; }
+  .env-export { background:#fff; border:2px solid #d8d2c6; border-radius:9px; padding:7px 12px;
+    font-family:Arial; font-size:13px; font-weight:800; cursor:pointer; color:#17140f; }
+  .env-export:hover { border-color:#1e6f5c; background:#eaf5f1; }
   .env-error { background:#f5eae8; border:1px solid #b03a2e; color:#b03a2e; border-radius:9px; padding:9px 12px; font-family:Arial; font-size:13px; margin-top:12px; display:none; }
 </style>
 <style>
@@ -10149,9 +10177,17 @@ function _burroPicado(d, ev){
 
   <div class="env-barra">
     <div id="env-paqs" style="display:flex;gap:7px;flex-wrap:wrap;"></div>
-    <input class="env-busca" id="env-q-pieza"  placeholder="🔍 pieza…"        oninput="envPintar()">
-    <input class="env-busca" id="env-q-ciudad" placeholder="📍 ciudad o CP…"  oninput="envPintar()">
+    <div class="env-caja" style="flex:1;min-width:140px;max-width:260px;">
+      <input class="env-busca" id="env-q-pieza" style="width:100%" placeholder="🔍 pieza…" autocomplete="off">
+      <div class="env-lista" id="env-lp"></div>
+    </div>
+    <div class="env-caja" style="flex:1;min-width:140px;max-width:260px;">
+      <input class="env-busca" id="env-q-ciudad" style="width:100%" placeholder="📍 ciudad o estado…" autocomplete="off">
+      <div class="env-lista" id="env-lc"></div>
+    </div>
     <span class="env-chip" id="env-cuenta">—</span>
+    <button class="env-export" onclick="envExcel()"  title="Bajar todos los envíos a Excel con sus métricas">⬇️ Excel</button>
+    <button class="env-export" onclick="envPDF()"    title="Bajar el reporte en PDF">⬇️ PDF</button>
   </div>
 
   <div class="env-cuerpo">
@@ -10170,12 +10206,16 @@ function _burroPicado(d, ev){
       <input class="env-in" id="env-f-otra" placeholder="Escribe el nombre" style="margin-top:8px;display:none;">
 
       <div class="env-p">2 · ¿A qué ciudad?
-        <span class="ayuda">Escribe ciudad y estado. Ej: Guadalajara, Jalisco</span></div>
-      <input class="env-in" id="env-f-ciudad" placeholder="Ciudad, Estado" autocomplete="off">
+        <span class="ayuda">Escribe y escoge de la lista. Las que ya mandaste salen primero.</span></div>
+      <div class="env-caja">
+        <input class="env-in" id="env-f-ciudad" placeholder="Ciudad, Estado" autocomplete="off">
+        <div class="env-lista" id="env-f-lista"></div>
+      </div>
       <div class="env-calc" id="env-f-lugar" style="display:none;"></div>
 
-      <div class="env-p">3 · ¿Qué mandaste?</div>
-      <input class="env-in" id="env-f-pieza" placeholder="Ej: Turbo ISX HX55 · o el folio de la pieza" autocomplete="off">
+      <div class="env-p">3 · ¿Qué mandaste?
+        <span class="ayuda">Escoge la familia y el modelo, igual que al dar de alta una pieza.</span></div>
+      <div id="env-f-pieza-zona"></div>
 
       <div class="env-p">4 · ¿Cuánto pesó? <span class="ayuda">En kilos, aunque sea aproximado</span></div>
       <input class="env-in" id="env-f-peso" type="number" inputmode="decimal" placeholder="kg" oninput="envCalcular()">
@@ -10188,7 +10228,7 @@ function _burroPicado(d, ev){
       </div>
 
       <div class="env-p">6 · ¿Cuánto costó el flete?</div>
-      <input class="env-in" id="env-f-costo" type="number" inputmode="decimal" placeholder="$" oninput="envCalcular()">
+      <input class="env-in" id="env-f-costo" type="text" inputmode="decimal" placeholder="$" oninput="envDinero(this)">
 
       <div class="env-p">¿Cómo se entregó?</div>
       <div class="env-op">
@@ -10257,6 +10297,269 @@ function _burroPicado(d, ev){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function pesos(n){ return '$' + Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:0, maximumFractionDigits:0}); }
   function norm(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim(); }
+  // ── Dinero con comas mientras se escribe ──────────────────────────
+  // El campo es de TEXTO, no de número: los <input type=number> no dejan
+  // poner comas. Al guardar se limpian y se convierte a número.
+  window.envDinero = function(el){
+    var crudo = String(el.value||'').replace(/[^\d.]/g,'');
+    var p = crudo.split('.');
+    p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    el.value = p.slice(0,2).join('.');
+    envCalcular();
+  };
+  function numDe(v){ return Number(String(v||'').replace(/,/g,'')) || 0; }
+
+  // ── Elegir la pieza: familia → modelo, igual que al dar de alta ────
+  // Se cuelga de FAMILIAS y getBotonesFamilia() del propio inventario, así
+  // que si algún día Keno edita los botones en Administrar, aquí cambian
+  // solos. No se copia la lista: se reusa.
+  var _pz = { fam:null, texto:'' };
+
+  function famsDisponibles(){
+    try {
+      if(typeof FAMILIAS === 'undefined') return [];
+      return FAMILIAS.map(function(f){ return { id:f.id, nombre:f.nombreSingular || f.nombre }; });
+    } catch(e){ return []; }
+  }
+  function modelosDe(id){
+    try { return (typeof getBotonesFamilia === 'function' ? getBotonesFamilia(id) : []) || []; }
+    catch(e){ return []; }
+  }
+
+  function pintarPiezaZona(){
+    var z = document.getElementById('env-f-pieza-zona');
+    if(!z) return;
+    if(_pz.texto){
+      z.innerHTML = '<div class="env-elegido">📦 ' + esc(_pz.texto)
+        + '<button type="button" onclick="envPiezaOtra()">cambiar</button></div>';
+      return;
+    }
+    if(!_pz.fam){
+      var fams = famsDisponibles();
+      z.innerHTML = '<div class="env-fams">'
+        + fams.map(function(f){ return '<button type="button" onclick="envPiezaFam(\''+f.id+'\')">'+esc(f.nombre)+'</button>'; }).join('')
+        + '<button type="button" onclick="envPiezaLibre()">✏️ Escribir a mano</button></div>';
+      return;
+    }
+    var mods = modelosDe(_pz.fam);
+    var fam = famsDisponibles().filter(function(f){ return f.id === _pz.fam; })[0] || {nombre:_pz.fam};
+    z.innerHTML = '<div class="env-elegido" style="margin-bottom:8px">'+esc(fam.nombre)
+      + '<button type="button" onclick="envPiezaOtra()">cambiar</button></div>'
+      + (mods.length
+          ? '<div class="env-fams">' + mods.map(function(m){
+              return '<button type="button" onclick="envPiezaModelo('+JSON.stringify(m).replace(/"/g,'&quot;')+')">'+esc(m)+'</button>'; }).join('')
+            + '<button type="button" onclick="envPiezaLibre()">✏️ Otro</button></div>'
+          : '<input class="env-in" id="env-f-libre" placeholder="Escribe el modelo o la descripción" '
+            + 'oninput="envPiezaTexto(this.value)">');
+  }
+  window.envPiezaFam = function(id){ _pz.fam = id; _pz.texto = ''; pintarPiezaZona();
+    var l = document.getElementById('env-f-libre'); if(l) setTimeout(function(){ l.focus(); }, 40); };
+  window.envPiezaModelo = function(m){
+    var fam = famsDisponibles().filter(function(f){ return f.id === _pz.fam; })[0];
+    _pz.texto = (fam ? fam.nombre + ' ' : '') + m; pintarPiezaZona();
+  };
+  window.envPiezaTexto = function(v){
+    var fam = famsDisponibles().filter(function(f){ return f.id === _pz.fam; })[0];
+    _pz.texto = v.trim() ? ((fam ? fam.nombre + ' ' : '') + v.trim()) : '';
+  };
+  window.envPiezaLibre = function(){
+    _pz = { fam:null, texto:'' };
+    var z = document.getElementById('env-f-pieza-zona');
+    z.innerHTML = '<input class="env-in" id="env-f-libre" placeholder="Escribe la pieza tal cual" '
+      + 'oninput="_envLibre(this.value)"><div style="margin-top:6px"><button type="button" '
+      + 'class="env-export" onclick="envPiezaOtra()">← escoger de la lista</button></div>';
+    setTimeout(function(){ var l = document.getElementById('env-f-libre'); if(l) l.focus(); }, 40);
+  };
+  window._envLibre = function(v){ _pz.texto = v.trim(); };
+  window.envPiezaOtra = function(){ _pz = { fam:null, texto:'' }; pintarPiezaZona(); };
+
+  // ── Listas desplegables que se arman con lo YA capturado ───────────
+  function ciudadesVistas(){
+    var m = {};
+    _envios.forEach(function(e){
+      if(!e.ciudad) return;
+      var k = e.ciudad + '|' + (e.estado||'');
+      (m[k] = m[k] || { ciudad:e.ciudad, estado:e.estado, lat:e.lat, lon:e.lon, km:e.km, n:0 }).n++;
+    });
+    return Object.keys(m).map(function(k){ return m[k]; }).sort(function(a,b){ return b.n - a.n; });
+  }
+  function piezasVistas(){
+    var m = {};
+    _envios.forEach(function(e){ if(e.pieza) m[e.pieza] = (m[e.pieza]||0) + 1; });
+    return Object.keys(m).map(function(k){ return { txt:k, n:m[k] }; }).sort(function(a,b){ return b.n - a.n; });
+  }
+  function abrirLista(idLista, filas, alElegir){
+    var L = document.getElementById(idLista);
+    if(!L) return;
+    if(!filas.length){ L.classList.remove('abierta'); L.innerHTML = ''; return; }
+    L.innerHTML = filas.map(function(f, i){
+      return '<div class="env-op-lista" data-i="'+i+'">'
+           + (f.ya ? '<span class="ya">'+f.ya+'</span>' : '')
+           + '<b>'+esc(f.titulo)+'</b>' + (f.sub ? '<span class="d">'+esc(f.sub)+'</span>' : '') + '</div>';
+    }).join('');
+    L.classList.add('abierta');
+    L.querySelectorAll('.env-op-lista').forEach(function(d){
+      d.onclick = function(){ L.classList.remove('abierta'); alElegir(filas[Number(d.getAttribute('data-i'))]); };
+    });
+  }
+  function cerrarListas(){
+    ['env-lp','env-lc','env-f-lista'].forEach(function(id){
+      var L = document.getElementById(id); if(L) L.classList.remove('abierta');
+    });
+  }
+
+  // ── Buscador de ciudad: PRIMERO lo que ya se mandó, luego el mundo ──
+  // ⚠️ Antes esto era un letrero, no una lista: se veía la ciudad pero no
+  //    se podía picar. Keno lo cachó. Ahora cada renglón es un botón.
+  var _tBusca = null;
+  function buscarCiudadForm(){
+    var caja = document.getElementById('env-f-ciudad');
+    var q = (caja.value || '').trim();
+    if(q.length < 2){ cerrarListas(); return; }
+    var qn = norm(q);
+    var ya = ciudadesVistas().filter(function(c){
+      return (norm(c.ciudad) + ' ' + norm(c.estado)).indexOf(qn) !== -1;
+    }).slice(0, 6).map(function(c){
+      return { titulo:c.ciudad, sub:(c.estado||'') + (c.km ? ' · ' + c.km + ' km' : ''),
+               ya:c.n + (c.n===1?' envío':' envíos'), dato:c };
+    });
+    abrirLista('env-f-lista', ya.concat([{ titulo:'Buscando en el mapa…', sub:'', cargando:true }]), elegirCiudad);
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=mx&q=' + encodeURIComponent(q))
+      .then(function(r){ return r.json(); })
+      .then(function(a){
+        var nuevos = (a || []).map(function(d){
+          var partes = String(d.display_name||'').split(',');
+          return { titulo:(partes[0]||q).trim(),
+                   sub:partes.slice(1, 3).join(',').trim(),
+                   dato:{ ciudad:(partes[0]||q).trim(),
+                          estado:(partes.length > 2 ? partes[partes.length-2] : '').trim(),
+                          lat:Number(d.lat), lon:Number(d.lon), km:null } };
+        });
+        var todos = ya.concat(nuevos);
+        abrirLista('env-f-lista', todos.length ? todos
+          : [{ titulo:'No encontré esa ciudad', sub:'Escríbela como "Ciudad, Estado"' }], elegirCiudad);
+      })
+      .catch(function(){
+        abrirLista('env-f-lista', ya.length ? ya
+          : [{ titulo:'No pude buscar', sub:'Revisa tu internet' }], elegirCiudad);
+      });
+  }
+  function elegirCiudad(f){
+    if(!f || !f.dato) return;
+    var c = f.dato;
+    _f.lat = c.lat; _f.lon = c.lon; _f.ciudad = c.ciudad; _f.estado = c.estado;
+    _f.km = c.km || kmRecta(c.lat, c.lon);
+    document.getElementById('env-f-ciudad').value = c.ciudad + (c.estado ? ', ' + c.estado : '');
+    var box = document.getElementById('env-f-lugar');
+    box.style.display = 'block';
+    box.innerHTML = '📍 <b>'+esc(_f.ciudad)+'</b>'+(_f.estado?', '+esc(_f.estado):'')
+                  + ' · <b>'+_f.km+' km</b> aprox. desde Monterrey';
+    if(c.km) return;   // ya la teníamos medida, no se vuelve a preguntar
+    fetch('https://router.project-osrm.org/route/v1/driving/'+ORIGEN.lon+','+ORIGEN.lat+';'+c.lon+','+c.lat+'?overview=false')
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j && j.routes && j.routes[0]){
+          _f.km = Math.round(j.routes[0].distance / 1000);
+          box.innerHTML = '📍 <b>'+esc(_f.ciudad)+'</b>'+(_f.estado?', '+esc(_f.estado):'')
+                        + ' · <b>'+_f.km+' km</b> por carretera desde Monterrey';
+        }
+      }).catch(function(){});
+  }
+
+  // ── Los dos buscadores de arriba, también con lista ────────────────
+  function armarFiltroPieza(){
+    var el = document.getElementById('env-q-pieza');
+    var q = norm(el.value);
+    var f = piezasVistas().filter(function(p){ return !q || norm(p.txt).indexOf(q) !== -1; })
+      .slice(0, 12).map(function(p){ return { titulo:p.txt, ya:String(p.n), dato:p.txt }; });
+    abrirLista('env-lp', f, function(x){ el.value = x.dato; envPintar(); });
+  }
+  function armarFiltroCiudad(){
+    var el = document.getElementById('env-q-ciudad');
+    var q = norm(el.value);
+    var f = ciudadesVistas().filter(function(c){
+      return !q || (norm(c.ciudad)+' '+norm(c.estado)).indexOf(q) !== -1;
+    }).slice(0, 12).map(function(c){
+      return { titulo:c.ciudad, sub:c.estado||'', ya:String(c.n), dato:c.ciudad };
+    });
+    abrirLista('env-lc', f, function(x){ el.value = x.dato; envPintar(); });
+  }
+
+  // ── Borrar un envío: DOS candados ─────────────────────────────────
+  // Es un registro de dinero. Un clic de más no puede borrarlo.
+  window.envBorrar = function(id){
+    var e = _envios.filter(function(x){ return x._id === id; })[0];
+    if(!e) return;
+    var q = '¿Borrar este envío?\n\n'
+          + (e.pieza||'') + '\n' + (e.ciudad||'') + (e.estado ? ', '+e.estado : '')
+          + '\n' + pesos(e.costo) + ' · ' + (e.fecha||'')
+          + '\n\nEsto NO se puede deshacer.';
+    if(!confirm(q)) return;
+    var pide = String(Math.round(Number(e.costo)||0));
+    var r = prompt('Segundo candado.\n\nEscribe el costo del envío para confirmar que es este:\n\n' + pide);
+    if(r === null) return;
+    if(String(r).replace(/[^\d]/g,'') !== pide){ alert('No coincide. NO se borró nada.'); return; }
+    firebase.database().ref('envios/' + id).remove()
+      .then(function(){ /* la escucha en vivo repinta sola */ })
+      .catch(function(err){ alert('NO se pudo borrar: ' + (err && err.code ? err.code : err)); });
+  };
+
+  // ── Bajar todo a Excel y a PDF, con las métricas calculadas ───────
+  function filasExport(){
+    return filtrados().slice().sort(function(a,b){ return String(a.fecha).localeCompare(String(b.fecha)); })
+      .map(function(e){
+        var pc = pesoCobrado(e), p = paqDe(e.paq);
+        return {
+          Fecha: e.fecha || '',
+          Paqueteria: e.paq === 'otra' ? (e.otra || 'Otra') : p.nombre,
+          Pieza: e.pieza || '',
+          Ciudad: e.ciudad || '',
+          Estado: e.estado || '',
+          Km: e.km || '',
+          PesoKg: Number(e.peso) || 0,
+          Largo: Number(e.largo) || 0,
+          Ancho: Number(e.ancho) || 0,
+          Alto: Number(e.alto) || 0,
+          PesoVolumetrico: Math.round(pc.vol * 10) / 10,
+          PesoCobrado: Math.round(pc.cobrado * 10) / 10,
+          Costo: Number(e.costo) || 0,
+          CostoPorKg: pc.cobrado ? Math.round((Number(e.costo)||0) / pc.cobrado * 100) / 100 : 0,
+          CostoPorKm: e.km ? Math.round((Number(e.costo)||0) / e.km * 100) / 100 : 0,
+          Entrega: e.entrega === 'ocu' ? 'Ocurre' : 'A domicilio',
+          LoPago: e.pago === 'nos' ? 'La casa' : 'El cliente'
+        };
+      });
+  }
+  window.envExcel = function(){
+    var filas = filasExport();
+    if(!filas.length) return alert('No hay envíos que bajar con esos filtros.');
+    if(typeof XLSX === 'undefined') return alert('No cargó la librería de Excel. Recarga la página.');
+    var hoja = XLSX.utils.json_to_sheet(filas);
+    var libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, 'Envíos');
+    XLSX.writeFile(libro, 'envios-tractopartes-' + new Date().toISOString().slice(0,10) + '.xlsx');
+  };
+  window.envPDF = function(){
+    var filas = filasExport();
+    if(!filas.length) return alert('No hay envíos que bajar con esos filtros.');
+    if(!window.jspdf || !window.jspdf.jsPDF) return alert('No cargó la librería de PDF. Recarga la página.');
+    var doc = new window.jspdf.jsPDF({ orientation:'landscape', unit:'pt', format:'letter' });
+    var tot = filas.reduce(function(s,f){ return s + f.Costo; }, 0);
+    var kg  = filas.reduce(function(s,f){ return s + f.PesoCobrado; }, 0);
+    doc.setFontSize(16); doc.text('Envíos · Tracto Partes Magaña', 40, 40);
+    doc.setFontSize(10); doc.setTextColor(110);
+    doc.text(filas.length + ' envíos · ' + pesos(tot) + ' en total · '
+           + (kg ? pesos(tot/kg) + ' por kilo cobrado' : '') , 40, 58);
+    doc.text('Salen de Monterrey · precios REALES pagados, no tarifas', 40, 72);
+    doc.autoTable({
+      startY: 88, styles:{ fontSize:7, cellPadding:3 },
+      headStyles:{ fillColor:[30,111,92] },
+      head: [Object.keys(filas[0])],
+      body: filas.map(function(f){ return Object.keys(f).map(function(k){ return f[k]; }); })
+    });
+    doc.save('envios-tractopartes-' + new Date().toISOString().slice(0,10) + '.pdf');
+  };
+
 
   // Peso volumétrico y peso cobrado — la cuenta que decide el precio.
   function pesoCobrado(e){
@@ -10409,7 +10712,8 @@ function _burroPicado(d, ev){
         return '<div class="env-fila"><div class="top">'
           + '<span class="et" style="background:'+p.color+'">'+esc(e.paq==='otra' ? (e.otra||'Otra') : p.nombre)+'</span>'
           + '<span class="pieza">'+esc(e.pieza||'—')+'</span>'
-          + '<span class="costo">'+pesos(e.costo)+'</span></div>'
+          + '<span class="costo">'+pesos(e.costo)+'</span>'
+          + '<button class="env-borrar solo-editor" title="Borrar este envío" onclick="envBorrar(\''+e._id+'\')">🗑</button></div>'
           + '<div class="meta">📍 '+esc(e.ciudad)+(e.estado?', '+esc(e.estado):'')
           + (e.km ? ' · '+e.km+' km' : '')
           + '<br>⚖️ '+(Number(e.peso)||0)+' kg reales'
@@ -10475,50 +10779,6 @@ function _burroPicado(d, ev){
     el.innerHTML = t;
   };
 
-  // ── Buscar la ciudad y sacar los kilómetros ────────────────────────
-  var _tBusca = null;
-  function buscarCiudad(){
-    var caja = document.getElementById('env-f-ciudad');
-    var box  = document.getElementById('env-f-lugar');
-    var q = (caja.value || '').trim();
-    if(q.length < 3){ box.style.display = 'none'; _f.lat = _f.lon = null; return; }
-    box.style.display = 'block';
-    box.innerHTML = 'Buscando…';
-    // Si esa ciudad YA se capturó antes, se reusa: ni se busca ni se
-    // vuelven a pedir los kilómetros. Gratis y al instante.
-    var ya = _envios.filter(function(e){ return norm(e.ciudad).indexOf(norm(q)) === 0 && e.lat != null; })[0];
-    if(ya){
-      _f.lat = ya.lat; _f.lon = ya.lon; _f.ciudad = ya.ciudad; _f.estado = ya.estado; _f.km = ya.km;
-      box.innerHTML = '📍 <b>'+esc(ya.ciudad)+'</b>'+(ya.estado?', '+esc(ya.estado):'')
-                    + (ya.km ? ' · <b>'+ya.km+' km</b> desde Monterrey' : '')
-                    + '<br><span style="font-size:12px">Ya la tenías capturada.</span>';
-      return;
-    }
-    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=mx&q=' + encodeURIComponent(q))
-      .then(function(r){ return r.json(); })
-      .then(function(a){
-        if(!a || !a.length){ box.innerHTML = '⚠️ No encontré esa ciudad. Escríbela como "Ciudad, Estado".'; _f.lat = null; return; }
-        var d = a[0], partes = String(d.display_name||'').split(',');
-        _f.lat = Number(d.lat); _f.lon = Number(d.lon);
-        _f.ciudad = (partes[0]||q).trim();
-        _f.estado = (partes.length > 2 ? partes[partes.length-2] : '').trim();
-        _f.km = kmRecta(_f.lat, _f.lon);
-        box.innerHTML = '📍 <b>'+esc(_f.ciudad)+'</b>'+(_f.estado?', '+esc(_f.estado):'')
-                      + ' · <b>'+_f.km+' km</b> aprox. desde Monterrey';
-        // Los kilómetros de carretera, si el servicio contesta.
-        fetch('https://router.project-osrm.org/route/v1/driving/'+ORIGEN.lon+','+ORIGEN.lat+';'+_f.lon+','+_f.lat+'?overview=false')
-          .then(function(r){ return r.json(); })
-          .then(function(j){
-            if(j && j.routes && j.routes[0]){
-              _f.km = Math.round(j.routes[0].distance / 1000);
-              box.innerHTML = '📍 <b>'+esc(_f.ciudad)+'</b>'+(_f.estado?', '+esc(_f.estado):'')
-                            + ' · <b>'+_f.km+' km</b> por carretera desde Monterrey';
-            }
-          }).catch(function(){});
-      })
-      .catch(function(){ box.innerHTML = '⚠️ No pude buscar la ciudad. Revisa tu internet.'; _f.lat = null; });
-  }
-
   window.envAbrirForm = function(){
     _f = { paq:'paquete', entrega:'dom', pago:'cli', lat:null, lon:null, ciudad:'', estado:'', km:null };
     ['ciudad','pieza','peso','largo','ancho','alto','costo','otra'].forEach(function(k){
@@ -10527,21 +10787,23 @@ function _burroPicado(d, ev){
     document.getElementById('env-f-lugar').style.display = 'none';
     document.getElementById('env-f-error').style.display = 'none';
     document.getElementById('env-f-otra').style.display = 'none';
+    _pz = { fam:null, texto:'' }; pintarPiezaZona();
     pintarBotonesPaq(); envToggle('entrega','dom'); envToggle('pago','cli'); envCalcular();
     document.getElementById('env-form').classList.add('abierto');
     var c = document.getElementById('env-f-ciudad');
-    c.oninput = function(){ clearTimeout(_tBusca); _tBusca = setTimeout(buscarCiudad, 700); };
+    c.oninput = function(){ clearTimeout(_tBusca); _tBusca = setTimeout(buscarCiudadForm, 450); };
+    c.onfocus = function(){ if(c.value.trim().length >= 2) buscarCiudadForm(); };
   };
   window.envCerrarForm = function(){ document.getElementById('env-form').classList.remove('abierto'); };
 
   window.envGuardar = function(){
     var err = document.getElementById('env-f-error');
     function alto(m){ err.textContent = m; err.style.display = 'block'; }
-    var pieza = (document.getElementById('env-f-pieza').value||'').trim();
+    var pieza = (_pz.texto||'').trim();
     var peso  = Number(document.getElementById('env-f-peso').value) || 0;
-    var costo = Number(document.getElementById('env-f-costo').value) || 0;
+    var costo = numDe(document.getElementById('env-f-costo').value);
     if(_f.lat == null)  return alto('Falta la ciudad — escríbela y espera a que aparezca el punto.');
-    if(!pieza)          return alto('Falta qué se mandó.');
+    if(!pieza)          return alto('Falta escoger qué se mandó.');
     if(!peso)           return alto('Falta el peso en kilos.');
     if(!costo)          return alto('Falta cuánto costó el flete.');
     if(_f.paq === 'otra' && !(document.getElementById('env-f-otra').value||'').trim())
@@ -10551,7 +10813,7 @@ function _burroPicado(d, ev){
     var reg = {
       paq: _f.paq, otra: (document.getElementById('env-f-otra').value||'').trim(),
       ciudad: _f.ciudad, estado: _f.estado, lat: _f.lat, lon: _f.lon, km: _f.km,
-      pieza: pieza, peso: peso,
+      pieza: pieza, fam: _pz.fam || '', peso: peso,
       largo: Number(document.getElementById('env-f-largo').value) || 0,
       ancho: Number(document.getElementById('env-f-ancho').value) || 0,
       alto:  Number(document.getElementById('env-f-alto').value)  || 0,
@@ -10570,12 +10832,27 @@ function _burroPicado(d, ev){
       .then(function(){ btn.disabled = false; btn.textContent = 'Guardar envío'; });
   };
 
+  // Los buscadores de arriba: lista al escribir y al picarles.
+  function engancharFiltros(){
+    var p = document.getElementById('env-q-pieza'), c = document.getElementById('env-q-ciudad');
+    if(p && !p._listo){ p._listo = 1;
+      p.oninput = function(){ armarFiltroPieza(); envPintar(); };
+      p.onfocus  = armarFiltroPieza; }
+    if(c && !c._listo){ c._listo = 1;
+      c.oninput = function(){ armarFiltroCiudad(); envPintar(); };
+      c.onfocus  = armarFiltroCiudad; }
+  }
+  // Picar fuera cierra cualquier lista abierta.
+  document.addEventListener('click', function(ev){
+    if(!ev.target.closest || !ev.target.closest('.env-caja')) cerrarListas();
+  });
+
   var _escuchando = false;
   window.abrirEnvios = function(){
     var t = document.getElementById('env-tel');
     if(!t) return;
     t.classList.add('abierto');
-    pintarBotonesPaq();
+    pintarBotonesPaq(); engancharFiltros();
     cargarLeaflet(function(){
       iniciarMapa();
       if(!_escuchando && window.firebase && firebase.database){
