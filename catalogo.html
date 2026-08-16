@@ -249,12 +249,19 @@ function pintarFamilia(app, famId){
 
   // Agrupadas por modelo: 165 inyectores casi iguales no le sirven a nadie.
   // Sale "Inyector C15 — tenemos 40" y las fotos de ese modelo.
+  // ⚠️ Se agrupa por el NOMBRE QUE VE EL CLIENTE, no por modelKey. Seis árboles
+  //    ISX870 con folios distintos (331, 333, 406, 432, 476, 629) tienen seis
+  //    modelKey distintos, y al quitarles el folio salían seis tarjetas que
+  //    decían exactamente lo mismo. Para el cliente es una sola pieza: ISX870.
   var grupos = {};
   piezas.forEach(function(f){
-    var k = (f.modelKey || (modeloDe(f) + '|' + f.titulo) || f._id);
+    var k = nombreParaCliente(f, fam);
     if(!grupos[k]) grupos[k] = { f:f, n:0, vendidas:0 };
-    // La foto de la tarjeta sale de la primera pieza del grupo que SÍ tenga.
-    if(!fotosDe(grupos[k].f).length && fotosDe(f).length) grupos[k].f = f;
+    // El representante manda la foto Y el renglón de abajo: se prefiere uno
+    // que tenga foto, y entre esos, uno que además traiga modelo.
+    var act = grupos[k].f;
+    if((!fotosDe(act).length && fotosDe(f).length) ||
+       (fotosDe(f).length && !modeloDe(act) && modeloDe(f))) grupos[k].f = f;
     grupos[k].n++;
     if(f.vendida) grupos[k].vendidas++;
   });
