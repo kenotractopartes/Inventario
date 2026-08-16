@@ -4014,13 +4014,21 @@ function _saleEnCatalogo(p){
   var key = _modelKey(p);
   var arch = key ? ((MEDIA_MODELO[key] && MEDIA_MODELO[key].media) || [])
                  : ((PUB[p.id] && PUB[p.id].media) || []);
-  // ⚠️ "Otros" es el cajón de sastre: ahí cae lo que no encaja en ninguna
-  //    familia, incluidos registros de prueba y material de video. Si una
-  //    pieza de AHÍ no tiene ni una sola foto, no es refacción que un cliente
-  //    pueda comprar. (Caso real: dos registros "EUGENIO" con 25 y 7 videos
-  //    y cero fotos.) En las DEMÁS familias las piezas sin foto sí salen:
-  //    eso lo pidió Keno a propósito.
-  if(p.familia === 'otros' && !arch.some(function(a){ return a && a.t !== 'video'; })) return false;
+  // ⚠️ "Otros" es el cajón de sastre. Un registro de AHÍ que tiene VIDEOS
+  //    pero ni una sola foto es material de contenido, no refacción: los dos
+  //    "EUGENIO" traen 25 y 7 videos y cero fotos.
+  //
+  //    🔴 CORREGIDO 16 ago 2026: antes esta regla decía solo "sin foto" y se
+  //    llevó de rebote a "Otro: Bomba de inyeccion", que es una pieza REAL
+  //    que simplemente no tiene foto todavía. Peor: la regla le ganaba a la
+  //    palomita, así que no había forma de hacerla salir. Ahora pide que
+  //    ADEMÁS traiga video. Una pieza sin nada (ni foto ni video) sí sale,
+  //    con su aviso de "todavía no le tomamos foto".
+  if(p.familia === 'otros'){
+    var hayFoto = arch.some(function(a){ return a && a.t !== 'video'; });
+    var hayVideo = arch.some(function(a){ return a && a.t === 'video'; });
+    if(!hayFoto && hayVideo) return false;
+  }
   return true;
 }
 
