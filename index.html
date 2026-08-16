@@ -6156,6 +6156,124 @@ function _pesoDeMedia(m){
   })).then(function(tam){ return tam.reduce(function(a, b){ return a + b; }, 0); });
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// MINIATURAS DE LAS FOTOS VIEJAS
+// ──────────────────────────────────────────────────────────────────────────
+// Desde el 16 ago 2026 cada foto nueva se guarda también en 400 px (~32 KB)
+// para el cuadrito del catálogo. Las que ya estaban solo tienen la de 1600 px
+// (405 KB de promedio), y abrir una sección se iba a 3 MB en el celular del
+// cliente. Esto las convierte.
+//
+// ⚠️ Requiere que el bucket tenga CORS abierto para fotonas.tractopartes.com
+//    (se activó el 16 ago 2026). Sin eso el navegador NO puede leer los
+//    píxeles de una foto ya subida, aunque sí pueda mostrarla.
+//
+// Solo AGREGA: nunca borra ni reemplaza la foto grande ni la de 1600 px.
+// Se puede parar a medias y volver a correr: solo hace las que faltan.
+// ══════════════════════════════════════════════════════════════════════════
+var _miniParar = false, _miniCorriendo = false;
+
+// Junta todas las fotos que aún no tienen su miniatura, sepan de dónde salgan.
+function _fotosSinMini(){
+  var lista = [];
+  Object.keys(MEDIA_MODELO || {}).forEach(function(k){
+    ((MEDIA_MODELO[k] && MEDIA_MODELO[k].media) || []).forEach(function(a, i){
+      if(a && a.t !== 'video' && (a.web || a.hd) && !a.mini)
+        lista.push({ ruta: 'media_modelo/' + k + '/media/' + i, url: a.web || a.hd });
+    });
+  });
+  Object.keys(PUB || {}).forEach(function(id){
+    ((PUB[id] && PUB[id].media) || []).forEach(function(a, i){
+      if(a && a.t !== 'video' && (a.web || a.hd) && !a.mini)
+        lista.push({ ruta: 'fichas_publicas/' + id + '/media/' + i, url: a.web || a.hd });
+    });
+  });
+  return lista;
+}
+
+function _miniBarra(html){
+  var el = document.getElementById('mini-barra');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'mini-barra';
+    el.style.cssText = 'position:fixed; left:12px; right:12px; bottom:12px; z-index:99998; ' +
+      'background:#17140f; color:#fff; border-radius:12px; padding:14px 16px; ' +
+      'font-size:14px; line-height:1.45; box-shadow:0 6px 24px rgba(0,0,0,.35); max-width:520px; margin:0 auto;';
+    document.body.appendChild(el);
+  }
+  if(html === null){ el.remove(); return; }
+  el.innerHTML = html;
+}
+
+function pararMiniaturas(){ _miniParar = true; }
+
+function generarMiniaturasFaltantes(){
+  if(_miniCorriendo){ alert('Ya se están generando. Espera a que termine.'); return; }
+  if(!firebase.auth().currentUser){ alert('Tu sesión expiró. Recarga la página y vuelve a entrar.'); return; }
+  var faltan = _fotosSinMini();
+  if(!faltan.length){ alert('✔ Todas las fotos ya tienen su miniatura.'); return; }
+  var mins = Math.max(1, Math.round(faltan.length * 2 / 60));
+  if(!confirm('Se van a generar ' + faltan.length + ' miniatura(s).\n\n' +
+              'Tarda unos ' + mins + ' minuto(s). Deja esta pestaña abierta.\n\n' +
+              'NO se borra ni se cambia ninguna foto: solo se agrega una copia chica ' +
+              'para que el catálogo abra rápido en el celular del cliente.\n\n¿Le seguimos?')) return;
+
+  _miniCorriendo = true; _miniParar = false;
+  var hechas = 0, fallidas = 0, i = 0, DE_A_LA_VEZ = 3;
+  var st = firebase.storage();
+
+  function pinta(){
+    var v = hechas + fallidas;
+    _miniBarra('<div style="font-weight:800; margin-bottom:6px;">🖼️ Generando miniaturas…</div>' +
+      '<div style="height:10px; background:#3a3630; border-radius:5px; overflow:hidden; margin:8px 0;">' +
+        '<div style="height:100%; width:' + Math.round(v / faltan.length * 100) + '%; background:#2e7d46;"></div></div>' +
+      '<div>' + v + ' de ' + faltan.length + (fallidas ? ' · ' + fallidas + ' no se pudieron' : '') + '</div>' +
+      '<button onclick="pararMiniaturas()" style="margin-top:10px; background:#fff; color:#17140f; border:0; ' +
+      'border-radius:8px; padding:8px 16px; font-weight:800; cursor:pointer;">Parar</button>');
+  }
+
+  function unaFoto(f){
+    // Bajar la foto de 1600 px, achicarla a 400 y subir la copia. Se escribe
+    // SOLO el campo `mini` de ese archivo, no el arreglo completo: así no se
+    // pisa nada si alguien más está subiendo fotos al mismo tiempo.
+    return fetch(f.url).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.blob();
+    }).then(function(blob){
+      return comprimirImagen(blob, 400, 0.80);
+    }).then(function(mini){
+      var base = st.refFromURL(f.url).fullPath.replace(/_(web|hd)$/, '');
+      return st.ref(base + '_mini').put(mini).then(function(sn){ return sn.ref.getDownloadURL(); });
+    }).then(function(url){
+      return firebase.database().ref(f.ruta + '/mini').set(url);
+    }).then(function(){ hechas++; }, function(e){ fallidas++; console.warn('miniatura', f.ruta, e); });
+  }
+
+  function siguiente(){
+    if(_miniParar || i >= faltan.length) return fin();
+    var tanda = [];
+    for(var n = 0; n < DE_A_LA_VEZ && i < faltan.length && !_miniParar; n++) tanda.push(unaFoto(faltan[i++]));
+    if(!tanda.length) return fin();
+    Promise.all(tanda).then(function(){ pinta(); setTimeout(siguiente, 60); });
+  }
+
+  var terminado = false;
+  function fin(){
+    if(terminado) return;
+    terminado = true; _miniCorriendo = false;
+    _miniBarra('<div style="font-weight:800; margin-bottom:6px;">' +
+      (_miniParar ? '⏸️ Se detuvo' : '✅ Listo') + '</div>' +
+      '<div>' + hechas + ' miniatura(s) generada(s)' +
+      (fallidas ? ' · ' + fallidas + ' no se pudieron (vuelve a picarle y lo reintenta)' : '') +
+      (_miniParar ? ' · faltan ' + (faltan.length - hechas - fallidas) : '') + '</div>' +
+      '<button onclick="_miniBarra(null)" style="margin-top:10px; background:#fff; color:#17140f; border:0; ' +
+      'border-radius:8px; padding:8px 16px; font-weight:800; cursor:pointer;">Cerrar</button>');
+    try { _pesoCache = {}; renderEspacio(); } catch(e){}
+  }
+
+  pinta(); siguiente();
+}
+
 function renderEspacio(){
   var cont = document.getElementById('caja-espacio');
   if(!cont) return;
@@ -6196,7 +6314,11 @@ function renderEspacio(){
       '<div class="card" style="background:#eef4fb; border:2px solid #185FA5; border-radius:10px; padding:14px; margin-bottom:14px;">' +
         '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap;">' +
           '<div style="font-size:16px; font-weight:900; color:#185FA5;">☁️ Espacio de fotos en la nube</div>' +
-          '<button class="btn btn-small btn-mini" onclick="_pesoCache={}; renderEspacio();">🔄 Actualizar</button>' +
+          '<div style="display:flex; gap:6px;">' +
+            '<button class="btn btn-small btn-mini solo-editor" onclick="generarMiniaturasFaltantes()" ' +
+              'title="Genera la copia chica que usa el catálogo. No borra ni cambia ninguna foto.">🖼️ Miniaturas</button>' +
+            '<button class="btn btn-small btn-mini" onclick="_pesoCache={}; renderEspacio();">🔄 Actualizar</button>' +
+          '</div>' +
         '</div>' +
         '<div style="font-size:22px; font-weight:900; color:#17140f; margin-top:8px;">' + _fmtPeso(total) +
           ' <span style="font-size:14px; font-weight:400; color:#777;">de ' + LIMITE_GRATIS_GB + ' GB gratis</span></div>' +
