@@ -263,7 +263,7 @@ function fotosDe(f){
   // ⚠️ SOLO fotos. Un video se guarda como {kb, t:'video', url} y NO trae
   //    miniatura (`web`/`hd`), así que la tarjeta salía en gris. Hay 155
   //    videos cargados; sin este filtro se cuelan.
-  return lista.filter(function(a){ return a && a.t !== 'video' && (a.web || a.hd); });
+  return lista.filter(function(a){ return a && a.t !== 'video' && (a.mini || a.web || a.hd); });
 }
 
 function pintar(){
@@ -361,7 +361,10 @@ function pintarFamilia(app, famId){
   app.innerHTML = cab + '<div class="tarjetas">'
     + llaves.map(function(k){
         var g = grupos[k], f = g.f, fotos = fotosDe(f);
-        var foto = fotos[0] ? (fotos[0].web || fotos[0].hd) : '';
+        // ⚠️ Para el cuadrito se usa la MINIATURA (~32 KB) si ya existe. Las
+        //    fotos subidas antes del 16 ago 2026 no la tienen: esas caen a la
+        //    de 1600 px, que pesa 12 veces más pero se ve igual de bien.
+        var foto = fotos[0] ? (fotos[0].mini || fotos[0].web || fotos[0].hd) : '';
         var hd = fotos[0] ? (fotos[0].hd || fotos[0].web) : '';
         var modelo = modeloDe(f);
         var todasVendidas = g.vendidas === g.n;

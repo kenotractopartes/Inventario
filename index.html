@@ -4306,7 +4306,7 @@ function _urlUsadaPorOtraPieza(url, exceptId){
   if(!url) return false;
   return (DATA.piezas || []).some(function(x){
     if(!x || x.id === exceptId) return false;
-    return (mediaDePieza(x.id) || []).some(function(m){ return m && (m.url === url || m.web === url || m.hd === url); });
+    return (mediaDePieza(x.id) || []).some(function(m){ return m && (m.url === url || m.web === url || m.hd === url || m.mini === url); });
   });
 }
 
@@ -4433,13 +4433,33 @@ function subirArchivosPieza(files){
         })
         .catch(finFalla);
     } else {
-      comprimirImagen(file, 1600, 0.82).then(function(webBlob){
+      // ⚠️ TRES copias de cada foto, no dos (16 ago 2026):
+      //    hd   = el archivo original, para cuando el cliente le pica y la ve grande
+      //    web  = 1600 px, la que ya existía
+      //    mini = 400 px (~32 KB), SOLO para el cuadrito de la tarjeta
+      //    El cuadrito mide 165 px en un celular; mandarle 1600 px era como
+      //    mandar un cartel para verlo del tamaño de una credencial. Abrir una
+      //    sección del catálogo pasaba de ~3 MB a menos de medio mega.
+      //    Irving no hace nada distinto: sale de la misma foto que ya subió.
+      Promise.all([ comprimirImagen(file, 1600, 0.82), comprimirImagen(file, 400, 0.80) ])
+        .then(function(blobs){
+        var webBlob = blobs[0], miniBlob = blobs[1];
         var rHD = st.ref('fotos_piezas/' + p.id + '/' + ts + '_hd');
         var rWeb = st.ref('fotos_piezas/' + p.id + '/' + ts + '_web');
+        var rMini = st.ref('fotos_piezas/' + p.id + '/' + ts + '_mini');
         return subirConProgreso(rHD, file, etiqueta).then(function(hdUrl){
           return subirConProgreso(rWeb, webBlob, etiqueta).then(function(webUrl){
-            media.push({ t:'foto', web:webUrl, hd:hdUrl, kb: Math.round((file.size + webBlob.size) / 1024) });
-            hechos++; subirUno(idx + 1);
+            // La miniatura va al final y SIN tumbar la subida si falla: la foto
+            // ya está arriba y el catálogo sabe usar la de 1600 px mientras.
+            return rMini.put(miniBlob).then(function(sn){ return sn.ref.getDownloadURL(); })
+              .catch(function(e){ console.warn('miniatura:', e); return ''; })
+              .then(function(miniUrl){
+                var m = { t:'foto', web:webUrl, hd:hdUrl,
+                          kb: Math.round((file.size + webBlob.size + miniBlob.size) / 1024) };
+                if(miniUrl) m.mini = miniUrl;
+                media.push(m);
+                hechos++; subirUno(idx + 1);
+              });
           });
         });
       }).catch(finFalla);
@@ -4489,7 +4509,7 @@ function borrarMediaPieza(i){
   // Borrar los archivos de Storage (si falla, no pasa nada — la ficha ya no los muestra)
   try {
     var st = firebase.storage();
-    [m.url, m.web, m.hd].forEach(function(u){
+    [m.url, m.web, m.hd, m.mini].forEach(function(u){
       // No borrar el archivo si otra pieza (una copia) todavía lo usa.
       if (u && !_urlUsadaPorOtraPieza(u, p.id)) try { st.refFromURL(u).delete().catch(function(){}); } catch(e){}
     });
@@ -6127,7 +6147,7 @@ function _inventarioMedia(){
 // Pide el peso al SDK solo de los archivos que no lo tengan guardado.
 function _pesoDeMedia(m){
   if(m.kb != null) return Promise.resolve(m.kb * 1024);
-  var urls = [m.url, m.web, m.hd].filter(Boolean);
+  var urls = [m.url, m.web, m.hd, m.mini].filter(Boolean);
   return Promise.all(urls.map(function(u){
     if(_pesoCache[u] != null) return Promise.resolve(_pesoCache[u]);
     return firebase.storage().refFromURL(u).getMetadata()
