@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Piezas disponibles · Tracto Partes Magaña</title>
+<meta name="description" content="Parte de las piezas que tenemos en el patio. Motores, transmisiones, turbos, inyectores y más. Escríbenos por WhatsApp.">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="Piezas disponibles · Tracto Partes Magaña">
+<meta property="og:description" content="Parte de lo que tenemos en el patio. Si no ves lo que buscas, pregúntanos.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23401C86'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-size='34' font-weight='bold' fill='%23fff' text-anchor='middle'%3ETP%3C/text%3E%3C/svg%3E">
+<style>
+  :root { --azul:#401C86; --rojo:#F9271D; --tinta:#17140f; --gris:#6b6459; --linea:#e0dccf; --papel:#faf7f1; }
+  *, *::before, *::after { box-sizing:border-box; }
+  body { margin:0; background:var(--papel); color:var(--tinta);
+         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; -webkit-text-size-adjust:100%; }
+  .envoltura { max-width:1000px; margin:0 auto; padding:0 14px 60px; }
+
+  header { background:var(--tinta); color:#fff; padding:16px 0 14px; border-bottom:4px solid var(--rojo); }
+  header .envoltura { padding-bottom:0; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  header h1 { margin:0; font-family:Georgia,'Times New Roman',serif; font-size:21px; font-weight:700; letter-spacing:.2px; }
+  header .sub { font-size:12.5px; color:#b9b2a4; margin-top:2px; }
+  .wa-top { margin-left:auto; background:#25D366; color:#fff; text-decoration:none; font-weight:800;
+            font-size:14px; padding:9px 16px; border-radius:24px; white-space:nowrap; }
+
+  /* El aviso fijo: el catálogo trae MUCHO menos de lo que hay en el patio */
+  .aviso { background:#fff6d9; border:1px solid #e3c766; border-radius:12px;
+           padding:11px 14px; margin:13px 0 4px; font-size:13.5px; line-height:1.5; color:#6b5720; }
+  .aviso b { color:#4a3c12; }
+
+  h2.titulo { font-family:Georgia,serif; font-size:20px; margin:22px 0 12px; }
+  .volver { display:inline-flex; align-items:center; gap:6px; background:#fff; border:2px solid var(--linea);
+            border-radius:10px; padding:8px 14px; font-size:14px; font-weight:700; color:var(--tinta);
+            cursor:pointer; margin:16px 0 4px; }
+  .volver:hover { border-color:var(--azul); }
+
+  .rejilla { display:grid; grid-template-columns:repeat(auto-fill, minmax(148px,1fr)); gap:10px; margin-top:6px; }
+  .fam { background:#fff; border:1px solid var(--linea); border-radius:14px; padding:15px 13px; cursor:pointer;
+         text-align:left; font:inherit; color:inherit; transition:border-color .12s, transform .12s; }
+  .fam:hover { border-color:var(--azul); transform:translateY(-1px); }
+  .fam .n { font-size:15px; font-weight:800; line-height:1.25; }
+  .fam .c { font-size:12.5px; color:var(--gris); margin-top:5px; }
+  .fam.vacia { background:#f5f3ee; }
+  .fam.vacia .c { color:#9a9384; }
+
+  .tarjetas { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:11px; margin-top:8px; }
+  @media (min-width:560px){ .tarjetas { grid-template-columns:repeat(auto-fill, minmax(196px,1fr)); gap:14px; } }
+  .pz { background:#fff; border:1px solid var(--linea); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+  .pz .foto { aspect-ratio:4/3; background:#eceae4; position:relative; overflow:hidden; cursor:zoom-in; }
+  .pz .foto img { width:100%; height:100%; object-fit:cover; display:block; }
+  .pz .mas { position:absolute; right:7px; bottom:7px; background:rgba(23,20,15,.78); color:#fff;
+             font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:20px; }
+  .pz .cuerpo { padding:10px 11px 11px; display:flex; flex-direction:column; flex:1; }
+  .pz .t { font-size:14px; font-weight:800; line-height:1.3; overflow-wrap:anywhere; }
+  .pz .m { font-size:12.5px; color:var(--gris); margin-top:4px; line-height:1.45; }
+  .pz .cant { display:inline-block; background:#eef0fb; color:var(--azul); border:1px solid #c9bde6;
+              border-radius:20px; padding:2px 10px; font-size:12px; font-weight:800; margin-top:8px; }
+  .vendida-et { display:inline-block; background:#e6e4de; color:#6b6459; border-radius:20px;
+                padding:2px 10px; font-size:11.5px; font-weight:800; margin-top:8px; }
+  .pz.vendida .foto img { filter:grayscale(.85); opacity:.72; }
+
+  .wa { margin-top:auto; display:block; text-align:center; background:#25D366; color:#fff; text-decoration:none;
+        font-weight:800; font-size:13.5px; padding:10px 6px; border-radius:10px; margin-top:11px; }
+  .wa:active { background:#1fae53; }
+  .wa.gris { background:#fff; color:var(--tinta); border:2px solid var(--linea); }
+
+  .vacio-caja { background:#fff; border:2px dashed var(--linea); border-radius:14px; padding:26px 20px;
+                text-align:center; margin-top:10px; }
+  .vacio-caja p { font-size:15.5px; line-height:1.6; margin:0 0 16px; color:var(--tinta); }
+  .vacio-caja .wa { display:inline-block; margin:0; padding:12px 26px; }
+
+  footer { text-align:center; color:var(--gris); font-size:12.5px; padding:30px 14px 0; line-height:1.6; }
+
+  #lupa { position:fixed; inset:0; background:rgba(15,13,10,.93); display:none; z-index:99;
+          align-items:center; justify-content:center; padding:18px; }
+  #lupa.abierta { display:flex; }
+  #lupa img { max-width:100%; max-height:88vh; object-fit:contain; border-radius:8px; }
+  #lupa .x { position:absolute; top:14px; right:16px; background:rgba(255,255,255,.16); border:0; color:#fff;
+             font-size:22px; width:40px; height:40px; border-radius:11px; cursor:pointer; }
+  .cargando { text-align:center; color:var(--gris); padding:50px 20px; font-size:15px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="envoltura">
+    <div>
+      <h1>Tracto Partes Magaña</h1>
+      <div class="sub">Refacciones para tractocamión · Monterrey, N.L.</div>
+    </div>
+    <a class="wa-top" id="wa-general" href="#">💬 WhatsApp</a>
+  </div>
+</header>
+
+<div class="envoltura">
+  <!-- ⚠️ Este aviso NO se quita ni se esconde nunca. El catálogo trae bastante
+       menos de lo que hay en el patio, y sin decirlo el cliente se va creyendo
+       que eso es todo. -->
+  <div class="aviso">
+    📦 <b>Esto es solo una parte de lo que tenemos en el patio.</b>
+    Si no ves lo que buscas, pregúntanos — es muy probable que sí lo tengamos.
+  </div>
+
+  <div id="app"><div class="cargando">Cargando las piezas…</div></div>
+
+  <footer>
+    Tracto Partes Magaña · Col. Argentina, Monterrey N.L.<br>
+    Más de 30 años en refacciones para tractocamión
+  </footer>
+</div>
+
+<div id="lupa" onclick="cerrarLupa()"><button class="x" onclick="cerrarLupa()">✕</button><img id="lupa-img" alt=""></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// CATÁLOGO PÚBLICO — lo que se le manda al cliente por WhatsApp
+// ──────────────────────────────────────────────────────────────────────
+// SOLO LECTURA y SIN PIN, a propósito. Lee dos nodos que ya son públicos
+// en las reglas de Firebase:
+//    fichas_publicas → los datos de la pieza (título, familia, motor)
+//    media_modelo    → las fotos
+// El inventario de verdad (`inventario_patio`) está CERRADO con llave y
+// esta página ni lo toca. Aquí NUNCA se enseña precio, ubicación en el
+// patio, costo ni proveedor — nada de eso vive siquiera en estos nodos.
+//
+// SE ACTUALIZA SOLO: una pieza entra al catálogo cuando Raúl le sube
+// fotos, y se sale si se las quita. No hay copia que subir a mano.
+// ══════════════════════════════════════════════════════════════════════
+var TEL = '528121529279';   // 81 2152 9279
+
+// ⚠️ La lista COMPLETA de familias, incluidas las que hoy no tienen ni una
+//    pieza cargada. Esas SÍ se muestran, con el mensaje de "pregúntanos":
+//    hoy son 11 de 23, y esconderlas haría creer que no manejamos chasis,
+//    cabinas ni radiadores. Sale del inventario de Raúl; si algún día se
+//    agrega una familia nueva allá, hay que agregarla aquí.
+var FAMILIAS = [{"id": "arboles", "nombre": "Árboles de Levas", "sing": "Árbol de Levas"}, {"id": "motores", "nombre": "Motores", "sing": "Motor"}, {"id": "transmisiones", "nombre": "Transmisiones", "sing": "Transmisión"}, {"id": "turbos", "nombre": "Turbos", "sing": "Turbo"}, {"id": "compresores", "nombre": "Compresores", "sing": "Compresor"}, {"id": "diferenciales", "nombre": "Diferenciales", "sing": "Diferencial"}, {"id": "mancuernas", "nombre": "Mancuernas", "sing": "Mancuerna"}, {"id": "cabinas", "nombre": "Cabinas", "sing": "Cabina"}, {"id": "cofres", "nombre": "Cofres", "sing": "Cofre"}, {"id": "puertas", "nombre": "Puertas", "sing": "Puerta"}, {"id": "quintaRueda", "nombre": "Quinta Rueda", "sing": "Quinta Rueda"}, {"id": "fanclutches", "nombre": "Fanclutches", "sing": "Fanclutch"}, {"id": "radiadores", "nombre": "Radiadores", "sing": "Radiador"}, {"id": "cabezas", "nombre": "Cabezas de Motor", "sing": "Cabeza de Motor"}, {"id": "ciguenales", "nombre": "Cigüeñales", "sing": "Cigüeñal"}, {"id": "campanas", "nombre": "Campanas de Motor", "sing": "Campana de Motor"}, {"id": "chasis", "nombre": "Chasis", "sing": "Chasis"}, {"id": "complementos", "nombre": "Complementos de Cabina", "sing": "Complemento de Cabina"}, {"id": "computadoras", "nombre": "Computadoras", "sing": "Computadora"}, {"id": "inyectores", "nombre": "Inyectores", "sing": "Inyector"}, {"id": "arneses", "nombre": "Arneses", "sing": "Arnés"}, {"id": "otros", "nombre": "Otros", "sing": "Otro"}];
+
+var PZ = {}, MEDIA = {}, listo = 0;
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+function wa(msg){ return 'https://wa.me/' + TEL + '?text=' + encodeURIComponent(msg); }
+
+// El modelo es lo que le sirve al cliente para reconocer su pieza.
+function modeloDe(f){
+  return (f.motor || f.marca || f.terminacion || f.paso || '').toString().trim();
+}
+// ⚠️ Los títulos vienen del inventario con el formato interno "Familia: clave"
+//    —"Inyector: ISXsinEGR", "Compresor: Compresor DD15", "Árbol de Levas: 003"—.
+//    Adentro de su sección el prefijo sobra, la palabra repetida se ve mal, y
+//    una clave que es puro número es el FOLIO del patio: al cliente no le dice
+//    nada. Aquí se arma el nombre como lo diría un vendedor.
+function nombreParaCliente(f, fam){
+  var t = String(f.titulo || '').trim();
+  var clave = t.indexOf(':') >= 0 ? t.slice(t.indexOf(':') + 1).trim() : t;
+  var sing = fam.sing || fam.nombre;
+  var modelo = modeloDe(f);
+
+  // "Compresor: Compresor DD15" → "DD15"; "Turbo: Turbo C15" → "C15"
+  var rep = new RegExp('^' + sing.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+', 'i');
+  clave = clave.replace(rep, '').trim();
+  if(plano(clave) === plano(sing)) clave = '';   // "Compresor: Compresor"
+
+
+  // Folio del patio (003, 4306, 5295): no se le enseña al cliente.
+  if(/^\d{1,5}$/.test(clave)) clave = '';
+
+  // Entre "ISXsinEGR" y "ISX sin EGR" gana la escritura del modelo.
+  if(modelo && plano(clave) === plano(modelo)) clave = modelo;
+  if(!clave) clave = modelo;
+
+  // Claves pegadas del inventario: "ISXconEGR" → "ISX con EGR". Solo cuando el
+  // con/sin va en minúsculas entre letra mayúscula o número, para no partir
+  // palabras como "International" o "Consola". Va AL FINAL: si corre antes,
+  // la línea de arriba vuelve a meter el modelo pegado.
+  clave = String(clave || '').replace(/([A-Z0-9])(con|sin)([A-Z0-9])/g, '$1 $2 $3');
+
+  return (sing === 'Otro' ? (clave || 'Pieza') : (sing + (clave ? ' ' + clave : '')));
+}
+function plano(x){ return String(x || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+function fotosDe(f){
+  var lista = (f.media && f.media.length) ? f.media
+            : ((MEDIA[f.modelKey] && MEDIA[f.modelKey].media) || []);
+  // ⚠️ SOLO fotos. Un video se guarda como {kb, t:'video', url} y NO trae
+  //    miniatura (`web`/`hd`), así que la tarjeta salía en gris. Hay 155
+  //    videos cargados; sin este filtro se cuelan.
+  return lista.filter(function(a){ return a && a.t !== 'video' && (a.web || a.hd); });
+}
+
+function pintar(){
+  var app = document.getElementById('app');
+  var fam = (location.hash || '').replace('#', '');
+  document.getElementById('wa-general').href =
+    wa('Hola, vi su catálogo de piezas y quiero preguntarles por una refacción.');
+
+  if(!fam){ pintarFamilias(app); return; }
+  pintarFamilia(app, fam);
+}
+
+function pintarFamilias(app){
+  var cuenta = {};
+  Object.keys(PZ).forEach(function(id){
+    var f = PZ[id] || {};
+    // ⚠️ Solo se cuentan las que SÍ se van a ver (las que tienen foto). Si no,
+    //    la tarjeta promete 8 piezas y adentro salen 7.
+    if(!f.familia || !fotosDe(f).length) return;
+    cuenta[f.familia] = (cuenta[f.familia] || 0) + 1;
+  });
+  app.innerHTML = '<h2 class="titulo">¿Qué pieza buscas?</h2><div class="rejilla">'
+    + FAMILIAS.map(function(f){
+        var n = cuenta[f.id] || 0;
+        return '<button class="fam' + (n ? '' : ' vacia') + '" onclick="location.hash=\'' + f.id + '\'">'
+          + '<div class="n">' + esc(f.nombre) + '</div>'
+          + '<div class="c">' + (n ? (n + (n === 1 ? ' pieza' : ' piezas')) : 'Pregúntanos') + '</div>'
+          + '</button>';
+      }).join('')
+    + '</div>';
+}
+
+// ⚠️ Familia SIN piezas que enseñar: NO se esconde. Se dice claro que sí se
+//    manejan y se invita a preguntar. Hoy son 11 de 22 familias, y esconderlas
+//    haría creer que no manejamos chasis, cabinas ni radiadores.
+function cajaVacia(fam){
+  return '<div class="vacio-caja">'
+    + '<p>Ahorita no tenemos ninguna cargada aquí en la página,<br><b>pero sí las manejamos.</b><br>'
+    + 'Escríbenos y te decimos qué hay en el patio.</p>'
+    + '<a class="wa" href="' + wa('Hola, ando buscando ' + fam.nombre.toLowerCase()
+        + '. ¿Qué tienen disponible?') + '" target="_blank" rel="noopener">'
+    + '💬 Preguntar por ' + esc(fam.nombre) + '</a></div>';
+}
+
+function pintarFamilia(app, famId){
+  var fam = FAMILIAS.filter(function(x){ return x.id === famId; })[0];
+  if(!fam){ location.hash = ''; return; }
+  var piezas = Object.keys(PZ).map(function(id){ var f = PZ[id] || {}; f._id = id; return f; })
+                     .filter(function(f){ return f.familia === famId; });
+
+  var cab = '<button class="volver" onclick="location.hash=\'\'">← Todas las piezas</button>'
+          + '<h2 class="titulo">' + esc(fam.nombre) + '</h2>';
+
+  // ⚠️ Familia SIN piezas cargadas: NO se esconde. Se dice claro que sí se
+  //    manejan y se invita a preguntar. Es la mitad del catálogo.
+  if(!piezas.length){ app.innerHTML = cab + cajaVacia(fam); return; }
+
+  // Agrupadas por modelo: 165 inyectores casi iguales no le sirven a nadie.
+  // Sale "Inyector C15 — tenemos 40" y las fotos de ese modelo.
+  var grupos = {};
+  piezas.forEach(function(f){
+    var k = (f.modelKey || (modeloDe(f) + '|' + f.titulo) || f._id);
+    if(!grupos[k]) grupos[k] = { f:f, n:0, vendidas:0 };
+    // La foto de la tarjeta sale de la primera pieza del grupo que SÍ tenga.
+    if(!fotosDe(grupos[k].f).length && fotosDe(f).length) grupos[k].f = f;
+    grupos[k].n++;
+    if(f.vendida) grupos[k].vendidas++;
+  });
+
+  // ⚠️ Un grupo sin ninguna foto NO se enseña: sería un cuadro gris vacío.
+  //    (Casi siempre es una pieza que solo tiene video, o contenido interno.)
+  var llaves = Object.keys(grupos).filter(function(k){ return fotosDe(grupos[k].f).length; });
+  if(!llaves.length){ app.innerHTML = cab + cajaVacia(fam); return; }
+
+  app.innerHTML = cab + '<div class="tarjetas">'
+    + llaves.map(function(k){
+        var g = grupos[k], f = g.f, fotos = fotosDe(f);
+        var foto = fotos[0] ? (fotos[0].web || fotos[0].hd) : '';
+        var hd = fotos[0] ? (fotos[0].hd || fotos[0].web) : '';
+        var modelo = modeloDe(f);
+        var todasVendidas = g.vendidas === g.n;
+        var nombre = nombreParaCliente(f, fam);
+        // El renglón de abajo solo si dice algo que el título no traiga ya.
+        var sub = (modelo && plano(nombre).indexOf(plano(modelo)) < 0) ? modelo : '';
+        var msg = todasVendidas
+          ? 'Hola, vi en su página ' + nombre + (modelo ? ' (' + modelo + ')' : '')
+            + ' pero dice que ya se vendió. ¿Tienen otra igual?'
+          : 'Hola, me interesa: ' + nombre + (modelo ? ' — ' + modelo : '') + '. ¿Sigue disponible?';
+        return '<div class="pz' + (todasVendidas ? ' vendida' : '') + '">'
+          + (foto
+              ? '<div class="foto" data-hd="' + esc(hd) + '">'
+                + '<img loading="lazy" src="' + esc(foto) + '" alt="' + esc(nombre) + '">'
+                + (fotos.length > 1 ? '<span class="mas">' + fotos.length + ' fotos</span>' : '')
+                + '</div>'
+              : '<div class="foto"></div>')
+          + '<div class="cuerpo">'
+            + '<div class="t">' + esc(nombre) + '</div>'
+            + (sub ? '<div class="m">' + esc(sub) + '</div>' : '')
+            + (todasVendidas
+                ? '<div><span class="vendida-et">Ya se vendió</span></div>'
+                : (g.n > 1 ? '<div><span class="cant">Tenemos ' + (g.n - g.vendidas) + '</span></div>' : ''))
+            + '<a class="wa' + (todasVendidas ? ' gris' : '') + '" target="_blank" rel="noopener" href="'
+              + wa(msg) + '">' + (todasVendidas ? '¿Tienes otra igual?' : '💬 Me interesa') + '</a>'
+          + '</div></div>';
+      }).join('')
+    + '</div>';
+}
+
+document.addEventListener('click', function(e){
+  var caja = e.target.closest && e.target.closest('.foto[data-hd]');
+  if(caja) verGrande(caja.getAttribute('data-hd'));
+});
+function verGrande(url){
+  if(!url) return;
+  document.getElementById('lupa-img').src = url;
+  document.getElementById('lupa').classList.add('abierta');
+}
+function cerrarLupa(){ document.getElementById('lupa').classList.remove('abierta'); }
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape') cerrarLupa(); });
+window.addEventListener('hashchange', function(){ pintar(); window.scrollTo(0, 0); });
+
+// ── Datos ─────────────────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey: 'AIzaSyDvDNEsWuXbHwHKX8_uTLOhU2vNQNvaCSA',
+  databaseURL: 'https://inventario-julio-26-default-rtdb.firebaseio.com',
+  projectId: 'inventario-julio-26'
+});
+function listoUno(){ if(++listo >= 2) pintar(); }
+function fallo(){
+  document.getElementById('app').innerHTML =
+    '<div class="vacio-caja"><p>No se pudieron cargar las piezas en este momento.<br>'
+    + 'Escríbenos y con gusto te decimos qué tenemos.</p>'
+    + '<a class="wa" href="' + wa('Hola, quiero preguntar por una refacción.')
+    + '" target="_blank" rel="noopener">💬 Escribir por WhatsApp</a></div>';
+}
+firebase.database().ref('fichas_publicas').on('value',
+  function(s){ PZ = s.val() || {}; listoUno(); }, fallo);
+firebase.database().ref('media_modelo').on('value',
+  function(s){ MEDIA = s.val() || {}; listoUno(); }, fallo);
+</script>
+</body>
+</html>
