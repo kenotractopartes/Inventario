@@ -4005,6 +4005,25 @@ function datosPublicosDePieza(p){
 // modelo pertenece). Las fotos NO se copian aquí cuando son por modelo:
 // viven en media_modelo y la ficha solo apunta con modelKey. Si la pieza
 // no tiene modelo, guarda sus fotos individuales en su propia ficha.
+// ¿Esta pieza sale en el catálogo público? Una sola respuesta, para que la
+// ficha que se publica y el barrido que la corrige no puedan discrepar.
+function _saleEnCatalogo(p){
+  if(!p) return false;
+  if(p.noWeb) return false;                 // palomita "NO publicar"
+  if(esSoloContenido(p)) return false;      // familias que son puro contenido
+  var key = _modelKey(p);
+  var arch = key ? ((MEDIA_MODELO[key] && MEDIA_MODELO[key].media) || [])
+                 : ((PUB[p.id] && PUB[p.id].media) || []);
+  // ⚠️ "Otros" es el cajón de sastre: ahí cae lo que no encaja en ninguna
+  //    familia, incluidos registros de prueba y material de video. Si una
+  //    pieza de AHÍ no tiene ni una sola foto, no es refacción que un cliente
+  //    pueda comprar. (Caso real: dos registros "EUGENIO" con 25 y 7 videos
+  //    y cero fotos.) En las DEMÁS familias las piezas sin foto sí salen:
+  //    eso lo pidió Keno a propósito.
+  if(p.familia === 'otros' && !arch.some(function(a){ return a && a.t !== 'video'; })) return false;
+  return true;
+}
+
 function publicarFicha(p){
   if(!p || !p.id) return Promise.resolve();
   var d = datosPublicosDePieza(p);
@@ -4014,13 +4033,11 @@ function publicarFicha(p){
   //    que salgan todas: "aunque los productos no tengan fotos ponlos ahí,
   //    menciona que como quiera sí lo tenemos". Ahora se publica igual, sin
   //    foto, y en cuanto le suban una esta misma función la reescribe.
+  d.web = _saleEnCatalogo(p);
   var key = _modelKey(p);
-  if(key){
-    d.modelKey = key;
-    return firebase.database().ref('fichas_publicas/' + p.id).set(d);
-  }
-  var mediaInd = (PUB[p.id] && PUB[p.id].media) || [];
-  if(mediaInd.length) d.media = mediaInd;
+  var mediaInd = key ? [] : ((PUB[p.id] && PUB[p.id].media) || []);
+  if(key){ d.modelKey = key; }
+  else if(mediaInd.length){ d.media = mediaInd; }
   return firebase.database().ref('fichas_publicas/' + p.id).set(d);
 }
 
@@ -4068,11 +4085,27 @@ function rellenarFichasFaltantes(){
     // Las VENDIDAS y las FALTANTES no se resucitan: la vendida conserva la
     // ficha que ya tuviera (su QR sigue vivo) y la faltante se quitó a
     // propósito porque la pieza ya no está en el patio.
-    return p && p.id && !p.vendida && !p.faltante && !PUB[p.id];
+    if(!p || !p.id || p.vendida || p.faltante) return false;
+    if(!PUB[p.id]) return true;                              // no tiene ficha
+    // ...o la tiene, pero marcada al revés de lo que hoy corresponde.
+    return PUB[p.id].web !== _saleEnCatalogo(p);
   });
   if(!faltan.length){ console.log('📇 Fichas públicas: al día.'); return; }
 
-  console.log('📇 Fichas públicas: faltan ' + faltan.length + ', publicándolas…');
+  // ⚠️ CANDADO. El barrido compara TODAS las piezas, y esa comparación depende
+  //    de datos que llegan por separado (fichas y fotos por modelo). Si algo
+  //    llegó a medias, de pronto "faltarían" cientos. Antes que escribir mal
+  //    el catálogo completo, se frena y se vuelve a intentar. Es el mismo
+  //    criterio del candado que existe por lo de las 243 piezas borradas.
+  if(faltan.length > Math.max(60, DATA.piezas.length * 0.6)){
+    console.warn('📇 Fichas públicas: salen ' + faltan.length + ' de ' + DATA.piezas.length +
+                 ' — se ve a medio cargar. NO se escribe nada; se reintenta.');
+    _fichasBarridas = false;
+    if(++_fichasIntentos < 12) setTimeout(rellenarFichasFaltantes, 3000);
+    return;
+  }
+
+  console.log('📇 Fichas públicas: ' + faltan.length + ' por corregir o publicar…');
   var i = 0, ok = 0, mal = 0;
   (function tanda(){
     var lote = faltan.slice(i, i + 25); i += 25;
