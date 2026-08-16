@@ -10704,24 +10704,10 @@ function _burroPicado(d, ev){
         + '<span style="font-size:12px">Prueba con menos palabras o prende más paqueterías.</span></div>';
       return;
     }
-    // El resumen: lo que sirve para contestarle al cliente.
-    var tot = 0, kg = 0, kmT = 0, nKm = 0;
-    lista.forEach(function(e){
-      tot += Number(e.costo)||0;
-      kg  += pesoCobrado(e).cobrado;
-      if(e.km){ kmT += e.km; nKm++; }
-    });
-    var porKg = kg > 0 ? tot/kg : 0;
-    var h = '<div class="env-kpi"><div class="k">Promedio por envío</div>'
-          + '<div class="v">'+pesos(tot/lista.length)+'</div>'
-          + '<div class="n">'+lista.length+(lista.length===1?' envío':' envíos')
-          + (nKm ? ' · '+Math.round(kmT/nKm)+' km en promedio' : '')+'</div></div>';
-    if(porKg > 0){
-      h += '<div class="env-kpi"><div class="k">Por kilo cobrado</div>'
-         + '<div class="v">'+pesos(porKg)+' <span style="font-size:14px;color:#6b6459">/ kg</span></div>'
-         + '<div class="n">Con esto puedes estimar una ciudad a la que nunca hayas mandado: '
-         + 'multiplica los kilos que te van a cobrar por este número.</div></div>';
-    }
+    // ⚠️ Aquí había dos tarjetas de resumen (promedio por envío y costo por
+    //    kilo). Keno las quitó: quiere ver los envíos, no promedios. Con
+    //    pocos registros un promedio dice más de lo que sabe.
+    var h = '';
     h += lista.slice().sort(function(a,b){ return String(b.fecha).localeCompare(String(a.fecha)); })
       .slice(0, 60).map(function(e){
         var p = paqDe(e.paq), pc = pesoCobrado(e);
