@@ -148,6 +148,57 @@
 // ══════════════════════════════════════════════════════════════════════
 var TEL = '528121529279';   // 81 2152 9279
 
+// ══════════════════════════════════════════════════════════════════════
+// MEDICIÓN (Google Analytics 4) — lo mismo que tractopartes.com
+// ──────────────────────────────────────────────────────────────────────
+// ⚠️ CON EL ID VACÍO NO SE CARGA NADA: ni gtag, ni cookies, ni una sola
+//    llamada de red. La página funciona exactamente igual. Se prende
+//    poniendo aquí el ID de medición (G-XXXXXXXXXX) y ya.
+//
+// Se mide en un catálogo de WhatsApp lo que NO se mide en una tienda:
+//   • qué familias abre la gente  → qué piezas piden más
+//   • qué familias VACÍAS abre    → qué conviene subir primero al patio
+//   • clics a WhatsApp            → el único "carrito" que hay aquí
+// ══════════════════════════════════════════════════════════════════════
+var GA_ID = '';   // ← aquí va el G-XXXXXXXXXX
+
+function arrancarMedicion(){
+  if(!GA_ID) return;                       // apagado: cero red, cero cookies
+  var sc = document.createElement('script');
+  sc.async = true;
+  sc.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(GA_ID);
+  document.head.appendChild(sc);
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function(){ window.dataLayer.push(arguments); };
+  gtag('js', new Date());
+  // send_page_view en false: la página no recarga al cambiar de familia
+  // (se mueve con #), así que las vistas se mandan a mano en cada cambio.
+  gtag('config', GA_ID, {
+    send_page_view: false,
+    allow_google_signals: false,          // sin perfilado publicitario
+    allow_ad_personalization_signals: false
+  });
+}
+
+// Manda un evento. Si la medición está apagada, no hace nada.
+function medir(evento, datos){
+  if(!GA_ID || typeof gtag !== 'function') return;
+  try { gtag('event', evento, datos || {}); } catch(e){}
+}
+
+// Vista de pantalla. En GA4 sale como /catalogo/inyectores, para que el
+// reporte de Páginas diga directo qué sección abrieron.
+function medirPantalla(famId, famNombre){
+  if(!GA_ID || typeof gtag !== 'function') return;
+  try {
+    gtag('event', 'page_view', {
+      page_title: famNombre ? ('Catálogo · ' + famNombre) : 'Catálogo · Todas las piezas',
+      page_path: '/catalogo' + (famId ? '/' + famId : ''),
+      page_location: location.href
+    });
+  } catch(e){}
+}
+
 // ⚠️ La lista COMPLETA de familias, incluidas las que hoy no tienen ni una
 //    pieza cargada. Esas SÍ se muestran, con el mensaje de "pregúntanos":
 //    hoy son 11 de 23, y esconderlas haría creer que no manejamos chasis,
@@ -220,7 +271,7 @@ function pintar(){
   document.getElementById('wa-general').href =
     wa('Hola, vi su catálogo de piezas y quiero preguntarles por una refacción.');
 
-  if(!fam){ pintarFamilias(app); return; }
+  if(!fam){ medirPantalla('', ''); pintarFamilias(app); return; }
   pintarFamilia(app, fam);
 }
 
@@ -249,7 +300,8 @@ function cajaVacia(fam){
   return '<div class="vacio-caja">'
     + '<p>Ahorita no tenemos ninguna cargada aquí en la página,<br><b>pero sí las manejamos.</b><br>'
     + 'Escríbenos y te decimos qué hay en el patio.</p>'
-    + '<a class="wa" href="' + wa('Hola, ando buscando ' + fam.nombre.toLowerCase()
+    + '<a class="wa" data-ev="familia_vacia" data-fam="' + esc(fam.id) + '"'
+    + ' href="' + wa('Hola, ando buscando ' + fam.nombre.toLowerCase()
         + '. ¿Qué tienen disponible?') + '" target="_blank" rel="noopener">'
     + '💬 Preguntar por ' + esc(fam.nombre) + '</a></div>';
 }
@@ -257,6 +309,7 @@ function cajaVacia(fam){
 function pintarFamilia(app, famId){
   var fam = FAMILIAS.filter(function(x){ return x.id === famId; })[0];
   if(!fam){ location.hash = ''; return; }
+  medirPantalla(fam.id, fam.nombre);
   var piezas = Object.keys(PZ).map(function(id){ var f = PZ[id] || {}; f._id = id; return f; })
                      .filter(function(f){ return f.familia === famId && seEnseña(f); });
 
@@ -265,6 +318,11 @@ function pintarFamilia(app, famId){
 
   // ⚠️ Familia SIN piezas cargadas: NO se esconde. Se dice claro que sí se
   //    manejan y se invita a preguntar. Es la mitad del catálogo.
+  // ⚠️ La medición distingue familia CON piezas de familia VACÍA. Que alguien
+  //    abra "Radiadores" y no encuentre nada es la señal más valiosa del
+  //    catálogo: dice qué conviene cargar primero.
+  medir('ver_familia', { familia: fam.id, familia_nombre: fam.nombre,
+                         piezas: piezas.length, tiene_piezas: piezas.length ? 'si' : 'no' });
   if(!piezas.length){ app.innerHTML = cab + cajaVacia(fam); return; }
 
   // Agrupadas por modelo: 165 inyectores casi iguales no le sirven a nadie.
@@ -330,7 +388,9 @@ function pintarFamilia(app, famId){
             + (todasVendidas
                 ? '<div><span class="vendida-et">Ya se vendió</span></div>'
                 : (g.n > 1 ? '<div><span class="cant">Tenemos ' + (g.n - g.vendidas) + '</span></div>' : ''))
-            + '<a class="wa' + (todasVendidas ? ' gris' : '') + '" target="_blank" rel="noopener" href="'
+            + '<a class="wa' + (todasVendidas ? ' gris' : '') + '" target="_blank" rel="noopener"'
+              + ' data-ev="' + (todasVendidas ? 'otra_igual' : (fotos.length ? 'me_interesa' : 'pedir_foto')) + '"'
+              + ' data-fam="' + esc(fam.id) + '" data-pieza="' + esc(nombre) + '" href="'
               + wa(msg) + '">' + (todasVendidas ? '¿Tienes otra igual?' : (fotos.length ? '💬 Me interesa' : '💬 Pedir foto')) + '</a>'
           + '</div></div>';
       }).join('')
@@ -338,8 +398,24 @@ function pintarFamilia(app, famId){
 }
 
 document.addEventListener('click', function(e){
-  var caja = e.target.closest && e.target.closest('.foto[data-hd]');
-  if(caja) verGrande(caja.getAttribute('data-hd'));
+  if(!e.target.closest) return;
+  var caja = e.target.closest('.foto[data-hd]');
+  if(caja){
+    verGrande(caja.getAttribute('data-hd'));
+    var tj = caja.closest('.pz');
+    medir('ver_foto', { pieza: (tj && tj.querySelector('.t')) ? tj.querySelector('.t').textContent : '' });
+  }
+  // ⚠️ Este es EL número del catálogo: no hay carrito ni pago, el clic a
+  //    WhatsApp es la conversión. Se distingue de dónde salió: pieza,
+  //    "pedir foto", "¿tienes otra igual?", familia vacía o el de arriba.
+  var bw = e.target.closest('a.wa, #wa-general');
+  if(bw){
+    medir('clic_whatsapp', {
+      origen: bw.getAttribute('data-ev') || 'arriba',
+      familia: bw.getAttribute('data-fam') || '',
+      pieza: bw.getAttribute('data-pieza') || ''
+    });
+  }
 });
 function verGrande(url){
   if(!url) return;
@@ -349,6 +425,9 @@ function verGrande(url){
 function cerrarLupa(){ document.getElementById('lupa').classList.remove('abierta'); }
 document.addEventListener('keydown', function(e){ if(e.key === 'Escape') cerrarLupa(); });
 window.addEventListener('hashchange', function(){ pintar(); window.scrollTo(0, 0); });
+
+// ── Arranque ──────────────────────────────────────────────────────────
+arrancarMedicion();
 
 // ── Datos ─────────────────────────────────────────────────────────────
 firebase.initializeApp({
