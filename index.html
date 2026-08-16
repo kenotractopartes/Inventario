@@ -3950,6 +3950,7 @@ function escucharFichasPublicas(){
   function _refresca(){
     if (typeof refrescarVistaActual === 'function') refrescarVistaActual();
     if (document.getElementById('modal-fotos')?.classList.contains('active')) renderModalFotos();
+    try { rellenarFichasFaltantes(); } catch(e){ console.error('rellenar fichas:', e); }
   }
   try {
     firebase.database().ref('fichas_publicas').on('value', function(snap){ PUB = snap.val() || {}; _refresca(); });
@@ -3977,7 +3978,10 @@ function datosPublicosDePieza(p){
     familiaNombre: (f && (f.nombreSingular || f.nombre)) || '',
     apartada: !!p.apartada,
     // false = esta pieza NO sale en el catálogo (pero su QR sigue vivo).
-    web: !p.noWeb,
+    // Se respeta la palomita "NO publicar" Y las familias que son solo
+    // contenido (la de Ricardo): eso es material para videos, no refacción
+    // que un cliente pueda comprar.
+    web: !p.noWeb && !esSoloContenido(p),
     marca: p.marca || p.camionMarca || '',
     motor: p.motor || '',
     hp: ex.hp || '',
@@ -4005,16 +4009,18 @@ function publicarFicha(p){
   if(!p || !p.id) return Promise.resolve();
   var d = datosPublicosDePieza(p);
   d.actualizado = Date.now();
+  // ⚠️ 16 ago 2026 — ANTES: si la pieza no tenía fotos se BORRABA su ficha, y
+  //    desaparecía del catálogo público como si no la tuviéramos. Keno pidió
+  //    que salgan todas: "aunque los productos no tengan fotos ponlos ahí,
+  //    menciona que como quiera sí lo tenemos". Ahora se publica igual, sin
+  //    foto, y en cuanto le suban una esta misma función la reescribe.
   var key = _modelKey(p);
   if(key){
-    var mediaMod = (MEDIA_MODELO[key] && MEDIA_MODELO[key].media) || [];
-    if(!mediaMod.length) return firebase.database().ref('fichas_publicas/' + p.id).remove();
     d.modelKey = key;
     return firebase.database().ref('fichas_publicas/' + p.id).set(d);
   }
   var mediaInd = (PUB[p.id] && PUB[p.id].media) || [];
-  if(!mediaInd.length) return firebase.database().ref('fichas_publicas/' + p.id).remove();
-  d.media = mediaInd;
+  if(mediaInd.length) d.media = mediaInd;
   return firebase.database().ref('fichas_publicas/' + p.id).set(d);
 }
 
@@ -4038,6 +4044,48 @@ function guardarMedia(p, media){
   PUB[p.id] = PUB[p.id] || {};
   PUB[p.id].media = media;
   return publicarFicha(p);
+}
+
+// ⚠️ Rellena las fichas públicas que FALTAN. Hasta hoy una pieza sin fotos no
+//    tenía ficha (publicarFicha se la borraba), así que el catálogo público
+//    solo alcanzaba a las fotografiadas. Este barrido pone al día a las que
+//    quedaron fuera. Corre UNA vez por sesión y después no escribe nada,
+//    porque ya no falta ninguna.
+var _fichasBarridas = false, _fichasIntentos = 0;
+function rellenarFichasFaltantes(){
+  if(_fichasBarridas) return;
+  // Puede dispararse antes de que cargue el inventario o antes de que haya
+  // sesión. En vez de rendirse en silencio, reintenta un rato.
+  var haySesion = false;
+  try { haySesion = !!firebase.auth().currentUser; } catch(e){}
+  if(!DATA || !DATA.piezas || !DATA.piezas.length || !haySesion){
+    if(++_fichasIntentos < 12) setTimeout(rellenarFichasFaltantes, 3000);
+    return;
+  }
+  _fichasBarridas = true;
+
+  var faltan = DATA.piezas.filter(function(p){
+    // Las VENDIDAS y las FALTANTES no se resucitan: la vendida conserva la
+    // ficha que ya tuviera (su QR sigue vivo) y la faltante se quitó a
+    // propósito porque la pieza ya no está en el patio.
+    return p && p.id && !p.vendida && !p.faltante && !PUB[p.id];
+  });
+  if(!faltan.length){ console.log('📇 Fichas públicas: al día.'); return; }
+
+  console.log('📇 Fichas públicas: faltan ' + faltan.length + ', publicándolas…');
+  var i = 0, ok = 0, mal = 0;
+  (function tanda(){
+    var lote = faltan.slice(i, i + 25); i += 25;
+    if(!lote.length){
+      console.log('📇 Fichas públicas: ' + ok + ' publicada(s)' + (mal ? ' · ' + mal + ' fallaron' : ''));
+      if(mal) avisarFallaGuardado('No se pudieron publicar ' + mal + ' ficha(s) en el catálogo público.', null);
+      return;
+    }
+    Promise.all(lote.map(function(p){
+      try { return publicarFicha(p).then(function(){ ok++; }, function(){ mal++; }); }
+      catch(e){ mal++; return Promise.resolve(); }
+    })).then(function(){ setTimeout(tanda, 400); });
+  })();
 }
 
 // Re-publica la ficha de TODAS las piezas (no vendidas) de un modelo.
