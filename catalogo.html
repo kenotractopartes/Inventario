@@ -255,7 +255,22 @@ function plano(x){ return String(x || '').toLowerCase().replace(/[^a-z0-9]/g, ''
 // ⚠️ El inventario tiene una palomita por pieza —"esta NO sale en el catálogo"—
 //    que llega aquí como `web:false`. Hay que respetarla: si Raúl marca una
 //    pieza, deja de salir. (Las fichas viejas no traen el campo; esas sí salen.)
-function seEnseña(f){ return !!f && f.web !== false; }
+//
+// Y aparte, esta lista: registros sueltos que Keno pidió sacar del catálogo
+// el 16 ago 2026 — los cuatro que había en la familia "Otros". La SECCIÓN se
+// queda: lo que metan a "Otros" de aquí en adelante sí va a salir.
+//
+// Va aquí y no en el inventario a propósito. Una ficha se queda pegada en la
+// nube aunque su pieza ya no exista en el inventario, y en ese caso el
+// inventario nunca la vuelve a escribir: solo el catálogo la puede tapar.
+// Para devolver alguna, se borra su renglón y ya.
+var FUERA = {
+  'pza_1783614738350_bu8uy_0': 'Otro: Bomba de inyeccion',
+  'pza_1784652079096_xks3m_0': 'Otro: EUGENIO',
+  'pza_1785437049450_4p93e_0': 'Otro: eugenio',
+  'pza_1785524208313_h58sj_0': 'Otro: CASCADIA - 31 JULIO'
+};
+function seEnseña(f){ return !!f && f.web !== false && !FUERA[f._id]; }
 
 function fotosDe(f){
   var lista = (f.media && f.media.length) ? f.media
@@ -280,6 +295,7 @@ function pintarFamilias(app){
   var cuenta = {};
   Object.keys(PZ).forEach(function(id){
     var f = PZ[id] || {};
+    f._id = id;
     if(!f.familia || !seEnseña(f)) return;
     cuenta[f.familia] = (cuenta[f.familia] || 0) + 1;
   });

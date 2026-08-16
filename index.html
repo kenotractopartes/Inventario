@@ -4011,24 +4011,13 @@ function _saleEnCatalogo(p){
   if(!p) return false;
   if(p.noWeb) return false;                 // palomita "NO publicar"
   if(esSoloContenido(p)) return false;      // familias que son puro contenido
-  var key = _modelKey(p);
-  var arch = key ? ((MEDIA_MODELO[key] && MEDIA_MODELO[key].media) || [])
-                 : ((PUB[p.id] && PUB[p.id].media) || []);
-  // ⚠️ "Otros" es el cajón de sastre. Un registro de AHÍ que tiene VIDEOS
-  //    pero ni una sola foto es material de contenido, no refacción: los dos
-  //    "EUGENIO" traen 25 y 7 videos y cero fotos.
-  //
-  //    🔴 CORREGIDO 16 ago 2026: antes esta regla decía solo "sin foto" y se
-  //    llevó de rebote a "Otro: Bomba de inyeccion", que es una pieza REAL
-  //    que simplemente no tiene foto todavía. Peor: la regla le ganaba a la
-  //    palomita, así que no había forma de hacerla salir. Ahora pide que
-  //    ADEMÁS traiga video. Una pieza sin nada (ni foto ni video) sí sale,
-  //    con su aviso de "todavía no le tomamos foto".
-  if(p.familia === 'otros'){
-    var hayFoto = arch.some(function(a){ return a && a.t !== 'video'; });
-    var hayVideo = arch.some(function(a){ return a && a.t === 'video'; });
-    if(!hayFoto && hayVideo) return false;
-  }
+  // 🔴 16 ago 2026 — AQUÍ NO VAN REGLAS ADIVINADAS. Tuve dos hoy mismo y las
+  //    dos salieron mal: una escondió "Otro: Bomba de inyeccion", que es una
+  //    pieza real sin foto, y encima le ganaba a la palomita, así que no
+  //    había forma de hacerla salir a mano. Una regla automática NUNCA debe
+  //    poder tapar la decisión de quien usa el sistema.
+  //    Lo que se enseña o no se enseña se decide con la palomita "NO publicar"
+  //    (arriba) y, para casos sueltos, con la lista de catalogo.html.
   return true;
 }
 
