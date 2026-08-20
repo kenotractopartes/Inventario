@@ -4357,8 +4357,14 @@ function msgProgresoFotos(html){
 
 // Sube un archivo mostrando el avance en %. Con videos pesados la subida
 // tarda minutos: sin esto parece que se trabó y la gente cierra la ventana.
+// Para no preguntar por CADA video de la misma tanda.
+var _avisoPesado = false;
 function subirConProgreso(ref, archivo, etiqueta){
   return new Promise(function(resolve, reject){
+    // De fábrica Firebase se rinde a los 10 minutos. Un video de celular en
+    // 4G tarda más que eso, y ahí es donde se cortaba. Con 20 minutos aguanta
+    // los tirones de señal sin darse por vencido.
+    try { firebase.storage().setMaxUploadRetryTime(20 * 60 * 1000); } catch(e){}
     var tarea;
     try { tarea = ref.put(archivo); } catch(e){ return reject(e); }
     tarea.on('state_changed', function(s){
@@ -4416,6 +4422,17 @@ function subirArchivosPieza(files){
     }
     var file = lista[idx];
     var esVideo = (file.type || '').indexOf('video') === 0;
+    // Los videos NO se comprimen (a propósito: se guardan como salieron de la
+    // cámara). Uno de 4K puede pesar 100 MB, y desde el celular en datos eso
+    // se corta casi siempre. Mejor decirlo antes que a la mitad.
+    if (esVideo && file.size > 60 * 1024 * 1024 && !_avisoPesado){
+      _avisoPesado = true;
+      if (!confirm('Ese video pesa ' + Math.round(file.size / 1024 / 1024) + ' MB.\n\n' +
+          'Desde el celular con datos se puede cortar a medias. Con WiFi va bien.\n\n' +
+          '¿Le seguimos de todos modos?')){
+        _subiendoFotos = false; msgProgresoFotos(''); renderModalFotos(); return;
+      }
+    }
     var ts = Date.now() + '_' + idx;
     var etiqueta = (esVideo ? 'video' : 'foto') + ' ' + (idx + 1) + ' de ' + lista.length;
     msgProgresoFotos('⏳ Preparando ' + etiqueta + '…');
@@ -4463,16 +4480,40 @@ function subirArchivosPieza(files){
     }
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  // POR QUÉ FALLÓ LA SUBIDA — dilo bien (20 ago 2026)
+  // ──────────────────────────────────────────────────────────────────
+  // Antes CUALQUIER error de red decía "falta activar el plan Blaze".
+  // A Ricardo le salió eso subiendo videos desde su celular, y mandó a
+  // Keno a activar algo que YA estaba activo desde hacía meses: se
+  // comprobó contra Google (facturación activa, cuenta abierta) y
+  // escribiendo un archivo de prueba en el bucket, que entró sin
+  // problema. El error de verdad era `retry-limit-exceeded`: la subida
+  // se cortó por señal, no por dinero.
+  //
+  // ⚠️ Un aviso que manda a arreglar lo que no está roto es peor que no
+  //    avisar: quema el tiempo del dueño y entrena a todos a ignorarlo.
+  //    Por eso ahora cada código dice lo suyo y SIEMPRE se enseña el
+  //    código técnico chiquito, para no volver a adivinar.
+  // ══════════════════════════════════════════════════════════════════
   function finFalla(e){
     _subiendoFotos = false;
     console.error('Subida de fotos:', e);
     var code = (e && e.code) || '';
-    if (code.indexOf('storage/') === 0 && (code.indexOf('unknown') >= 0 || code.indexOf('retry') >= 0 || code.indexOf('bucket') >= 0)){
-      msgProgresoFotos('⚠️ <strong>El almacenamiento de fotos aún no está activado.</strong><br>Falta activar el plan Blaze en Firebase (avísale a Eugenio). Lo que ya estaba subido no se perdió.');
+    var tec = code ? ('<br><span style="font-size:11px;color:#8a939a">(' + code + ')</span>') : '';
+    if (code === 'storage/retry-limit-exceeded' || code === 'storage/canceled'){
+      msgProgresoFotos('⚠️ <strong>La subida se cortó a medias.</strong><br>' +
+        'Es la señal, no el sistema. Ponte en WiFi y vuelve a intentar. ' +
+        'Si es un video largo, súbelo solo, sin otras fotos.' + tec);
+    } else if (code === 'storage/quota-exceeded'){
+      msgProgresoFotos('⚠️ <strong>Ya no hay espacio en la nube.</strong><br>' +
+        'Avísale a Eugenio. Lo que ya estaba subido no se perdió.' + tec);
     } else if (code === 'storage/unauthorized'){
-      msgProgresoFotos('⚠️ Sin permiso para subir. Recarga la página y vuelve a iniciar sesión.');
+      msgProgresoFotos('⚠️ Sin permiso para subir. Recarga la página y vuelve a iniciar sesión.' + tec);
+    } else if (code === 'storage/unauthenticated'){
+      msgProgresoFotos('⚠️ Se cerró tu sesión. Recarga la página y entra otra vez.' + tec);
     } else {
-      msgProgresoFotos('⚠️ No se pudo subir. Revisa tu conexión e intenta de nuevo.');
+      msgProgresoFotos('⚠️ No se pudo subir. Revisa tu conexión e intenta de nuevo.' + tec);
     }
     if (hechos > 0) guardarMedia(p, media).catch(function(){});
     renderTrasFalla();
