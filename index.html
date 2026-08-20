@@ -7484,6 +7484,9 @@ let _filtroArnesTipo = null;
 let _filtroLibras = null;
 // Modelo, para TODAS las demás familias. null = todos. '' = sin modelo.
 let _filtroModelo = null;
+// Marca del camión y buscador, solo en Cofres y Puertas. null/'' = todo.
+let _filtroMarcaCam = null;
+let _filtroTextoFam = '';
 
 // ══════════════════════════════════════════════════════════════════
 // EL LIBRAJE DE DIFERENCIALES Y MANCUERNAS (ago 2026)
@@ -7572,7 +7575,8 @@ function setFiltroModelo(v){
   renderBusqueda();
 }
 function panelFiltroModelo(fam){
-  var base = DATA.piezas.filter(function(p){ return p && !p.vendida && p.familia === fam; });
+  // Si hay marca escogida, los modelos salen SOLO de esa marca.
+  var base = _basePorMarca(fam);
   var g = {};
   base.forEach(function(p){
     var t = String(p.modelo == null ? '' : p.modelo).trim();
@@ -7606,6 +7610,101 @@ function panelFiltroModelo(fam){
   return '<div style="background:#eef3f8;border:2px solid #7fa3c8;border-radius:10px;padding:12px;margin-bottom:14px;">' +
     '<div style="font-size:12px;font-weight:800;color:#2a5580;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">\ud83d\udd0e Filtrar por modelo</div>' +
     '<select onchange="setFiltroModelo(this.value)" style="width:100%;padding:11px;font-size:15px;border:2px solid #7fa3c8;border-radius:8px;">' + opts + '</select>' +
+  '</div>';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MARCA DE CAMIÓN — Cofres y Puertas (ago 2026)
+// ──────────────────────────────────────────────────────────────────
+// Keno lo pidió porque el desplegable de modelos ahí queda larguísimo:
+// 49 puertas con 29 modelos, 34 cofres con 15. Por marca son 7 y 3.
+//
+// ⚠️ LA PRIMERA PALABRA NO ES LA MARCA. Se auditaron los 83 registros:
+// "Columbia Copiloto" es una FREIGHTLINER Columbia, y "Cascadia",
+// "Century", "Coronado" y "FLD120" son lo mismo. Si se agrupara por la
+// primera palabra saldrían 12 marcas para 49 puertas y Freightliner
+// quedaría partida en seis pedazos.
+//
+// ⚠️ Y HAY DEDAZOS EN EL PATIO: existe una puerta capturada
+// "Freigthliner FLD120". Por eso se pasa por _dedazos igual que en
+// chasis, que ya cargaba con dos "FREIHGTLINER".
+//
+// Repartos comprobados contra las piezas vivas:
+//   Puertas (49): International 18 · Freightliner 14 · Dina 5 ·
+//                 Peterbilt 5 · Mack 3 · Kenworth 2 · Volvo 2
+//   Cofres  (34): International 20 · Freightliner 9 · Volvo 5
+// Suman exacto; ninguna se queda sin marca.
+// ══════════════════════════════════════════════════════════════════
+var FAM_CON_MARCA_CAMION = ['cofres', 'puertas'];
+var MARCAS_CAMION = ['FREIGHTLINER','INTERNATIONAL','KENWORTH','PETERBILT','VOLVO','MACK','DINA'];
+// El modelo delata la marca cuando el nombre no la trae.
+var MODELO_A_MARCA = {
+  CASCADIA:'FREIGHTLINER', COLUMBIA:'FREIGHTLINER', CENTURY:'FREIGHTLINER',
+  CORONADO:'FREIGHTLINER', FLD120:'FREIGHTLINER', ARGOSY:'FREIGHTLINER',
+  CLASSIC:'FREIGHTLINER',
+  PROSTAR:'INTERNATIONAL', LONESTAR:'INTERNATIONAL', TRANSTAR:'INTERNATIONAL',
+  DURASTAR:'INTERNATIONAL'
+};
+function marcaCamionDe(p){
+  if(!p) return '';
+  var crudo = String((p.camionMarca || p.marca || (p.extras || {}).fichaMarca || '')) + ' ' +
+              String(p.modelo || '');
+  var palabras = crudo.toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().split(' ');
+  var i, j;
+  for(i = 0; i < palabras.length; i++){
+    if(MARCAS_CAMION.indexOf(palabras[i]) !== -1) return palabras[i];
+    if(MODELO_A_MARCA[palabras[i]]) return MODELO_A_MARCA[palabras[i]];
+  }
+  // Segunda vuelta, aguantando dedazos (Freigthliner, Freihgtliner...).
+  for(i = 0; i < palabras.length; i++){
+    if(palabras[i].length < 6) continue;
+    for(j = 0; j < MARCAS_CAMION.length; j++){
+      if(_dedazos(palabras[i], MARCAS_CAMION[j]) <= 2) return MARCAS_CAMION[j];
+    }
+  }
+  return '';
+}
+function _bonito(m){ return m ? m.charAt(0) + m.slice(1).toLowerCase() : '\u2014 sin marca \u2014'; }
+// Al cambiar de marca se suelta el modelo: un modelo de Volvo no existe
+// dentro de International, y la lista saldría vacía sin explicación.
+function setFiltroMarcaCam(v){
+  _filtroMarcaCam = (v === '__TODAS__') ? null : v;
+  _filtroModelo = null;
+  renderBusqueda();
+}
+function filtrarTextoFam(v){ _filtroTextoFam = (v || '').toLowerCase().trim(); renderBusqueda(); }
+// Las piezas de la familia que ya pasaron el filtro de marca. De aquí sale
+// el desplegable de modelos, para que solo enseñe lo que de verdad queda.
+function _basePorMarca(fam){
+  return DATA.piezas.filter(function(p){
+    if(!p || p.vendida || p.familia !== fam) return false;
+    if(FAM_CON_MARCA_CAMION.indexOf(fam) !== -1 && _filtroMarcaCam !== null &&
+       marcaCamionDe(p) !== _filtroMarcaCam) return false;
+    return true;
+  });
+}
+function panelMarcaYBuscador(fam){
+  var todas = DATA.piezas.filter(function(p){ return p && !p.vendida && p.familia === fam; });
+  var cuenta = {};
+  todas.forEach(function(p){ var mk = marcaCamionDe(p); cuenta[mk] = (cuenta[mk] || 0) + 1; });
+  if(_filtroMarcaCam !== null && !(_filtroMarcaCam in cuenta)) cuenta[_filtroMarcaCam] = 0;
+  var llaves = Object.keys(cuenta).filter(function(k){ return k !== ''; }).sort(function(a,b){
+    return cuenta[b] - cuenta[a] || a.localeCompare(b, 'es');
+  });
+  var opts = '<option value="__TODAS__"' + (_filtroMarcaCam === null ? ' selected' : '') +
+    '>\u2014 Todas las marcas \u2014 (' + todas.length + ')</option>';
+  llaves.forEach(function(k){
+    opts += '<option value="' + escapeHtml(k) + '"' + (_filtroMarcaCam === k ? ' selected' : '') +
+      '>' + escapeHtml(_bonito(k)) + ' (' + cuenta[k] + ')</option>';
+  });
+  if(cuenta['']) opts += '<option value=""' + (_filtroMarcaCam === '' ? ' selected' : '') +
+    '>\u2014 sin marca \u2014 (' + cuenta[''] + ')</option>';
+  return '<div style="background:#eef3f8;border:2px solid #7fa3c8;border-radius:10px;padding:12px;margin-bottom:14px;">' +
+    '<div style="font-size:12px;font-weight:800;color:#2a5580;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">\ud83d\ude9b Buscar dentro de ' + escapeHtml(fam === 'cofres' ? 'Cofres' : 'Puertas') + '</div>' +
+    '<input type="text" id="buscador-familia" placeholder="\ud83d\udd0d Modelo, folio, ubicaci\u00f3n, nota\u2026" ' +
+      'value="' + escapeHtml(_filtroTextoFam) + '" oninput="filtrarTextoFam(this.value)" ' +
+      'style="width:100%;padding:11px;font-size:15px;border:2px solid #7fa3c8;border-radius:8px;margin-bottom:10px;">' +
+    '<select onchange="setFiltroMarcaCam(this.value)" style="width:100%;padding:11px;font-size:15px;border:2px solid #7fa3c8;border-radius:8px;">' + opts + '</select>' +
   '</div>';
 }
 
@@ -7935,6 +8034,8 @@ function renderBusqueda() {
   const _busPrev = document.getElementById('buscador-fotos');
   const _busVal = _busPrev ? _busPrev.value : _filtroFotosTexto;
   const _busFoco = !!(_busPrev && document.activeElement === _busPrev);
+  const _famPrev = document.getElementById('buscador-familia');
+  const _famFoco = !!(_famPrev && document.activeElement === _famPrev);
   // Fila 1: especiales (Todas, Sin Precio, Bajo Pedido). Fila 2: familias.
   const filtros = document.getElementById('filtros-familia');
   filtros.innerHTML =
@@ -7962,10 +8063,19 @@ function renderBusqueda() {
   if (_filtroFamilia === 'diferenciales' || _filtroFamilia === 'mancuernas') filtros.innerHTML += panelFiltroLibras(_filtroFamilia);
   // Panel de filtros SOLO cuando estás en la familia Arneses (zona del cuarto + tipo).
   if (_filtroFamilia === 'arneses') filtros.innerHTML += panelFiltrosArnes();
+  // Cofres y Puertas: buscador propio + marca de camión, ARRIBA del de modelos.
+  if (_filtroFamilia && FAM_CON_MARCA_CAMION.indexOf(_filtroFamilia) !== -1)
+    filtros.innerHTML += panelMarcaYBuscador(_filtroFamilia);
   // El desplegable de modelos: en todas las familias menos las cuatro que ya
   // traen un filtro hecho a la medida de su naturaleza.
   if (_filtroFamilia && FAM_CON_FILTRO_PROPIO.indexOf(_filtroFamilia) === -1)
     filtros.innerHTML += panelFiltroModelo(_filtroFamilia);
+  // Si Raúl estaba tecleando en el buscador de la familia, devolverle el cursor.
+  // Sin esto, una sincronización de la nube le borraba lo que iba escribiendo.
+  if (_famFoco) {
+    var _bf = document.getElementById('buscador-familia');
+    if (_bf) { _bf.focus(); _bf.setSelectionRange(_bf.value.length, _bf.value.length); }
+  }
 
   // Si Raúl estaba tecleando en el buscador, devolverle el foco y el cursor.
   if (_busFoco) {
@@ -7992,6 +8102,11 @@ function _renderResultadosBusqueda() {
   // Libraje, en las dos familias que se distinguen por eso.
   if ((_filtroFamilia === 'diferenciales' || _filtroFamilia === 'mancuernas') && _filtroLibras !== null) {
     piezas = piezas.filter(p => librasDePieza(p) === _filtroLibras);
+  }
+  // Cofres y Puertas: marca del camión y buscador de la familia.
+  if (_filtroFamilia && FAM_CON_MARCA_CAMION.indexOf(_filtroFamilia) !== -1) {
+    if (_filtroMarcaCam !== null) piezas = piezas.filter(p => marcaCamionDe(p) === _filtroMarcaCam);
+    if (_filtroTextoFam) piezas = piezas.filter(p => coincideBusqueda(textoBuscablePieza(p), _filtroTextoFam));
   }
   // El modelo, en todas las demás familias.
   if (_filtroModelo !== null && _filtroFamilia && FAM_CON_FILTRO_PROPIO.indexOf(_filtroFamilia) === -1) {
@@ -8180,6 +8295,7 @@ function setFiltro(id) {
   if (id !== 'diferenciales' && id !== 'mancuernas') _filtroLibras = null;
   if (id !== 'arneses') { _filtroArnesZona = null; _filtroArnesTipo = null; }
   _filtroModelo = null;   // el modelo de una familia no significa nada en otra
+  if (FAM_CON_MARCA_CAMION.indexOf(id) === -1) { _filtroMarcaCam = null; _filtroTextoFam = ''; }
   _acordeonesAbiertos.clear();
   renderBusqueda();
 }
