@@ -7482,6 +7482,8 @@ let _filtroArnesZona = null;
 let _filtroArnesTipo = null;
 // Libraje, para Diferenciales y Mancuernas. null = todos. 0 = sin libraje.
 let _filtroLibras = null;
+// Modelo, para TODAS las demás familias. null = todos. '' = sin modelo.
+let _filtroModelo = null;
 
 // ══════════════════════════════════════════════════════════════════
 // EL LIBRAJE DE DIFERENCIALES Y MANCUERNAS (ago 2026)
@@ -7537,6 +7539,73 @@ function panelFiltroLibras(fam){
   return '<div style="background:#eef3f8;border:2px solid #7fa3c8;border-radius:10px;padding:12px;margin-bottom:14px;">' +
     '<div style="font-size:12px;font-weight:800;color:#2a5580;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">⚖️ Filtrar por libraje</div>' +
     '<select onchange="setFiltroLibras(this.value)" style="width:100%;padding:11px;font-size:15px;border:2px solid #7fa3c8;border-radius:8px;">' + opts + '</select>' +
+  '</div>';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// EL MISMO DESPLEGABLE DEL DIFERENCIAL, PERO POR MODELO (ago 2026)
+// ──────────────────────────────────────────────────────────────────
+// Keno: "es como un filtro de lo que hay disponible dentro de esa
+// familia, un filtro inteligente, porque solo aparece lo que hay".
+// Nunca un catálogo fijo: solo los modelos que EXISTEN ahorita en esa
+// familia, cada uno con cuántos hay entre paréntesis.
+//
+// ⚠️ CUATRO FAMILIAS NO LO LLEVAN, y no es descuido:
+//   · diferenciales y mancuernas → se distinguen por LIBRAJE. Medido
+//     sobre el patio: 53 diferenciales con 45 modelos distintos, o sea
+//     1.2 piezas por modelo. Un desplegable así es tan largo como la
+//     lista y no ahorra nada; el de libraje sí (8 opciones).
+//   · chasis   → los 51 tienen el MISMO modelo ("Chasis"). Ya filtra
+//     por marca, año y baja, que es lo que los separa.
+//   · arneses  → 111 piezas con 59 modelos (1.9). Ya filtra por zona
+//     del cuarto y tipo, que es como Raúl los busca físicamente.
+//
+// Las mayúsculas NO parten un modelo en dos: "EUGENIO" y "eugenio" caen
+// juntos, y se enseña la ortografía más usada.
+// ══════════════════════════════════════════════════════════════════
+var FAM_CON_FILTRO_PROPIO = ['diferenciales', 'mancuernas', 'chasis', 'arneses'];
+function _claveModelo(s){
+  return String(s == null ? '' : s).toLowerCase().trim().replace(/\s+/g, ' ');
+}
+function setFiltroModelo(v){
+  _filtroModelo = (v === '__TODOS__') ? null : v;
+  renderBusqueda();
+}
+function panelFiltroModelo(fam){
+  var base = DATA.piezas.filter(function(p){ return p && !p.vendida && p.familia === fam; });
+  var g = {};
+  base.forEach(function(p){
+    var t = String(p.modelo == null ? '' : p.modelo).trim();
+    var k = _claveModelo(t);
+    if(!g[k]) g[k] = { n: 0, votos: {} };
+    g[k].n++;
+    if(t) g[k].votos[t] = (g[k].votos[t] || 0) + 1;
+  });
+  // Si el filtro puesto ya no tiene piezas, se deja visible en cero: si
+  // desapareciera, el desplegable diría "Todos" mientras la lista sale vacía.
+  if(_filtroModelo !== null && !(_filtroModelo in g)) g[_filtroModelo] = { n: 0, votos: {} };
+  var conModelo = Object.keys(g).filter(function(k){ return k !== ''; });
+  // Con un solo modelo el desplegable no ayuda: sería un botón que no hace nada.
+  if(conModelo.length < 2) return '';
+  var texto = function(k){
+    var v = g[k].votos, mejor = '', max = -1;
+    Object.keys(v).forEach(function(t){ if(v[t] > max){ max = v[t]; mejor = t; } });
+    return mejor || k;
+  };
+  conModelo.sort(function(a, b){
+    return texto(a).localeCompare(texto(b), 'es', { numeric: true, sensitivity: 'base' });
+  });
+  var opts = '<option value="__TODOS__"' + (_filtroModelo === null ? ' selected' : '') +
+    '>\u2014 Todos los modelos \u2014 (' + base.length + ')</option>';
+  conModelo.forEach(function(k){
+    opts += '<option value="' + escapeHtml(k) + '"' + (_filtroModelo === k ? ' selected' : '') +
+      '>' + escapeHtml(texto(k)) + ' (' + g[k].n + ')</option>';
+  });
+  if(g[''] && g[''].n) opts += '<option value=""' + (_filtroModelo === '' ? ' selected' : '') +
+    '>\u2014 sin modelo \u2014 (' + g[''].n + ')</option>';
+  return '<div style="background:#eef3f8;border:2px solid #7fa3c8;border-radius:10px;padding:12px;margin-bottom:14px;">' +
+    '<div style="font-size:12px;font-weight:800;color:#2a5580;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">\ud83d\udd0e Filtrar por modelo</div>' +
+    '<select onchange="setFiltroModelo(this.value)" style="width:100%;padding:11px;font-size:15px;border:2px solid #7fa3c8;border-radius:8px;">' + opts + '</select>' +
   '</div>';
 }
 
@@ -7893,6 +7962,10 @@ function renderBusqueda() {
   if (_filtroFamilia === 'diferenciales' || _filtroFamilia === 'mancuernas') filtros.innerHTML += panelFiltroLibras(_filtroFamilia);
   // Panel de filtros SOLO cuando estás en la familia Arneses (zona del cuarto + tipo).
   if (_filtroFamilia === 'arneses') filtros.innerHTML += panelFiltrosArnes();
+  // El desplegable de modelos: en todas las familias menos las cuatro que ya
+  // traen un filtro hecho a la medida de su naturaleza.
+  if (_filtroFamilia && FAM_CON_FILTRO_PROPIO.indexOf(_filtroFamilia) === -1)
+    filtros.innerHTML += panelFiltroModelo(_filtroFamilia);
 
   // Si Raúl estaba tecleando en el buscador, devolverle el foco y el cursor.
   if (_busFoco) {
@@ -7919,6 +7992,10 @@ function _renderResultadosBusqueda() {
   // Libraje, en las dos familias que se distinguen por eso.
   if ((_filtroFamilia === 'diferenciales' || _filtroFamilia === 'mancuernas') && _filtroLibras !== null) {
     piezas = piezas.filter(p => librasDePieza(p) === _filtroLibras);
+  }
+  // El modelo, en todas las demás familias.
+  if (_filtroModelo !== null && _filtroFamilia && FAM_CON_FILTRO_PROPIO.indexOf(_filtroFamilia) === -1) {
+    piezas = piezas.filter(p => _claveModelo(p && p.modelo) === _filtroModelo);
   }
   // Filtros exclusivos de Arneses (Zona + Tipo, se combinan).
   if (_filtroFamilia === 'arneses') {
@@ -8102,6 +8179,7 @@ function setFiltro(id) {
   if (id !== 'chasis') { _filtroChasisConsec = null; _filtroChasisBaja = null; _filtroChasisMarca = null; _filtroChasisAnio = null; }
   if (id !== 'diferenciales' && id !== 'mancuernas') _filtroLibras = null;
   if (id !== 'arneses') { _filtroArnesZona = null; _filtroArnesTipo = null; }
+  _filtroModelo = null;   // el modelo de una familia no significa nada en otra
   _acordeonesAbiertos.clear();
   renderBusqueda();
 }
