@@ -55,16 +55,27 @@
   var TELS = { n1: "528114825291", n2: "528121529279" };
   var BASE = "https://tpm-clics-wa-default-rtdb.firebaseio.com";
 
+  // Recorta sin dejar un emoji partido a la mitad: media letra de emoji hace
+  // reventar encodeURIComponent y ese visitante no se contaba.
+  function recorta(v, n) {
+    var t = String(v == null ? "" : v).slice(0, n);
+    if (/[\uD800-\uDBFF]$/.test(t)) t = t.slice(0, -1);
+    return t;
+  }
+
   var etiqueta = "sin-origen", red = "";
   try {
     var P = new URLSearchParams(location.search);
-    etiqueta = String(P.get("v") || P.get("o") || "sin-origen").slice(0, 60);
-    red = String(P.get("r") || "").slice(0, 20);
+    etiqueta = recorta(P.get("v") || P.get("o") || "sin-origen", 60);
+    red = recorta(P.get("r") || "", 20);
   } catch (e) {}
 
   // Una clave de fecha (20260807-142829) no sirve para el mensaje; se cuenta
   // igual pero se manda el saludo generico. Paso con el post llamado "POST".
-  var esClave = /^\d{6,8}[-_]?\d{4,6}$/.test(etiqueta);
+  // SOLO la forma exacta de las claves del sistema: 20260807-142829.
+  // Antes era \d{6,8}[-_]?\d{4,6}, que se tragaba numeros de parte reales como
+  // 466713-0004 (turbos Garrett/Holset) y mandaba el saludo generico.
+  var esClave = /^\d{8}-\d{6}$/.test(etiqueta);
   var pieza = (esClave || etiqueta === "sin-origen")
     ? "" : etiqueta.replace(/[-_]+/g, " ").trim().toUpperCase();
 
@@ -74,10 +85,20 @@
 
   function liga(tel) { return "https://wa.me/" + tel + "?text=" + encodeURIComponent(saludo); }
 
+  // EL DIA EN HORA DE MONTERREY, no en UTC. Antes se usaba toISOString(), que
+  // da la fecha UTC: todo clic despues de las 6 de la tarde se contaba en el
+  // dia siguiente — y esa es justo la franja en que los reels jalan mas.
+  // Monterrey es UTC-6 todo el año (Mexico quito el horario de verano en 2022).
+  // Se resta a proposito en vez de usar la hora del visitante: asi el corte es
+  // el mismo aunque la persona este en Tijuana o en Espana.
+  function diaMonterrey() {
+    return new Date(Date.now() - 6 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+
   // El conteo del TOQUE: se dispara y no se espera. Nunca frena la navegacion.
   function contar(num) {
     try {
-      fetch(BASE + "/clics/" + new Date().toISOString().slice(0, 10) + ".json", {
+      fetch(BASE + "/clics/" + diaMonterrey() + ".json", {
         method: "POST",
         keepalive: true,
         headers: { "Content-Type": "application/json" },
@@ -86,7 +107,13 @@
     } catch (e) {}
   }
 
-  window.__wa = { pieza: pieza, liga1: liga(TELS.n1), liga2: liga(TELS.n2), contar: contar };
+  // El armado va en try: si algo aqui tronara, los botones del HTML ya traen
+  // ligas validas — pero al menos `contar` tiene que quedar vivo.
+  try {
+    window.__wa = { pieza: pieza, liga1: liga(TELS.n1), liga2: liga(TELS.n2), contar: contar };
+  } catch (e) {
+    window.__wa = { pieza: "", contar: contar };
+  }
 })();
 </script>
 
