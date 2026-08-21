@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Tractopartes Magaña — WhatsApp</title>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     LA ESCALA AL WHATSAPP — cuenta el clic y avienta a la persona a WhatsApp.
+
+     Keno, 21 ago 2026: «¿podríamos medir cuántas personas se metieron a ese
+     link?». wa.me no da ninguna estadística y Facebook no reporta clics dentro
+     de comentarios (solo en anuncios pagados), así que hay que poner una escala
+     propia en medio.
+
+     LA REGLA QUE MANDA EN TODO: **el brinco a WhatsApp NUNCA espera al contador.**
+     Si Firebase está caído, si el navegador bloquea el fetch, si no hay señal
+     para esa llamada — la persona llega a WhatsApp igual. El conteo se dispara
+     con keepalive (la llamada se completa aunque la página ya se haya ido) y el
+     brinco sale de inmediato. Un cliente perdido cuesta más que un clic no contado.
+     Con JavaScript apagado, el <meta refresh> de abajo lo brinca solito.
+
+     LA LIGA:  https://fotonas.tractopartes.com/wa/?v=puertas-tractocamion
+     El `v` sirve para DOS cosas a la vez: es la etiqueta que se cuenta (así se
+     sabe qué video jaló más) y de ahí sale el mensaje que la persona manda ya
+     escrito, para que quien atiende sepa de cuál video vino sin preguntar.
+
+     SIN EMOJI A PROPÓSITO: se probó con 👋 y el redirector de WhatsApp lo
+     entrega roto (sale «�»). El archivo lo manda bien codificado — se comprobó
+     que llega %F0%9F%91%8B — pero wa.me lo mastica. Un mensaje limpio sin emoji
+     se ve mejor que uno con un cuadrito roto.
+
+     La base solo deja CREAR clics: desde afuera no se pueden leer, ni modificar,
+     ni borrar. Probado en los dos sentidos el 21 ago 2026.
+     ══════════════════════════════════════════════════════════════════════════ -->
+
+<script>
+  var TEL  = "528121529279";
+  var BASE = "https://tpm-clics-wa-default-rtdb.firebaseio.com";
+
+  var P = new URLSearchParams(location.search);
+  // se acepta v (el nuevo) y o (por si alguna liga vieja anda por ahí)
+  var etiqueta = (P.get("v") || P.get("o") || "sin-origen").slice(0, 60);
+  var red = (P.get("r") || "").slice(0, 20);
+
+  // "puertas-tractocamion" -> "PUERTAS TRACTOCAMION"
+  var bonito = etiqueta.replace(/[-_]+/g, " ").trim().toUpperCase();
+  var saludo = (etiqueta === "sin-origen" || !bonito)
+    ? "Hola, vi su publicacion y quiero informacion"
+    : "Hola, vi el video de " + bonito + " y quiero informacion";
+
+  var destino = "https://wa.me/" + TEL + "?text=" + encodeURIComponent(saludo);
+
+  // El conteo se dispara SIN esperarlo.
+  try {
+    fetch(BASE + "/clics/" + new Date().toISOString().slice(0, 10) + ".json", {
+      method: "POST",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ t: Date.now(), o: etiqueta, r: red })
+    }).catch(function () {});
+  } catch (e) {}
+
+  location.replace(destino);
+</script>
+
+<noscript><meta http-equiv="refresh" content="0;url=https://wa.me/528121529279"></noscript>
+
+<style>
+  html,body{margin:0;height:100%;background:#0D0D12;color:#F4F4F7;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .c{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;}
+  .m{font-weight:800;font-size:19px;color:#F00810;letter-spacing:-.02em;}
+  .s{color:#9B9BAE;font-size:14px;}
+  .b{margin-top:6px;display:inline-block;background:#25D366;color:#fff;text-decoration:none;
+     font-weight:800;font-size:15px;padding:13px 26px;border-radius:999px;}
+</style>
+</head>
+<body>
+  <div class="c">
+    <div class="m">TRACTOPARTES MAGAÑA</div>
+    <div class="s">Abriendo WhatsApp…</div>
+    <!-- red de seguridad: si por lo que sea no brincó solo, que tenga en qué picarle -->
+    <a class="b" id="liga" href="https://wa.me/528121529279">Abrir WhatsApp</a>
+  </div>
+  <script>
+    try { document.getElementById("liga").href = destino; } catch (e) {}
+  </script>
+</body>
+</html>
