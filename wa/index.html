@@ -45,8 +45,12 @@
   var red = (P.get("r") || "").slice(0, 20);
 
   // "puertas-tractocamion" -> "PUERTAS TRACTOCAMION"
+  // Si la etiqueta es una clave de fecha (20260807-142829) no sirve para el
+  // mensaje — saldria "vi el video de 20260807 142829". Se cuenta igual, pero
+  // la persona manda el saludo generico.
+  var esClave = /^\d{6,8}[-_]?\d{4,6}$/.test(etiqueta);
   var bonito = etiqueta.replace(/[-_]+/g, " ").trim().toUpperCase();
-  var saludo = (etiqueta === "sin-origen" || !bonito)
+  var saludo = (etiqueta === "sin-origen" || esClave || !bonito)
     ? "Hola, vi su publicacion y quiero informacion"
     : "Hola, vi el video de " + bonito + " y quiero informacion";
 
