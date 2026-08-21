@@ -66,7 +66,19 @@
     }).catch(function () {});
   } catch (e) {}
 
-  location.replace(destino);
+  // ── POR QUÉ EN CELULAR NO SE BRINCA SOLO (21 ago 2026, cachado por Keno) ──
+  // iOS abre la app de WhatsApp de golpe cuando la PERSONA le pica a un link de
+  // wa.me (universal link). Pero un brinco hecho por codigo NO cuenta como toque
+  // del usuario: iOS no abre la app y la deja en la pantalla de api.whatsapp.com
+  // con un boton «Abrir aplicacion»... que trae junto un «Descargala ahora».
+  // Keno acabo en la pagina de descarga de WhatsApp. Un paso de mas justo donde
+  // mas duele.
+  //
+  // Entonces: en CELULAR se pinta un boton grande y el toque es suyo de verdad
+  // — asi iOS si abre la app directo. En COMPUTADORA no hay app que abrir, asi
+  // que ahi si conviene brincar solo y no cobrarle un clic de mas.
+  var esMovil = /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent || "");
+  if (!esMovil) location.replace(destino);
 </script>
 
 <noscript><meta http-equiv="refresh" content="0;url=https://wa.me/528121529279"></noscript>
@@ -77,19 +89,29 @@
   .c{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;}
   .m{font-weight:800;font-size:19px;color:#F00810;letter-spacing:-.02em;}
   .s{color:#9B9BAE;font-size:14px;}
-  .b{margin-top:6px;display:inline-block;background:#25D366;color:#fff;text-decoration:none;
-     font-weight:800;font-size:15px;padding:13px 26px;border-radius:999px;}
+  .b{margin-top:10px;display:inline-block;background:#25D366;color:#fff;text-decoration:none;
+     font-weight:800;font-size:19px;padding:19px 44px;border-radius:999px;
+     box-shadow:0 6px 22px rgba(37,211,102,.35);}
+  .b:active{transform:scale(.97);}
+  .p{color:#9B9BAE;font-size:13px;max-width:320px;line-height:1.45;}
 </style>
 </head>
 <body>
   <div class="c">
     <div class="m">TRACTOPARTES MAGAÑA</div>
-    <div class="s">Abriendo WhatsApp…</div>
-    <!-- red de seguridad: si por lo que sea no brincó solo, que tenga en qué picarle -->
+    <div class="s" id="dice">Abriendo WhatsApp…</div>
     <a class="b" id="liga" href="https://wa.me/528121529279">Abrir WhatsApp</a>
+    <div class="p" id="pieza"></div>
   </div>
   <script>
-    try { document.getElementById("liga").href = destino; } catch (e) {}
+    try {
+      document.getElementById("liga").href = destino;
+      if (esMovil) {
+        document.getElementById("dice").textContent = "Pide tu precio directo:";
+        document.getElementById("liga").textContent = "Abrir WhatsApp";
+        if (!esClave && bonito) document.getElementById("pieza").textContent = bonito;
+      }
+    } catch (e) {}
   </script>
 </body>
 </html>
