@@ -109,6 +109,12 @@
 
   // El armado va en try: si algo aqui tronara, los botones del HTML ya traen
   // ligas validas — pero al menos `contar` tiene que quedar vivo.
+  // LA VISITA se cuenta SIEMPRE y va PRIMERO (21 ago 2026, lo pidio Keno):
+  // sin esto solo se sabia cuantos abrieron WhatsApp, no cuantos LLEGARON y se
+  // fueron sin picar. La resta de los dos dice si esta pantalla pierde gente.
+  // Va fuera del try de abajo a proposito: una visita se cuenta pase lo que pase.
+  contar("visita");
+
   try {
     window.__wa = { pieza: pieza, liga1: liga(TELS.n1), liga2: liga(TELS.n2), contar: contar };
   } catch (e) {
