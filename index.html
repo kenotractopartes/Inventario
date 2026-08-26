@@ -1082,6 +1082,129 @@ const FAMILIAS = [
 // distintos si mañana se agrega otra.
 const FAMILIAS_SOLO_CONTENIDO = FAMILIAS.filter(f => f.soloContenido).map(f => f.id);
 function esSoloContenido(p){ return !!(p && FAMILIAS_SOLO_CONTENIDO.includes(p.familia)); }
+
+// ══════════════════════════════════════════════════════════════════════════
+// CARPETAS DE RICARDO — por semana (23 ago 2026)
+// ──────────────────────────────────────────────────────────────────────────
+// El problema: Ricardo tenía UNA sola tarjeta ("REMIX DE IRVIN") con 42
+// fotos y videos adentro. No se podía manejar — ni para subir ni para
+// escoger después en el sistema de videos.
+//
+// La solución: cada semana es su propia carpeta. La de la semana en curso
+// se crea SOLA, sale en rojo y hasta arriba, para que Ricardo no tenga que
+// escoger nada: abre, ve la roja, sube. Cero decisiones para él.
+//
+// ⚠️ EL SISTEMA DE VIDEOS NO SE TOCA. Allá las carpetas salen de partir el
+//    título en los dos puntos ("Producto de Ricardo: 25 al 31 de agosto" →
+//    carpeta "Producto de Ricardo"). O sea que estas carpetas nuevas le
+//    llegan solas, sin un solo cambio del otro lado.
+//
+// ⚠️ Las fotos de esta familia viven en la ficha de CADA pieza (su familia
+//    no está en FAMILIAS_FOTOS_MODELO, así que _modelKey devuelve ''). Por
+//    eso partir en semanas SÍ reparte el peso: cada carpeta carga lo suyo.
+// ══════════════════════════════════════════════════════════════════════════
+const RIC_FAM = 'ricardo';
+const RIC_MESES = ['enero','febrero','marzo','abril','mayo','junio','julio',
+                   'agosto','septiembre','octubre','noviembre','diciembre'];
+
+// El lunes de la semana de esa fecha, en ISO. Domingo cuenta como fin de la
+// semana que ya va corriendo, no como inicio de la siguiente.
+function _ricLunes(d){
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dow = x.getDay();                       // 0=domingo
+  x.setDate(x.getDate() - (dow === 0 ? 6 : dow - 1));
+  return x.getFullYear() + '-' + String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0');
+}
+function _ricFechaDe(iso){
+  const p = String(iso).split('-');
+  return new Date(Number(p[0]), Number(p[1])-1, Number(p[2]));
+}
+// "25 al 31 de agosto" — y si cruza de mes, "31 de agosto al 6 de septiembre".
+function _ricRotulo(lunesISO){
+  const a = _ricFechaDe(lunesISO);
+  const b = new Date(a.getFullYear(), a.getMonth(), a.getDate() + 6);
+  if (a.getMonth() === b.getMonth())
+    return a.getDate() + ' al ' + b.getDate() + ' de ' + RIC_MESES[a.getMonth()];
+  return a.getDate() + ' de ' + RIC_MESES[a.getMonth()] + ' al ' + b.getDate() + ' de ' + RIC_MESES[b.getMonth()];
+}
+function _ricEsSemana(p){ return !!(p && p.extras && p.extras.ricSemana); }
+function _ricEsLaDeHoy(p){ return _ricEsSemana(p) && p.extras.ricSemana === _ricLunes(new Date()); }
+
+// Crea la carpeta de la semana en curso si no existe. Solo el editor, y solo
+// AGREGA: nunca renombra ni borra nada de lo que ya está.
+// Corre con setTimeout al arrancar (el mismo patrón que _limpiarModelosInyectores)
+// y no dentro de un render, para no meterse en su propio ciclo.
+function _ricAsegurarSemana(){
+  try {
+    if (typeof esEditor !== 'function' || !esEditor()) return;
+    if (!Array.isArray(DATA.piezas)) return;
+    const lunes = _ricLunes(new Date());
+    const ya = DATA.piezas.some(p => p.familia === RIC_FAM && p.extras && p.extras.ricSemana === lunes);
+    if (ya) return;
+    DATA.piezas.push({
+      id: 'pza_' + Date.now() + '_' + Math.random().toString(36).slice(2,7) + '_ric',
+      familia: RIC_FAM,
+      camionId: null,
+      modelo: _ricRotulo(lunes),
+      extras: { ricSemana: lunes },
+      precioSugerido: 0,
+      precioMax: 0,
+      notas: '',
+      vendida: false,
+      fechaRegistro: Date.now()
+    });
+    try { guardar(); } catch(e){ avisarFallaGuardado('Falló al crear la carpeta de la semana de Ricardo.', e); }
+    console.log('📅 Ricardo: carpeta de la semana creada — ' + _ricRotulo(lunes));
+    try { refrescarVistaActual(); } catch(e){}
+  } catch(e){ console.error('carpeta de la semana de Ricardo:', e); }
+}
+setTimeout(_ricAsegurarSemana, 6000);
+
+// El orden que pidió Keno: primero la roja de esta semana, luego las carpetas
+// de tema (las que él crea, sin fecha), y hasta abajo las semanas viejas de la
+// más nueva a la más vieja.
+function _ricOrden(a, b){
+  const ra = _ricEsLaDeHoy(a) ? 0 : (_ricEsSemana(a) ? 2 : 1);
+  const rb = _ricEsLaDeHoy(b) ? 0 : (_ricEsSemana(b) ? 2 : 1);
+  if (ra !== rb) return ra - rb;
+  if (ra === 2) return String(b.extras.ricSemana).localeCompare(String(a.extras.ricSemana));
+  return (b.fechaRegistro || 0) - (a.fechaRegistro || 0);
+}
+function _ricBadge(p){
+  if (!_ricEsLaDeHoy(p)) return '';
+  return '<span class="badge" style="background:#c0392b; margin-left:8px; font-size:11px; vertical-align:middle;">📅 ESTA SEMANA — sube aquí</span>';
+}
+function _ricEstiloFila(p){
+  return _ricEsLaDeHoy(p) ? 'border-left:5px solid #c0392b; background:#fdf1ef;' : '';
+}
+
+// El ➕ del encabezado: carpetas de TEMA, sin fecha. Keno: "no pondré fechas
+// en las que yo haga" — las de fecha se crean solas cada lunes.
+function ricNuevaCarpeta(){
+  if (typeof esEditor === 'function' && !esEditor()) { toast('Solo el editor puede crear carpetas', 'error'); return; }
+  const n = (prompt('¿Cómo se va a llamar la carpeta nueva de Ricardo?\n\n' +
+                    'Ejemplos:  Fondos  ·  Puros motores  ·  Cabinas\n\n' +
+                    'Las carpetas de fecha se crean solas cada lunes — esta es para lo que tú quieras.') || '').trim();
+  if (!n) return;
+  const repe = DATA.piezas.some(p => p.familia === RIC_FAM && String(p.modelo||'').trim().toLowerCase() === n.toLowerCase());
+  if (repe) { alert('Ya existe una carpeta de Ricardo que se llama "' + n + '".'); return; }
+  DATA.piezas.push({
+    id: 'pza_' + Date.now() + '_' + Math.random().toString(36).slice(2,7) + '_ric',
+    familia: RIC_FAM,
+    camionId: null,
+    modelo: n,
+    extras: {},
+    precioSugerido: 0,
+    precioMax: 0,
+    notas: '',
+    vendida: false,
+    fechaRegistro: Date.now()
+  });
+  try { guardar(); } catch(e){ avisarFallaGuardado('Falló al crear la carpeta.', e); }
+  try { playDing(); } catch(e){}
+  toast('✓ Carpeta "' + n + '" creada', 'success');
+  try { refrescarVistaActual(); } catch(e){}
+}
 // Zonas del cuarto de arneses (orden de la pared/tubos) y tipos de arnés.
 const ARNES_ZONAS = [
   { id:'TUBO_PRINCIPAL', nombre:'Tubo principal' },
@@ -8252,11 +8375,18 @@ function _renderResultadosBusqueda() {
     const visibles = (esFamiliaReparacion(g.familia) && _filtroEstadoIny ? g.piezas.filter(p => estadoIny(p) === _filtroEstadoIny) : g.piezas)
       .slice().sort((a,b) => agruparPorZona
         ? ((parseInt((a.extras&&a.extras.numeroArnes)||0,10)||0) - (parseInt((b.extras&&b.extras.numeroArnes)||0,10)||0))
-        : ((b.fechaRegistro||0) - (a.fechaRegistro||0)));
+        // Ricardo lleva su propio orden: la roja de esta semana, luego los
+        // temas, luego las semanas viejas. El resto del inventario no cambia.
+        : (g.familia === RIC_FAM ? _ricOrden(a,b) : ((b.fechaRegistro||0) - (a.fechaRegistro||0))));
     _gruposUltimoRender[g.clave] = { titulo: g.titulo || (f && f.nombre) || g.familia, ids: visibles.map(p => p.id) };
     const btnPrecios = (typeof esEditor === 'function' && !esEditor()) ? '' :
       `<button onclick="event.stopPropagation(); abrirPrecioMasivo('${g.clave}')" title="Ponerle precio a varias de un jalón"
          style="padding:4px 9px; font-size:12px; font-weight:800; border:1px solid #2e7d46; border-radius:5px; background:#fff; color:#2e7d46; cursor:pointer; white-space:nowrap;">💲 Precios</button>`;
+    // Solo en la familia de Ricardo y solo para el editor: crear una carpeta
+    // de tema al vuelo (Fondos, Puros motores...). Las de fecha salen solas.
+    const btnNuevaRic = (g.familia !== RIC_FAM || (typeof esEditor === 'function' && !esEditor())) ? '' :
+      `<button onclick="event.stopPropagation(); ricNuevaCarpeta()" title="Crear una carpeta nueva para Ricardo (Fondos, Puros motores, lo que quieras)"
+         style="padding:4px 11px; font-size:14px; font-weight:900; border:1px solid #6b3fa0; border-radius:5px; background:#fff; color:#6b3fa0; cursor:pointer; white-space:nowrap;">➕</button>`;
 
     const headerClick = modoAcordeon
       ? `onclick="toggleAcordeonFamilia('${g.familia}')" style="cursor:pointer; background:${colorFam}; padding:14px; margin:0;"`
@@ -8277,6 +8407,7 @@ function _renderResultadosBusqueda() {
             </div>
           </div>
           <div style="display:flex; align-items:center; gap:8px; flex:none;">
+            ${btnNuevaRic}
             ${btnPrecios}
             <span class="badge badge-count">${g.piezas.length}</span>
           </div>
@@ -8300,7 +8431,7 @@ function _renderResultadosBusqueda() {
             } else {
               cuerpoPieza = `
                 <div style="flex:1;">
-                  <div style="font-size:20px; font-weight:900; color:#1a1a1a; letter-spacing:-0.3px;">${numeroArnesBadge(p)}${escapeHtml(p.modelo || '')} ${precio}${estadoInyBadge(p)}</div>
+                  <div style="font-size:20px; font-weight:900; color:#1a1a1a; letter-spacing:-0.3px;">${numeroArnesBadge(p)}${escapeHtml(p.modelo || '')} ${precio}${estadoInyBadge(p)}${p.familia === RIC_FAM ? _ricBadge(p) : ''}</div>
                   <div style="font-size:13px; color:#777; margin-top:3px;">
                     ${p.motor ? `Motor ${escapeHtml(p.motor)}` : ''}${extras ? (p.motor ? ' · ' : '') + extras : ''}
                   </div>
@@ -8310,7 +8441,7 @@ function _renderResultadosBusqueda() {
             }
 
             return `
-              <div class="pieza-item" style="display:block; ${p.apartada ? 'border-left:4px solid #7e57c2; background:#f8f5fd;' : (p.bajoPedido ? 'border-left:4px solid #c9a24b; background:#fdfaf0;' : '')}">
+              <div class="pieza-item" style="display:block; ${p.apartada ? 'border-left:4px solid #7e57c2; background:#f8f5fd;' : (p.bajoPedido ? 'border-left:4px solid #c9a24b; background:#fdfaf0;' : (p.familia === RIC_FAM ? _ricEstiloFila(p) : ''))}">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
                   ${cuerpoPieza}
                   <div class="pieza-actions">
