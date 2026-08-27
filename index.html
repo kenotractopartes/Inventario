@@ -745,9 +745,13 @@
         style="padding:12px 20px; background:#6b3fa0; color:#fff; border-color:#6b3fa0;
         font-weight:800; font-size:15px;">➕ Agregar</button>
     </div>
+    <!-- ⚠️ Este aviso se quedó mintiendo cuando la pantalla dejó de cortar los
+         textos y empezó a bajarlos de renglón (27 ago 2026). Ahora dice lo que
+         de verdad pasa: no se corta, pero la letra se achica. -->
     <div style="font-size:12px; color:#9a9384; margin-top:9px;">
-      ⚠️ En la pantalla caben <b>~27 letras</b> por renglón. Si el texto es más
-      largo se corta con puntos suspensivos — escríbelo corto.
+      ⚠️ En la pantalla se ve completo, pero <b>entre más largo, más chica la
+      letra</b>. Hasta ~26 letras sale enorme; de ahí baja a dos renglones más
+      chicos. Escríbelo corto y se lee desde el fondo del mostrador.
     </div>
   </div>
   <div id="pend-lista"></div>
@@ -11281,6 +11285,9 @@ function _burroPicado(d, ev){
   // Nodo `pendientes` de Firebase RTDB (mismo proyecto inventario-julio-26).
   // ══════════════════════════════════════════════════════════════════════
   var PEND_DATOS = {}, _pendEscuchando = false;
+  // Qué renglón se está editando ahorita. Solo uno a la vez: dos formularios
+  // abiertos en la misma lista se prestan a guardar el equivocado.
+  var PEND_EDIT = null;
 
   window.pendCerrar = function(){
     var t = document.getElementById('pend-tel');
@@ -11353,6 +11360,96 @@ function _burroPicado(d, ev){
     });
   };
 
+  // ⚠️ Al abrir uno se cierra el otro. Y se repinta desde los datos de la
+  //    nube, así que lo que estuviera a medio escribir se descarta — que es lo
+  //    correcto: si no le diste Guardar, no querías guardarlo.
+  window.pendEditar = function(id){
+    PEND_EDIT = id;
+    pendPintar();
+    var t = document.getElementById('pe-txt');
+    if(t){ t.focus(); t.select(); }
+  };
+  window.pendCancelar = function(){ PEND_EDIT = null; pendPintar(); };
+
+  window.pendGuardar = function(id){
+    var t = (document.getElementById('pe-txt').value || '').trim();
+    if(!t){ alert('El texto no puede quedar vacío.'); return; }
+    var dia = document.getElementById('pe-dia').value || '';
+    var hora = document.getElementById('pe-hora').value || '';
+    // Misma regla que al registrar: sin hora se asume 09:00; sin día, el
+    // pendiente se queda "sin fecha" y en la pantalla sale hasta abajo.
+    var iso = '';
+    if(dia){
+      var hh = hora || '09:00';
+      var p = dia.split('-'), q = hh.split(':');
+      iso = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]),
+                     Number(q[0]) || 0, Number(q[1]) || 0, 0).toISOString();
+    }
+    var quien = '';
+    try { quien = (firebase.auth().currentUser || {}).email || ''; } catch(e){}
+    // ⚠️ `update`, no `set`: así no se borran `hecho`, `quienLoPuso` ni
+    //    `creadoEn`. Un `set` los habría dejado en blanco sin avisar.
+    firebase.database().ref('pendientes/' + id).update({
+      texto: t.slice(0, 60),
+      fechaHora: iso,
+      editadoPor: quien,
+      editadoEn: new Date().toISOString()
+    }).then(function(){
+      PEND_EDIT = null;
+      try { playDing(); } catch(e){}
+      toast('✓ Cambiado', 'success');
+      pendPintar();
+    }).catch(function(e){
+      alert('No se pudo guardar: ' + ((e && e.code) || 'error'));
+    });
+  };
+
+  // De un ISO a los dos campos del formulario.
+  function _pendPartes(iso){
+    if(!iso) return { dia:'', hora:'' };
+    var d = new Date(iso);
+    if(isNaN(d)) return { dia:'', hora:'' };
+    return {
+      dia: d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') +
+           '-' + String(d.getDate()).padStart(2,'0'),
+      hora: String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0')
+    };
+  }
+
+  // El renglón convertido en formulario. Se usa igual en la lista de por
+  // hacer y en la de ya hechos.
+  function _pendFormulario(p){
+    var pt = _pendPartes(p.iso);
+    return '<div class="pieza-item" style="display:block; border-left:4px solid #6b3fa0; background:#f8f4fd;">' +
+      '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">' +
+        '<div style="flex:1 1 220px; min-width:170px;">' +
+          '<label style="display:block; font-size:10.5px; font-weight:800; color:#7b7468;' +
+            ' text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Qué hay que hacer</label>' +
+          '<input type="text" id="pe-txt" maxlength="60" value="' + escapeHtml(p.texto) + '"' +
+            ' style="width:100%; padding:9px 10px; font-size:15px; border:1px solid #c9b6e8; border-radius:6px;"' +
+            ' onkeydown="if(event.key===\'Enter\') pendGuardar(\'' + p.id + '\'); if(event.key===\'Escape\') pendCancelar();">' +
+        '</div>' +
+        '<div>' +
+          '<label style="display:block; font-size:10.5px; font-weight:800; color:#7b7468;' +
+            ' text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Qué día</label>' +
+          '<input type="date" id="pe-dia" value="' + pt.dia + '"' +
+            ' style="padding:9px 10px; font-size:15px; border:1px solid #c9b6e8; border-radius:6px;">' +
+        '</div>' +
+        '<div>' +
+          '<label style="display:block; font-size:10.5px; font-weight:800; color:#7b7468;' +
+            ' text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">A qué hora</label>' +
+          '<input type="time" id="pe-hora" value="' + pt.hora + '"' +
+            ' style="padding:9px 10px; font-size:15px; border:1px solid #c9b6e8; border-radius:6px;">' +
+        '</div>' +
+        '<div style="display:flex; gap:6px;">' +
+          '<button class="btn btn-small" onclick="pendGuardar(\'' + p.id + '\')"' +
+            ' style="background:#6b3fa0; color:#fff; border-color:#6b3fa0; font-weight:800;">Guardar</button>' +
+          '<button class="btn btn-small" onclick="pendCancelar()">Cancelar</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
   window.pendHecho = function(id, valor){
     var quien = '';
     try { quien = (firebase.auth().currentUser || {}).email || ''; } catch(e){}
@@ -11415,6 +11512,7 @@ function _burroPicado(d, ev){
       html += '<div style="padding:22px; text-align:center; color:#9a9384;">Nada pendiente. 👌</div>';
     } else {
       html += '<div style="padding:12px 14px;">' + faltan.map(function(p){
+        if(PEND_EDIT === p.id) return _pendFormulario(p);
         var c = _pendCuando(p.iso);
         return '<div class="pieza-item" style="display:flex; justify-content:space-between;' +
           ' align-items:center; gap:10px;' +
@@ -11429,6 +11527,8 @@ function _burroPicado(d, ev){
           '</div>' +
           '<div style="display:flex; gap:6px; flex:none;">' +
             '<button class="btn btn-small btn-mini btn-success" onclick="pendHecho(\'' + p.id + '\', true)">✓ Hecho</button>' +
+            '<button class="btn btn-small btn-mini" title="Cambiar el texto, el día o la hora" ' +
+              'onclick="pendEditar(\'' + p.id + '\')">✏️</button>' +
             '<button class="btn btn-small btn-mini btn-danger" title="Borrar (no deja rastro)" ' +
               'onclick="pendBorrar(\'' + p.id + '\', ' + JSON.stringify(p.texto).replace(/"/g, '&quot;') + ')">🗑</button>' +
           '</div>' +
@@ -11443,6 +11543,7 @@ function _burroPicado(d, ev){
           '<div><div class="card-title">Ya hechos</div>' +
           '<div class="card-meta">los últimos ' + hechos.length + '</div></div></div>' +
         '<div style="padding:12px 14px;">' + hechos.map(function(p){
+          if(PEND_EDIT === p.id) return _pendFormulario(p);
           var c = _pendCuando(p.iso);
           return '<div class="pieza-item" style="display:flex; justify-content:space-between;' +
             ' align-items:center; gap:10px; opacity:.62;">' +
@@ -11452,7 +11553,11 @@ function _burroPicado(d, ev){
               '<div style="font-size:12px; color:#7b7468; font-family:Arial,sans-serif;">' +
                 escapeHtml(c.txt) + '</div>' +
             '</div>' +
-            '<button class="btn btn-small btn-mini" onclick="pendHecho(\'' + p.id + '\', false)">↩ Deshacer</button>' +
+            '<div style="display:flex; gap:6px; flex:none;">' +
+              '<button class="btn btn-small btn-mini" onclick="pendHecho(\'' + p.id + '\', false)">↩ Deshacer</button>' +
+              '<button class="btn btn-small btn-mini" title="Corregirlo" ' +
+                'onclick="pendEditar(\'' + p.id + '\')">✏️</button>' +
+            '</div>' +
           '</div>';
         }).join('') + '</div></div>';
     }
