@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pizarrón del mostrador · Tracto Partes Magaña</title>
+<!--
+  ══════════════════════════════════════════════════════════════════════════
+  PIZARRÓN DEL MOSTRADOR — la pantalla de la pared
+  Planeado en PIZARRON-MOSTRADOR.md · construido el 27 de agosto de 2026
+  ──────────────────────────────────────────────────────────────────────────
+  ESTA PANTALLA SOLO MUESTRA. No se puede marcar nada desde aquí, y es a
+  propósito: así nadie apaga la alarma sin haber hecho la chamba. Lo de
+  "hecho" se marca ÚNICAMENTE desde el inventario.
+
+  ⚠️ TRES COSAS QUE MANDAN EL DISEÑO:
+
+  1. OCHO METROS. Hay gente que la ve desde 8 m. La regla es ~1 cm de letra
+     por metro, o sea letras de ~6 cm. En una tele de 16:9 eso es el 8.7% del
+     alto, por eso TODO se mide en `vh` y no en píxeles: así se ve igual de
+     grande en una tele de 40" que en una de 55", sin tocar el código.
+     Consecuencia: caben ~7 renglones. No es una limitación, es el diseño.
+
+  2. LA CUOTA. El plan de Firebase da 50,000 lecturas al día y ya se agotó
+     una vez (el corte del 12 de agosto reportó $0 en un día de $24,500).
+     Esta pantalla está PRENDIDA TODO EL DÍA, así que usa `onValue`, que
+     abre UNA conexión y solo recibe cuando algo cambia. NUNCA un
+     setInterval que relea: eso sería una lectura cada tantos segundos por
+     todo el día.
+
+  3. EL SONIDO. Los navegadores NO dejan sonar nada hasta que alguien haya
+     tocado la página, y esta arranca sola en modo kiosco y nadie la toca.
+     Por eso: se intenta desbloquear al cargar, y si no se puede se enseña
+     un aviso GRANDE pidiendo un toque. Sin ese aviso, el sonido callaría
+     para siempre y nadie sabría por qué.
+  ══════════════════════════════════════════════════════════════════════════
+-->
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden;background:#17140f}
+  body{
+    font-family:Arial,Helvetica,sans-serif;
+    color:#17140f;
+    display:flex;flex-direction:column;
+    /* Fondo claro: a 8 metros el contraste fuerte es lo único que se lee. */
+    background:#faf8f3;
+  }
+
+  /* ── La barra de arriba: chica a propósito, no se lee de lejos ni falta ── */
+  header{
+    flex:none;display:flex;align-items:center;justify-content:space-between;
+    gap:2vh;padding:1.4vh 2.2vh;background:#17140f;color:#f4e7cd;
+  }
+  header .tit{font-size:2.6vh;font-weight:800;letter-spacing:.25vh}
+  header .der{display:flex;align-items:center;gap:2vh}
+  header .reloj{font-size:3.4vh;font-weight:900;font-variant-numeric:tabular-nums;
+    letter-spacing:-.1vh}
+  /* `capitalize` ponia mayuscula en CADA palabra: "Jueves 27 De Agosto".
+     Solo la primera letra. */
+  header .fecha{font-size:2.1vh;opacity:.75}
+  header .fecha::first-letter{text-transform:uppercase}
+  /* El foquito de la conexión: verde = está oyendo, rojo = se cayó. */
+  header .luz{width:1.6vh;height:1.6vh;border-radius:50%;background:#c9a24b;flex:none}
+  header .luz.ok{background:#39b866}
+  header .luz.mal{background:#e8503a}
+
+  /* ── La lista ── */
+  main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+  .fila{
+    flex:1;display:flex;align-items:center;gap:2.4vh;
+    padding:0 2.6vh;border-bottom:.35vh solid #e6e0d2;min-height:0;
+  }
+  .fila:last-child{border-bottom:0}
+  /* LA HORA. Ancho fijo para que los textos arranquen todos parejos. */
+  .fila .hora{
+    flex:none;width:19vh;text-align:center;
+    font-size:5.2vh;font-weight:900;font-variant-numeric:tabular-nums;
+    letter-spacing:-.2vh;line-height:1;
+  }
+  .fila .hora small{display:block;font-size:2.2vh;font-weight:700;opacity:.6;
+    letter-spacing:.1vh;margin-top:.5vh}
+  /* EL TEXTO. 8.7vh ≈ 6 cm en cualquier tele de 16:9. */
+  .fila .txt{
+    flex:1;min-width:0;font-size:8.7vh;font-weight:900;line-height:1.05;
+    letter-spacing:-.25vh;
+    /* Si no cabe, se corta con puntos suspensivos: más vale un renglón
+       legible de lejos que dos apretados que no se leen desde ninguno. */
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  /* VENCIDO: rojo sólido. Es lo que se ve desde el otro lado del mostrador. */
+  .fila.vencido{background:#c0392b;color:#fff;border-bottom-color:#a5301f}
+  .fila.vencido .hora small{opacity:.85}
+  /* PRÓXIMO (dentro de la hora): amarillo, para que no agarre a nadie de sorpresa */
+  .fila.pronto{background:#fdf3d8}
+
+  /* ── Cuando no hay nada ── */
+  .vacio{flex:1;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:2vh;color:#a89f8c}
+  .vacio .ic{font-size:14vh;line-height:1}
+  .vacio .t{font-size:5.5vh;font-weight:900;color:#8d8578}
+
+  /* ── El pie: cuántos faltan más abajo ── */
+  footer{flex:none;background:#efeadc;color:#5a5348;padding:1.2vh 2.6vh;
+    font-size:2.8vh;font-weight:800;text-align:center;letter-spacing:.1vh}
+
+  /* ── Avisos que ocupan toda la pantalla (sin sesión / sin conexión) ── */
+  .aviso{position:fixed;inset:0;background:#17140f;color:#f4e7cd;z-index:50;
+    display:none;flex-direction:column;align-items:center;justify-content:center;
+    gap:2.5vh;padding:5vh;text-align:center}
+  .aviso.on{display:flex}
+  .aviso .ic{font-size:13vh;line-height:1}
+  .aviso .t{font-size:6vh;font-weight:900;line-height:1.1}
+  .aviso .s{font-size:3.2vh;font-weight:600;opacity:.85;line-height:1.4;max-width:80%}
+
+  /* ── El aviso del sonido: se quita solo al primer toque ── */
+  #toque{position:fixed;inset:0;background:rgba(23,20,15,.93);color:#f4e7cd;
+    z-index:60;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:2.5vh;padding:5vh;text-align:center;cursor:pointer}
+  #toque.on{display:flex}
+  #toque .ic{font-size:13vh;line-height:1}
+  #toque .t{font-size:5.5vh;font-weight:900}
+  #toque .s{font-size:3vh;font-weight:600;opacity:.85;max-width:80%;line-height:1.4}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="tit">📋 PENDIENTES DEL MOSTRADOR</span>
+  <span class="der">
+    <span class="fecha" id="pz-fecha">—</span>
+    <span class="reloj" id="pz-reloj">--:--</span>
+    <span class="luz" id="pz-luz" title="Conexión"></span>
+  </span>
+</header>
+
+<main id="pz-lista"></main>
+<footer id="pz-pie" style="display:none"></footer>
+
+<!-- Sin sesión de Firebase esta pantalla no puede leer nada. Se dice con
+     letras grandes y con el paso exacto, no con un error técnico. -->
+<div class="aviso" id="pz-sin-sesion">
+  <div class="ic">🔑</div>
+  <div class="t">Falta entrar una vez</div>
+  <div class="s">En esta misma computadora, abre el inventario
+    (fotonas.tractopartes.com), entra con el correo y la contraseña de siempre,
+    y vuelve a abrir esta pantalla. Solo se hace una vez.</div>
+</div>
+
+<div class="aviso" id="pz-sin-red">
+  <div class="ic">📡</div>
+  <div class="t">Se cayó la conexión</div>
+  <div class="s">La pantalla no está recibiendo cambios. Revisa el internet de
+    la computadora. En cuanto vuelva, se actualiza sola.</div>
+</div>
+
+<div id="toque" onclick="pzDesbloquear(true)">
+  <div class="ic">🔔</div>
+  <div class="t">Toca la pantalla una vez</div>
+  <div class="s">Es para que el navegador deje sonar la alarma. Solo hace falta
+    una vez, cuando se prende la computadora.</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" crossorigin="anonymous"></script>
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// CUÁNTOS RENGLONES CABEN
+// A 8 metros la letra tiene que medir ~6 cm, o sea 8.7vh. Con eso y el
+// espacio de cada renglón, caben 7. Si se sube este número la letra tendría
+// que achicarse y ya no se leería desde el fondo — que es todo el punto.
+// ══════════════════════════════════════════════════════════════════════════
+var MAX_FILAS = 7;
+
+var firebaseConfig = {
+  apiKey: "AIzaSyB8MRNvbAhk7tJa731DolvnnFr_1S9imLk",
+  authDomain: "inventario-julio-26.firebaseapp.com",
+  databaseURL: "https://inventario-julio-26-default-rtdb.firebaseio.com",
+  projectId: "inventario-julio-26",
+  storageBucket: "inventario-julio-26.firebasestorage.app",
+  messagingSenderId: "237695179240",
+  appId: "1:237695179240:web:57f16b77af33aa00cdec5d"
+};
+
+var PEND = {};          // lo que hay en la nube ahora mismo
+var YA_SONO = {};       // ids que ya sonaron (sobrevive al recargar)
+var audioCtx = null, sonidoListo = false;
+
+try { YA_SONO = JSON.parse(localStorage.getItem('pizarron_sono') || '{}') || {}; } catch(e){ YA_SONO = {}; }
+function _guardaSono(){ try { localStorage.setItem('pizarron_sono', JSON.stringify(YA_SONO)); } catch(e){} }
+
+// ── EL RELOJ ────────────────────────────────────────────────────────────
+var MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto',
+             'septiembre','octubre','noviembre','diciembre'];
+var SEM = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+function pzReloj(){
+  var d = new Date();
+  document.getElementById('pz-reloj').textContent =
+    String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  document.getElementById('pz-fecha').textContent =
+    SEM[d.getDay()] + ' ' + d.getDate() + ' de ' + MESES[d.getMonth()];
+}
+// ⚠️ Este reloj NO lee de Firebase: solo repinta la hora local y vuelve a
+//    revisar si algo se venció. No gasta ni una lectura de la cuota.
+setInterval(function(){
+  pzReloj();
+  pzPintar();
+  // ⚠️ Chrome SUSPENDE el audio solo despues de un rato sin usarlo. Si eso
+  //    pasa, se intenta revivir en silencio; si no se deja, el aviso del
+  //    toque aparecera cuando toque sonar.
+  if(audioCtx && audioCtx.state === 'suspended'){
+    try { audioCtx.resume(); } catch(e){}
+  }
+}, 20000);
+pzReloj();
+
+// ── EL SONIDO ───────────────────────────────────────────────────────────
+// Se genera con el navegador (no hay archivo que hospedar ni que cargue
+// lento). Un tono corto, dos veces, que se oiga en un mostrador con ruido.
+function pzDesbloquear(porToque){
+  try {
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx.resume().then(function(){
+      if(audioCtx.state === 'running'){
+        sonidoListo = true;
+        document.getElementById('toque').classList.remove('on');
+      }
+    }).catch(function(){});
+    if(audioCtx.state === 'running'){
+      sonidoListo = true;
+      document.getElementById('toque').classList.remove('on');
+    } else if(!porToque){
+      document.getElementById('toque').classList.add('on');
+    }
+  } catch(e){
+    if(!porToque) document.getElementById('toque').classList.add('on');
+  }
+}
+function pzSonar(){
+  // ⚠️ SI NO PUEDE SONAR, LO DICE. Antes hacía `return` callado: si el
+  //    navegador nunca dejó desbloquear el audio, la alarma no sonaría NUNCA
+  //    y nadie sabría por qué — el pizarrón se vería trabajando y estaría
+  //    mudo. Ahora saca el aviso del toque en el momento en que hacía falta.
+  if(!sonidoListo || !audioCtx || audioCtx.state !== 'running'){
+    document.getElementById('toque').classList.add('on');
+    pzDesbloquear(false);
+    return;
+  }
+  try {
+    [0, 0.42].forEach(function(retraso){
+      var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'square'; o.frequency.value = 880;
+      var t = audioCtx.currentTime + retraso;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t + 0.36);
+    });
+  } catch(e){}
+}
+// Se intenta al cargar; si el navegador no deja, sale el aviso del toque.
+setTimeout(function(){ pzDesbloquear(false); }, 400);
+['click','keydown','touchstart'].forEach(function(ev){
+  window.addEventListener(ev, function(){ pzDesbloquear(true); }, { once:false });
+});
+
+// ── PINTAR ──────────────────────────────────────────────────────────────
+function _hhmm(iso){
+  var d = new Date(iso);
+  if(isNaN(d)) return '--:--';
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+function _diaCorto(iso){
+  var d = new Date(iso); if(isNaN(d)) return '';
+  var h = new Date(); h.setHours(0,0,0,0);
+  var x = new Date(d); x.setHours(0,0,0,0);
+  var dif = Math.round((x - h) / 86400000);
+  if(dif === 0) return 'HOY';
+  if(dif === 1) return 'MAÑANA';
+  if(dif === -1) return 'AYER';
+  if(dif < 0) return Math.abs(dif) + ' DÍAS TARDE';
+  return d.getDate() + ' ' + MESES[d.getMonth()].slice(0,3).toUpperCase();
+}
+
+function pzPintar(){
+  var ahora = Date.now();
+  // Solo lo que falta. Lo hecho desaparece: el pizarrón es de pendientes.
+  var lista = Object.keys(PEND).map(function(k){
+    var p = PEND[k] || {};
+    return { id:k, texto:String(p.texto||'').trim(),
+             cuando:p.fechaHora ? new Date(p.fechaHora).getTime() : 0,
+             iso:p.fechaHora || '', hecho:!!p.hecho };
+  }).filter(function(p){ return !p.hecho && p.texto; });
+
+  // Lo más urgente arriba. Los que no traen hora, hasta el final.
+  lista.sort(function(a,b){
+    if(!a.cuando && !b.cuando) return 0;
+    if(!a.cuando) return 1;
+    if(!b.cuando) return -1;
+    return a.cuando - b.cuando;
+  });
+
+  // ⚠️ EL SONIDO: solo cuando algo ACABA de vencerse. En la primera pintada
+  //    todo lo que ya estaba vencido se marca como "ya sonó" sin sonar — si
+  //    no, al prender la compu sonaría una ráfaga por cada pendiente viejo.
+  var primeraVez = !pzPintar._yaCorrio;
+  var suena = false;
+  lista.forEach(function(p){
+    if(!p.cuando || p.cuando > ahora) return;      // todavía no le toca
+    if(YA_SONO[p.id]) return;                      // ya sonó antes
+    YA_SONO[p.id] = 1;
+    if(!primeraVez) suena = true;
+  });
+  // Limpiar del recuerdo los que ya no existen, para que no crezca sin fin.
+  Object.keys(YA_SONO).forEach(function(k){ if(!PEND[k]) delete YA_SONO[k]; });
+  _guardaSono();
+  if(suena) pzSonar();
+  pzPintar._yaCorrio = true;
+
+  var cont = document.getElementById('pz-lista');
+  var pie = document.getElementById('pz-pie');
+  if(!lista.length){
+    cont.innerHTML = '<div class="vacio"><div class="ic">✅</div>' +
+      '<div class="t">Nada pendiente</div></div>';
+    pie.style.display = 'none';
+    return;
+  }
+  var ver = lista.slice(0, MAX_FILAS);
+  cont.innerHTML = ver.map(function(p){
+    var venc = p.cuando && p.cuando <= ahora;
+    var pronto = p.cuando && !venc && (p.cuando - ahora) < 3600000;
+    var cls = venc ? ' vencido' : (pronto ? ' pronto' : '');
+    return '<div class="fila' + cls + '">' +
+      '<span class="hora">' + (p.cuando ? _hhmm(p.iso) : '—') +
+        '<small>' + (p.cuando ? _esc(_diaCorto(p.iso)) : 'SIN HORA') + '</small></span>' +
+      '<span class="txt">' + _esc(p.texto) + '</span>' +
+    '</div>';
+  }).join('');
+  var faltan = lista.length - ver.length;
+  if(faltan > 0){
+    pie.style.display = '';
+    pie.textContent = '+ ' + faltan + (faltan === 1 ? ' pendiente más' : ' pendientes más') +
+      ' — míralos en el inventario';
+  } else {
+    pie.style.display = 'none';
+  }
+}
+function _esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+// ── LA CONEXIÓN ─────────────────────────────────────────────────────────
+function _luz(estado){
+  var l = document.getElementById('pz-luz');
+  l.className = 'luz' + (estado ? ' ' + estado : '');
+}
+function _aviso(id, on){
+  var e = document.getElementById(id);
+  if(e) e.classList.toggle('on', !!on);
+}
+
+(function arranca(){
+  try {
+    if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
+  } catch(e){}
+  var auth = firebase.auth();
+  // ⚠️ NO se pide correo ni contraseña aquí: esta pantalla arranca sola en la
+  //    pared y nadie le va a teclear nada. Usa la sesión que ya dejó el
+  //    inventario en ESTE navegador (Firebase la guarda y no caduca sola).
+  //    Si no hay, se avisa con el paso exacto en vez de quedarse en blanco.
+  auth.onAuthStateChanged(function(user){
+    if(!user){
+      _aviso('pz-sin-sesion', true);
+      _luz('mal');
+      return;
+    }
+    _aviso('pz-sin-sesion', false);
+    var db = firebase.database();
+    // El foquito de conexión de Firebase: dice si de verdad está oyendo.
+    db.ref('.info/connected').on('value', function(s){
+      var ok = s.val() === true;
+      _luz(ok ? 'ok' : 'mal');
+      _aviso('pz-sin-red', !ok);
+    });
+    // ⚠️ onValue: UNA conexión abierta que solo recibe cuando algo cambia.
+    //    Nada de setInterval releyendo — eso se comería la cuota del día.
+    db.ref('pendientes').on('value', function(snap){
+      PEND = snap.val() || {};
+      pzPintar();
+    }, function(err){
+      console.warn('pendientes:', err);
+      _luz('mal');
+      _aviso('pz-sin-red', true);
+    });
+  });
+})();
+</script>
+</body>
+</html>

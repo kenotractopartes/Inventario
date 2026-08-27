@@ -511,6 +511,7 @@
   <button data-view="ventas">💵 Ventas</button>
   <button data-view="web">🌐 Web</button>
   <button data-view="salidas">📤 Salidas</button>
+<button data-view="pendientes">📋 Pendientes</button>
   <button data-view="admin">📝 Administrar</button>
   <button data-view="exportar">⚙️ Exportar</button>
 </nav>
@@ -674,6 +675,52 @@
 </section>
 
 <!-- ADMINISTRAR -->
+<!-- ══════════════════════════════════════════════════════════════════════
+     PENDIENTES DEL MOSTRADOR (27 ago 2026)
+     De aqui salen los renglones de la pantalla de la pared (pizarron.html).
+     ⚠️ Marcar "hecho" SOLO se puede aqui, nunca desde la pantalla: asi nadie
+        apaga la alarma sin haber hecho la chamba. Es a proposito.
+     ══════════════════════════════════════════════════════════════════════ -->
+<section class="view" id="view-pendientes">
+  <div class="card" style="padding:16px; margin-bottom:14px;">
+    <div style="font-size:17px; font-weight:800; margin-bottom:4px;">📋 Pendientes del mostrador</div>
+    <div style="font-size:13px; color:#7b7468; margin-bottom:14px;">
+      Lo que se apunte aquí sale en la <b>pantalla de la pared</b>. Cuando llega
+      su hora, el renglón se pone rojo y suena una vez.
+      <a href="pizarron.html" target="_blank" style="color:#6b3fa0; font-weight:700;">Ver la pantalla ↗</a>
+    </div>
+    <div style="display:flex; gap:9px; flex-wrap:wrap; align-items:flex-end;">
+      <div style="flex:1 1 260px; min-width:200px;">
+        <label style="display:block; font-size:11px; font-weight:800; color:#7b7468;
+          text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px;">Qué hay que hacer</label>
+        <input type="text" id="pend-texto" maxlength="60" placeholder="Ej. Pagar el predial"
+          style="width:100%; padding:11px 12px; font-size:15px; border:1px solid #d8d2c4; border-radius:7px;"
+          onkeydown="if(event.key==='Enter') pendAgregar()">
+      </div>
+      <div>
+        <label style="display:block; font-size:11px; font-weight:800; color:#7b7468;
+          text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px;">Qué día</label>
+        <input type="date" id="pend-dia"
+          style="padding:11px 12px; font-size:15px; border:1px solid #d8d2c4; border-radius:7px;">
+      </div>
+      <div>
+        <label style="display:block; font-size:11px; font-weight:800; color:#7b7468;
+          text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px;">A qué hora</label>
+        <input type="time" id="pend-hora"
+          style="padding:11px 12px; font-size:15px; border:1px solid #d8d2c4; border-radius:7px;">
+      </div>
+      <button class="btn" onclick="pendAgregar()"
+        style="padding:12px 20px; background:#6b3fa0; color:#fff; border-color:#6b3fa0;
+        font-weight:800; font-size:15px;">➕ Agregar</button>
+    </div>
+    <div style="font-size:12px; color:#9a9384; margin-top:9px;">
+      ⚠️ En la pantalla caben <b>~27 letras</b> por renglón. Si el texto es más
+      largo se corta con puntos suspensivos — escríbelo corto.
+    </div>
+  </div>
+  <div id="pend-lista"></div>
+</section>
+
 <section class="view" id="view-admin">
   <h2>Administrar Catálogos</h2>
   <!-- Espacio usado por las fotos/videos en la nube -->
@@ -2682,6 +2729,7 @@ function showView(name) {
   if (name === 'ventas') renderVentas();
   if (name === 'exportar') poblarBotonesFamilia();
   if (name === 'salidas') renderSalidas();
+  if (name === 'pendientes') pendAbrir();
   if (name === 'web') renderWeb();
   if (name === 'estatus') { var _mv = document.querySelector('#view-estatus .mtab.active'); if (typeof showMauraTab === 'function') showMauraTab(_mv ? _mv.dataset.mtab : 'chasis'); else if (window.estatusRender) window.estatusRender(); }
   window.scrollTo(0,0);
@@ -11193,6 +11241,183 @@ function _burroPicado(d, ev){
       if(l) l.innerHTML = '<div class="env-vacio"><b>No se pudo cargar el mapa.</b><br>Revisa tu internet y vuelve a abrirlo.</div>';
     };
     document.head.appendChild(js);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // PENDIENTES DEL MOSTRADOR (27 ago 2026)
+  // Lo que se escribe aqui es lo que enseña pizarron.html en la pared.
+  // Nodo `pendientes` de Firebase RTDB (mismo proyecto inventario-julio-26).
+  // ══════════════════════════════════════════════════════════════════════
+  var PEND_DATOS = {}, _pendEscuchando = false;
+
+  window.pendAbrir = function(){
+    // Se pone la fecha de hoy por default: casi todo es para hoy.
+    var d = document.getElementById('pend-dia');
+    if(d && !d.value){
+      var n = new Date();
+      d.value = n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0') +
+                '-' + String(n.getDate()).padStart(2,'0');
+    }
+    if(!_pendEscuchando && window.firebase && firebase.database){
+      _pendEscuchando = true;
+      // ⚠️ `on('value')`: una conexion que solo recibe cuando algo cambia.
+      //    Nada de releer por reloj — la cuota de Firebase ya se agoto una vez.
+      firebase.database().ref('pendientes').on('value', function(s){
+        PEND_DATOS = s.val() || {};
+        pendPintar();
+      }, function(e){
+        console.warn('pendientes:', e);
+        var l = document.getElementById('pend-lista');
+        if(l) l.innerHTML = '<div class="info-bar" style="color:#b03a2e;">' +
+          '<b>No se pudieron leer los pendientes.</b> ' +
+          (e && e.code === 'PERMISSION_DENIED'
+            ? 'Falta el permiso en Firebase — avísale a Eugenio.'
+            : 'Revisa tu internet.') + '</div>';
+      });
+    }
+    pendPintar();
+  };
+
+  window.pendAgregar = function(){
+    var t = (document.getElementById('pend-texto').value || '').trim();
+    if(!t){ alert('¿Qué hay que hacer? Escríbelo primero.'); return; }
+    var dia = document.getElementById('pend-dia').value || '';
+    var hora = document.getElementById('pend-hora').value || '';
+    // Sin dia no hay alarma posible: se guarda igual pero se avisa, porque en
+    // la pantalla sale hasta abajo como "SIN HORA".
+    var iso = '';
+    if(dia){
+      var hh = hora || '09:00';
+      var p = dia.split('-'), q = hh.split(':');
+      var f = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]),
+                       Number(q[0]) || 0, Number(q[1]) || 0, 0);
+      iso = f.toISOString();
+    }
+    if(!window.firebase || !firebase.database){ alert('Sin conexión. Intenta en un momento.'); return; }
+    var quien = '';
+    try { quien = (firebase.auth().currentUser || {}).email || ''; } catch(e){}
+    firebase.database().ref('pendientes').push({
+      texto: t.slice(0, 60),
+      fechaHora: iso,
+      quienLoPuso: quien,
+      hecho: false,
+      creadoEn: new Date().toISOString()
+    }).then(function(){
+      document.getElementById('pend-texto').value = '';
+      document.getElementById('pend-hora').value = '';
+      try { playDing(); } catch(e){}
+      toast('✓ Apuntado — ya sale en la pantalla', 'success');
+    }).catch(function(e){
+      console.error('pendientes/agregar:', e);
+      alert('No se pudo guardar: ' + ((e && e.code) || 'error') +
+            (e && e.code === 'PERMISSION_DENIED' ? '\n\nFalta el permiso en Firebase — avísale a Eugenio.' : ''));
+    });
+  };
+
+  window.pendHecho = function(id, valor){
+    var quien = '';
+    try { quien = (firebase.auth().currentUser || {}).email || ''; } catch(e){}
+    firebase.database().ref('pendientes/' + id).update(valor
+      ? { hecho:true, quienLoMarco:quien, fechaHecho:new Date().toISOString() }
+      : { hecho:false, quienLoMarco:'', fechaHecho:'' }
+    ).catch(function(e){ alert('No se pudo: ' + ((e && e.code) || 'error')); });
+  };
+
+  // ⚠️ Borrar pide confirmacion: un pendiente borrado no deja rastro. Marcar
+  //    "hecho" es lo normal; borrar es para los que se apuntaron mal.
+  window.pendBorrar = function(id, texto){
+    if(!confirm('¿Borrar "' + texto + '"?\n\nEsto no se puede deshacer. Si ya se hizo,' +
+                ' mejor márcalo como hecho.')) return;
+    firebase.database().ref('pendientes/' + id).remove()
+      .catch(function(e){ alert('No se pudo borrar: ' + ((e && e.code) || 'error')); });
+  };
+
+  function _pendCuando(iso){
+    if(!iso) return { txt:'Sin hora', tarde:false };
+    var d = new Date(iso);
+    if(isNaN(d)) return { txt:'Sin hora', tarde:false };
+    var MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    var hoy = new Date(); hoy.setHours(0,0,0,0);
+    var x = new Date(d); x.setHours(0,0,0,0);
+    var dif = Math.round((x - hoy) / 86400000);
+    var dia = dif === 0 ? 'hoy' : (dif === 1 ? 'mañana' : (dif === -1 ? 'ayer'
+              : d.getDate() + ' ' + MES[d.getMonth()]));
+    var hh = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+    return { txt: dia + ' · ' + hh, tarde: d.getTime() <= Date.now() };
+  }
+
+  function pendPintar(){
+    var cont = document.getElementById('pend-lista');
+    if(!cont) return;
+    var todos = Object.keys(PEND_DATOS).map(function(k){
+      var p = PEND_DATOS[k] || {};
+      return { id:k, texto:String(p.texto || ''), iso:p.fechaHora || '',
+               hecho:!!p.hecho, quien:p.quienLoPuso || '',
+               ts:p.fechaHora ? new Date(p.fechaHora).getTime() : 0 };
+    });
+    var faltan = todos.filter(function(p){ return !p.hecho; })
+      .sort(function(a,b){
+        if(!a.ts && !b.ts) return 0;
+        if(!a.ts) return 1;
+        if(!b.ts) return -1;
+        return a.ts - b.ts;
+      });
+    var hechos = todos.filter(function(p){ return p.hecho; })
+      .sort(function(a,b){ return (b.ts||0) - (a.ts||0); }).slice(0, 12);
+
+    var html = '';
+    html += '<div class="card" style="padding:0; overflow:hidden; margin-bottom:14px;">' +
+      '<div class="card-header" style="background:#efe6fb; padding:13px 15px; margin:0;">' +
+        '<div><div class="card-title">Por hacer</div>' +
+        '<div class="card-meta">' + faltan.length + ' pendiente(s)</div></div>' +
+        '<span class="badge badge-count">' + faltan.length + '</span>' +
+      '</div>';
+    if(!faltan.length){
+      html += '<div style="padding:22px; text-align:center; color:#9a9384;">Nada pendiente. 👌</div>';
+    } else {
+      html += '<div style="padding:12px 14px;">' + faltan.map(function(p){
+        var c = _pendCuando(p.iso);
+        return '<div class="pieza-item" style="display:flex; justify-content:space-between;' +
+          ' align-items:center; gap:10px;' +
+          (c.tarde ? ' border-left:4px solid #c0392b; background:#fdf2f0;' : '') + '">' +
+          '<div style="flex:1; min-width:0;">' +
+            '<div style="font-size:16px; font-weight:800; color:#17140f;">' + escapeHtml(p.texto) + '</div>' +
+            '<div style="font-size:12.5px; margin-top:3px; font-family:Arial,sans-serif;' +
+              (c.tarde ? ' color:#c0392b; font-weight:800;' : ' color:#7b7468;') + '">' +
+              (c.tarde ? '🔴 ' : '🕒 ') + escapeHtml(c.txt) +
+              (p.quien ? ' · lo puso ' + escapeHtml(String(p.quien).split('@')[0]) : '') +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex; gap:6px; flex:none;">' +
+            '<button class="btn btn-small btn-mini btn-success" onclick="pendHecho(\'' + p.id + '\', true)">✓ Hecho</button>' +
+            '<button class="btn btn-small btn-mini btn-danger" title="Borrar (no deja rastro)" ' +
+              'onclick="pendBorrar(\'' + p.id + '\', ' + JSON.stringify(p.texto).replace(/"/g, '&quot;') + ')">🗑</button>' +
+          '</div>' +
+        '</div>';
+      }).join('') + '</div>';
+    }
+    html += '</div>';
+
+    if(hechos.length){
+      html += '<div class="card" style="padding:0; overflow:hidden;">' +
+        '<div class="card-header" style="background:#eef1ee; padding:13px 15px; margin:0;">' +
+          '<div><div class="card-title">Ya hechos</div>' +
+          '<div class="card-meta">los últimos ' + hechos.length + '</div></div></div>' +
+        '<div style="padding:12px 14px;">' + hechos.map(function(p){
+          var c = _pendCuando(p.iso);
+          return '<div class="pieza-item" style="display:flex; justify-content:space-between;' +
+            ' align-items:center; gap:10px; opacity:.62;">' +
+            '<div style="flex:1; min-width:0;">' +
+              '<div style="font-size:15px; font-weight:700; text-decoration:line-through;">' +
+                escapeHtml(p.texto) + '</div>' +
+              '<div style="font-size:12px; color:#7b7468; font-family:Arial,sans-serif;">' +
+                escapeHtml(c.txt) + '</div>' +
+            '</div>' +
+            '<button class="btn btn-small btn-mini" onclick="pendHecho(\'' + p.id + '\', false)">↩ Deshacer</button>' +
+          '</div>';
+        }).join('') + '</div></div>';
+    }
+    cont.innerHTML = html;
   }
 
   function iniciarMapa(){
