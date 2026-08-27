@@ -16,9 +16,30 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js" crossorigin="anonymous"></script>
 <!-- ═══════════════ 📦 ENVÍOS — estilos ═══════════════ -->
 <style>
+  /* El mismo rojo que usa la pantalla de la pared para lo vencido: el botón
+     y el pizarrón hablan el mismo idioma. */
+  .pend-btn { background:#c0392b !important; color:#fff !important; border-color:#c0392b !important; font-weight:800 !important; }
+  .pend-btn:hover { background:#a5301f !important; color:#fff !important; }
   .envios-btn { background:#1e6f5c !important; color:#fff !important; border-color:#1e6f5c !important; font-weight:800 !important; }
   .envios-btn:hover { background:#17594a !important; color:#fff !important; }
 
+  /* ── Panel flotante de PENDIENTES (27 ago 2026) ──
+     Mismo comportamiento que el de Envíos: tapa la pantalla, se cierra con la
+     ✕ o con Esc. Fondo claro porque adentro van tarjetas, no un mapa. */
+  #pend-tel { position:fixed; inset:0; z-index:100001; background:#f4f1ea; display:none; }
+  #pend-tel.abierto { display:flex; flex-direction:column; }
+  .pend-cab { flex:none; display:flex; align-items:center; justify-content:space-between;
+    gap:12px; padding:14px 18px; background:#c0392b; color:#fff; }
+  .pend-cab h2 { margin:0; font-size:19px; font-weight:800; }
+  .pend-cab .sub { font-size:12.5px; opacity:.88; margin-top:2px; font-family:Arial,sans-serif; }
+  .pend-x { flex:none; background:rgba(255,255,255,.18); border:0; color:#fff; cursor:pointer;
+    font-size:19px; line-height:1; padding:8px 13px; border-radius:8px; font-weight:800; }
+  .pend-x:hover { background:rgba(255,255,255,.32); }
+  .pend-cuerpo { flex:1; overflow-y:auto; padding:16px; }
+  @media (max-width: 760px){
+    .pend-cab h2 { font-size:17px; }
+    .pend-cuerpo { padding:11px; }
+  }
   #env-tel { position:fixed; inset:0; z-index:100001; background:#0f1417; display:none; }
   #env-tel.abierto { display:flex; flex-direction:column; }
 
@@ -467,6 +488,10 @@
          inventario. Es SOLO LECTURA: aquí se busca, se edita en el HTML de SAT. -->
     <!-- 📦 ENVÍOS — cuánto nos ha costado mandar una pieza y a dónde, en un mapa.
          Ver lo puede cualquiera; capturar, solo Raúl (el botón lleva solo-editor). -->
+    <!-- 📋 PENDIENTES — lo que hay que hacer hoy, y lo que sale en la pantalla
+         de la pared. Va en ROJO y pegado a Envíos porque es lo que se mira de
+         reojo mil veces al día, no algo que se busca en un menú. -->
+    <button class="btn-hdr pend-btn" onclick="pendAbrir()" title="Pendientes del mostrador — lo que sale en la pantalla de la pared">📋 Pendientes</button>
     <button class="btn-hdr envios-btn" onclick="abrirEnvios()" title="Cuánto ha costado enviar a cada ciudad">📦 Envíos</button>
     <button class="btn-hdr sat-btn" onclick="abrirSat()" title="Buscar la clave del SAT de una pieza">🔎 Buscador SAT</button>
     <button class="btn-hdr burro-btn" onclick="abrirBurrito()" title="El menú de los mariscos… y algo más">🫏 El Burrito Feliz</button>
@@ -479,7 +504,8 @@
   <!-- Las dos cajitas que se abren. Viven aquí adentro para poder colgarse
        del encabezado; en pantalla grande nunca se muestran. -->
   <div class="eng-panel izq" id="eng-panel-izq">
-    <button id="eng-dormidas" onclick="engCerrar(); verDormidas()">🐌 Dormidas</button>
+    <button onclick="engCerrar(); pendAbrir()">📋 Pendientes</button>
+<button id="eng-dormidas" onclick="engCerrar(); verDormidas()">🐌 Dormidas</button>
     <button onclick="engCerrar(); renderCamiones(); openModal('modal-ultimos')">📋 Últimos registros</button>
     <button class="solo-editor" onclick="engCerrar(); renderHistorialAcciones(); openModal('modal-historial')">🕐 Historial de acciones</button>
     <button class="solo-editor" onclick="engCerrar(); deshacerUltima()">↩︎ Deshacer lo último</button>
@@ -511,7 +537,6 @@
   <button data-view="ventas">💵 Ventas</button>
   <button data-view="web">🌐 Web</button>
   <button data-view="salidas">📤 Salidas</button>
-<button data-view="pendientes">📋 Pendientes</button>
   <button data-view="admin">📝 Administrar</button>
   <button data-view="exportar">⚙️ Exportar</button>
 </nav>
@@ -681,9 +706,16 @@
      ⚠️ Marcar "hecho" SOLO se puede aqui, nunca desde la pantalla: asi nadie
         apaga la alarma sin haber hecho la chamba. Es a proposito.
      ══════════════════════════════════════════════════════════════════════ -->
-<section class="view" id="view-pendientes">
+<div id="pend-tel" role="dialog" aria-label="Pendientes del mostrador">
+  <div class="pend-cab">
+    <div>
+      <h2>📋 Pendientes del mostrador</h2>
+      <div class="sub">Esto es lo que sale en la pantalla de la pared</div>
+    </div>
+    <button class="pend-x" onclick="pendCerrar()" title="Cerrar (Esc)">✕</button>
+  </div>
+  <div class="pend-cuerpo">
   <div class="card" style="padding:16px; margin-bottom:14px;">
-    <div style="font-size:17px; font-weight:800; margin-bottom:4px;">📋 Pendientes del mostrador</div>
     <div style="font-size:13px; color:#7b7468; margin-bottom:14px;">
       Lo que se apunte aquí sale en la <b>pantalla de la pared</b>. Cuando llega
       su hora, el renglón se pone rojo y suena una vez.
@@ -719,7 +751,8 @@
     </div>
   </div>
   <div id="pend-lista"></div>
-</section>
+  </div>
+</div>
 
 <section class="view" id="view-admin">
   <h2>Administrar Catálogos</h2>
@@ -2729,7 +2762,6 @@ function showView(name) {
   if (name === 'ventas') renderVentas();
   if (name === 'exportar') poblarBotonesFamilia();
   if (name === 'salidas') renderSalidas();
-  if (name === 'pendientes') pendAbrir();
   if (name === 'web') renderWeb();
   if (name === 'estatus') { var _mv = document.querySelector('#view-estatus .mtab.active'); if (typeof showMauraTab === 'function') showMauraTab(_mv ? _mv.dataset.mtab : 'chasis'); else if (window.estatusRender) window.estatusRender(); }
   window.scrollTo(0,0);
@@ -11250,7 +11282,14 @@ function _burroPicado(d, ev){
   // ══════════════════════════════════════════════════════════════════════
   var PEND_DATOS = {}, _pendEscuchando = false;
 
+  window.pendCerrar = function(){
+    var t = document.getElementById('pend-tel');
+    if(t) t.classList.remove('abierto');
+  };
+
   window.pendAbrir = function(){
+    var t = document.getElementById('pend-tel');
+    if(t) t.classList.add('abierto');
     // Se pone la fecha de hoy por default: casi todo es para hoy.
     var d = document.getElementById('pend-dia');
     if(d && !d.value){
@@ -11721,7 +11760,9 @@ function _burroPicado(d, ev){
     if(e.key !== 'Escape') return;
     var f = document.getElementById('env-form'), t = document.getElementById('env-tel');
     if(f && f.classList.contains('abierto')) return envCerrarForm();
-    if(t && t.classList.contains('abierto')) envCerrar();
+    if(t && t.classList.contains('abierto')) return envCerrar();
+    var p = document.getElementById('pend-tel');
+    if(p && p.classList.contains('abierto')) pendCerrar();
   });
 })();
 </script>
