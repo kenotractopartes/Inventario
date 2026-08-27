@@ -71,22 +71,53 @@
     padding:0 2.6vh;border-bottom:.35vh solid #e6e0d2;min-height:0;
   }
   .fila:last-child{border-bottom:0}
-  /* LA HORA. Ancho fijo para que los textos arranquen todos parejos. */
-  .fila .hora{
-    flex:none;width:19vh;text-align:center;
-    font-size:5.2vh;font-weight:900;font-variant-numeric:tabular-nums;
-    letter-spacing:-.2vh;line-height:1;
+  /* ⚠️ LA FECHA MANDA SOBRE LA HORA (27 ago 2026).
+     Keno: "es más importante la fecha que la hora". Antes era al revés — la
+     hora enorme y el día en chiquito y gris — y de lejos no se sabía si algo
+     era de hoy o de la semana pasada, que es LO PRIMERO que se necesita saber.
+     Ahora la fecha va grande y con su propia pastilla de color; la hora, abajo
+     y más chica. Ancho fijo para que todos los textos arranquen parejos. */
+  .fila .cuando{
+    flex:none;width:24vh;display:flex;flex-direction:column;align-items:center;
+    gap:.5vh;
   }
-  .fila .hora small{display:block;font-size:2.2vh;font-weight:700;opacity:.6;
-    letter-spacing:.1vh;margin-top:.5vh}
-  /* EL TEXTO. 8.7vh ≈ 6 cm en cualquier tele de 16:9. */
+  .fila .dia{
+    display:block;width:100%;text-align:center;
+    background:#17140f;color:#f4e7cd;
+    border-radius:1.1vh;padding:.7vh .6vh;
+    font-size:3.9vh;font-weight:900;letter-spacing:.05vh;line-height:1.05;
+    white-space:nowrap;
+  }
+  .fila .hh{
+    display:block;font-size:3vh;font-weight:800;color:#5a5348;
+    font-variant-numeric:tabular-nums;letter-spacing:-.1vh;line-height:1;
+  }
+  /* En rojo la pastilla se invierte: blanca con letra roja, para que salte. */
+  .fila.vencido .dia{background:#fff;color:#c0392b}
+  .fila.vencido .hh{color:#ffe3de}
+  /* En amarillo, una pastilla ámbar oscura. */
+  .fila.pronto .dia{background:#8a6a12;color:#fff6dd}
+  /* ⚠️ EL TEXTO SE REGRESA HACIA ABAJO (27 ago 2026).
+     Antes se cortaba con puntos suspensivos y Keno vio en la pantalla un
+     "Hacer Mantenimiento de Montacar…" que no decía nada. Ahora baja a un
+     segundo renglón.
+     El precio: dos renglones no caben con letra de 6 cm en el mismo alto, así
+     que los textos largos van más chicos. Se escoge el tamaño según lo que
+     mide la frase — corto = enorme, largo = mediano pero COMPLETO. Más vale
+     leerlo desde 5 metros entero que desde 8 a la mitad. */
   .fila .txt{
-    flex:1;min-width:0;font-size:8.7vh;font-weight:900;line-height:1.05;
-    letter-spacing:-.25vh;
-    /* Si no cabe, se corta con puntos suspensivos: más vale un renglón
-       legible de lejos que dos apretados que no se leen desde ninguno. */
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    flex:1;min-width:0;font-weight:900;letter-spacing:-.25vh;
+    overflow:hidden;
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
   }
+  /* Corto: un renglón con los 6 cm completos. */
+  .fila .txt.g1{font-size:9vh;line-height:1.05}
+  /* Mediano: se va a DOS renglones de ~4.5 cm. Antes encogía para caber en
+     uno solo y quedaba chiquito sin necesidad — es mejor bajar que achicar. */
+  .fila .txt.g2{font-size:6.6vh;line-height:1.08}
+  /* Largo de verdad: dos renglones de ~3.7 cm. Si ni así cabe, ahí sí se
+     corta — pero ya se leyó lo que importa. */
+  .fila .txt.g3{font-size:5.4vh;line-height:1.1}
   /* VENCIDO: rojo sólido. Es lo que se ve desde el otro lado del mostrador. */
   .fila.vencido{background:#c0392b;color:#fff;border-bottom-color:#a5301f}
   .fila.vencido .hora small{opacity:.85}
@@ -170,7 +201,13 @@
 // espacio de cada renglón, caben 7. Si se sube este número la letra tendría
 // que achicarse y ya no se leería desde el fondo — que es todo el punto.
 // ══════════════════════════════════════════════════════════════════════════
-var MAX_FILAS = 7;
+// ⚠️ SEIS, no siete (27 ago 2026). Keno pidió que las frases largas se
+//    regresen hacia abajo en vez de cortarse. Dos renglones de texto grande
+//    NO caben en el alto que dejaban 7 filas: la frase entraba pero con letra
+//    de 3 cm, que a 8 metros no se lee. Con 6 filas cada una tiene ~14.8vh y
+//    ahí sí caben dos líneas de ~4.5 cm. El plan ya decía "~6 renglones para
+//    una tele de 40 pulgadas", así que estamos dentro de lo previsto.
+var MAX_FILAS = 6;
 
 var firebaseConfig = {
   apiKey: "AIzaSyB8MRNvbAhk7tJa731DolvnnFr_1S9imLk",
@@ -276,10 +313,12 @@ function _diaCorto(iso){
   var h = new Date(); h.setHours(0,0,0,0);
   var x = new Date(d); x.setHours(0,0,0,0);
   var dif = Math.round((x - h) / 86400000);
+  // ⚠️ Corto de verdad: esto va en una pastilla y no puede irse de renglón.
+  //    "3 DÍAS TARDE" no cabía; "−3 DÍAS" dice lo mismo y entra.
   if(dif === 0) return 'HOY';
   if(dif === 1) return 'MAÑANA';
   if(dif === -1) return 'AYER';
-  if(dif < 0) return Math.abs(dif) + ' DÍAS TARDE';
+  if(dif < 0) return '−' + Math.abs(dif) + ' DÍAS';
   return d.getDate() + ' ' + MESES[d.getMonth()].slice(0,3).toUpperCase();
 }
 
@@ -331,10 +370,19 @@ function pzPintar(){
     var venc = p.cuando && p.cuando <= ahora;
     var pronto = p.cuando && !venc && (p.cuando - ahora) < 3600000;
     var cls = venc ? ' vencido' : (pronto ? ' pronto' : '');
+    // El tamaño del texto sale de lo que mide la frase: corto = enorme,
+    // largo = mediano pero completo. Los cortes son a ojo de lo que cabe en
+    // dos renglones a cada tamaño.
+    // Los cortes salen de cuántas letras caben por renglón a cada tamaño:
+    // a 9vh entran ~28, a 6.6vh ~40 (dos renglones = 80), a 5.4vh ~49.
+    var n = p.texto.length;
+    var g = n <= 26 ? 'g1' : (n <= 78 ? 'g2' : 'g3');
     return '<div class="fila' + cls + '">' +
-      '<span class="hora">' + (p.cuando ? _hhmm(p.iso) : '—') +
-        '<small>' + (p.cuando ? _esc(_diaCorto(p.iso)) : 'SIN HORA') + '</small></span>' +
-      '<span class="txt">' + _esc(p.texto) + '</span>' +
+      '<span class="cuando">' +
+        '<b class="dia">' + (p.cuando ? _esc(_diaCorto(p.iso)) : 'SIN FECHA') + '</b>' +
+        '<span class="hh">' + (p.cuando ? _hhmm(p.iso) : '—') + '</span>' +
+      '</span>' +
+      '<span class="txt ' + g + '">' + _esc(p.texto) + '</span>' +
     '</div>';
   }).join('');
   var faltan = lista.length - ver.length;
