@@ -11199,9 +11199,23 @@ function _burroPicado(d, ev){
     if(_map){ setTimeout(function(){ _map.invalidateSize(); }, 60); return; }
     _map = L.map('env-mapa', { zoomControl:true, scrollWheelZoom:true })
              .setView([ORIGEN.lat, ORIGEN.lon], 5);
-    var calle = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom:19, subdomains:'abcd',
-      attribution:'&copy; OpenStreetMap &copy; CARTO' }).addTo(_map);
+    // ⚠️ 27 ago 2026 — SE CAMBIO EL MAPA DE FONDO. CARTO empezo a exigir
+    //    llave y le pinta "API KEY REQUIRED" ENCIMA de cada tesela a quien no
+    //    la tiene. No truena, no avisa: simplemente el mapa sale rayado.
+    //    Keno lo vio en el mapa de envios.
+    //
+    //    Se probaron los reemplazos gratis antes de escoger:
+    //      · tile.openstreetmap.org  -> BLOQUEA. Contesta HTTP 200 con una
+    //        imagen que dice "Access blocked / no sigue la politica de uso".
+    //        Ojo: un 200 no significa que llego el mapa.
+    //      · Esri World_Street_Map   -> limpio, sin llave, sin marca de agua.
+    //
+    //    Se quedo el de Esri porque ademas es EL MISMO proveedor de la capa de
+    //    satelite de abajo, que lleva meses funcionando aqui. Un proveedor menos
+    //    del que depender.
+    var calle = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom:19,
+      attribution:'&copy; Esri' }).addTo(_map);
     var satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom:19, attribution:'Esri' });
     L.control.layers({ 'Mapa':calle, 'Satélite':satelite }, null, { position:'topright' }).addTo(_map);
