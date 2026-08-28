@@ -559,6 +559,63 @@
 <script>
 (function(){
   var esperando = null;
+  // ══════════════════════════════════════════════════════════════════════
+  // SE ENTERA SOLO CUANDO HAY VERSIÓN NUEVA (28 ago 2026)
+  // ──────────────────────────────────────────────────────────────────────
+  // Keno: "el sonido se escucha 3 veces en las demás compus, solo en la mía
+  // una vez... andamos todos asustados".
+  //
+  // NO ERA EL SONIDO. Las otras computadoras seguían corriendo el código de
+  // ANTES, con la alarma vieja de tres tandas. Sus pestañas llevaban horas
+  // abiertas y nadie les da Ctrl+Shift+R — el servidor manda `max-age=600`,
+  // pero una pestaña que no se recarga NUNCA vuelve a pedir el archivo.
+  //
+  // ⚠️ Esto iba a pasar con CADA cambio, no solo con el sonido: media tienda
+  //    con una versión y media con otra, sin que nadie se entere. Una app que
+  //    vive en pestañas que no se cierran en días tiene que enterarse sola.
+  //
+  // ⚠️ Y NO SE RECARGA A LO TONTO: si Raúl está capturando una pieza, perderle
+  //    lo escrito sería peor que la versión vieja. Se recarga sola solo cuando
+  //    lleva 2 minutos sin que nadie toque nada; si está trabajando, sale una
+  //    barra abajo y él decide cuándo.
+  // ══════════════════════════════════════════════════════════════════════
+  var _verMia = null, _ultimoToque = Date.now(), _verAvisada = false;
+  ['keydown','mousedown','touchstart'].forEach(function(ev){
+    window.addEventListener(ev, function(){ _ultimoToque = Date.now(); }, true);
+  });
+  function _verDelServidor(){
+    // El `?v=` con la hora es para que el navegador NO conteste con la copia
+    // que ya tenía guardada, que es justo el problema que esto viene a cazar.
+    return fetch(location.pathname + '?v=' + Date.now(), { method:'HEAD', cache:'no-store' })
+      .then(function(r){ return r.headers.get('last-modified') || r.headers.get('etag') || ''; })
+      .catch(function(){ return ''; });
+  }
+  function _verBarra(){
+    if(document.getElementById('ver-nueva')) return;
+    var d = document.createElement('div');
+    d.id = 'ver-nueva';
+    d.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;' +
+      'background:#2E7D46;color:#fff;font:800 15px/1.4 Arial;padding:13px 16px;' +
+      'display:flex;gap:14px;align-items:center;justify-content:center;' +
+      'box-shadow:0 -4px 18px rgba(0,0,0,.25)';
+    d.innerHTML = '<span>Hay una versión nueva del inventario.</span>' +
+      '<button style="border:0;border-radius:7px;background:#fff;color:#17140f;' +
+        'font:800 14px Arial;padding:8px 15px;cursor:pointer">Actualizar ahora</button>';
+    d.querySelector('button').onclick = function(){ location.reload(true); };
+    document.body.appendChild(d);
+  }
+  function _verRevisar(){
+    _verDelServidor().then(function(v){
+      if(!v) return;
+      if(_verMia === null){ _verMia = v; return; }
+      if(v === _verMia) return;
+      if(Date.now() - _ultimoToque > 120000){ location.reload(true); return; }
+      if(!_verAvisada){ _verAvisada = true; _verBarra(); }
+    });
+  }
+  setTimeout(_verRevisar, 4000);
+  setInterval(_verRevisar, 5 * 60 * 1000);
+
   window.alTeclear = function(nombre){
     var f = window[nombre];
     if (typeof f === 'function') { try { f(); } catch(e){ console.error(nombre, e); } return; }
@@ -11728,10 +11785,29 @@ function _burroPicado(d, ev){
       toca.push({ id:k, ts:ts, texto:p.texto || '' });
     });
     if(!toca.length) return;
+    // ⚠️ SI HAY DOS PESTAÑAS ABIERTAS, SOLO SUENA UNA (28 ago 2026).
+    //    `PIZ_SONO` se leía UNA sola vez al cargar, así que cada pestaña tenía
+    //    su propia copia: si en el mostrador tienen el inventario abierto dos
+    //    o tres veces, sonaban dos o tres beeps por el MISMO pendiente. Se
+    //    relee del localStorage —que sí es compartido entre pestañas— justo
+    //    antes de decidir.
+    try { var _c = JSON.parse(localStorage.getItem('piz_alarma_sono') || '{}') || {};
+          Object.keys(_c).forEach(function(k){ PIZ_SONO[k] = _c[k]; }); } catch(e){}
+    toca = toca.filter(function(x){ return PIZ_SONO[x.id] !== x.ts; });
+    if(!toca.length) return;
+    // ⚠️ Se APARTA antes de sonar, no después: las dos pestañas reciben el
+    //    aviso de Firebase en el mismo instante, así que si se marcara al
+    //    final las dos alcanzarían a sonar. Si no pudo sonar se suelta
+    //    enseguida para reintentar — esa ventana es de un parpadeo, y es
+    //    mejor que tres compas brincando al mismo tiempo.
+    toca.forEach(function(x){ PIZ_SONO[x.id] = x.ts; });
+    try { localStorage.setItem('piz_alarma_sono', JSON.stringify(PIZ_SONO)); } catch(e){}
     // En la primera vuelta se marca sin sonar: lo que ya estaba vencido al
     // abrir el inventario no tiene por qué sonar en ráfaga.
-    if(!primera && !_pizAlarma(toca.length)) return; // no pudo: se reintenta
-    toca.forEach(function(x){ PIZ_SONO[x.id] = x.ts; });
+    if(!primera && !_pizAlarma(toca.length)){
+      toca.forEach(function(x){ delete PIZ_SONO[x.id]; });
+      try { localStorage.setItem('piz_alarma_sono', JSON.stringify(PIZ_SONO)); } catch(e){}
+      return; }
     Object.keys(PIZ_SONO).forEach(function(k){ if(!PIZ_DATOS[k]) delete PIZ_SONO[k]; });
     try { localStorage.setItem('piz_alarma_sono', JSON.stringify(PIZ_SONO)); } catch(e){}
     if(!primera){

@@ -313,6 +313,35 @@ setInterval(function(){
 }, 4000);
 pzReloj();
 
+// ══════════════════════════════════════════════════════════════════════════
+// LA PANTALLA SE ACTUALIZA SOLA (28 ago 2026)
+// ──────────────────────────────────────────────────────────────────────────
+// Aquí importa MÁS que en el inventario: esta pantalla vive en la pared, en
+// modo kiosco, prendida días enteros. Nadie le va a dar Ctrl+Shift+R nunca.
+// Sin esto se quedaría con el código del día que se prendió, para siempre.
+//
+// ⚠️ Y aquí SÍ se recarga sola sin preguntar: no hay nada que perder — esta
+//    pantalla solo muestra, nadie captura nada en ella. Se espera a que la
+//    lista esté quieta (no a medio deslizarse) para que no se vea un brinco.
+// ══════════════════════════════════════════════════════════════════════════
+var _verMia = null;
+function _verRevisar(){
+  fetch(location.pathname + '?v=' + Date.now(), { method:'HEAD', cache:'no-store' })
+    .then(function(r){ return r.headers.get('last-modified') || r.headers.get('etag') || ''; })
+    .then(function(v){
+      if(!v) return;
+      if(_verMia === null){ _verMia = v; return; }
+      if(v === _verMia) return;
+      // Se espera a que el deslizado esté detenido en una pausa: recargar a
+      // medio movimiento se ve como un tirón.
+      if(_desl && _desl.quieto <= 0 && _desl.y > 4){ setTimeout(_verRevisar, 4000); return; }
+      location.reload(true);
+    })
+    .catch(function(){});
+}
+setTimeout(_verRevisar, 4000);
+setInterval(_verRevisar, 5 * 60 * 1000);
+
 // ── EL SONIDO ───────────────────────────────────────────────────────────
 // Se genera con el navegador (no hay archivo que hospedar ni que cargue
 // lento). Un tono corto, dos veces, que se oiga en un mostrador con ruido.
