@@ -130,8 +130,27 @@
   /* VENCIDO: rojo sólido. Es lo que se ve desde el otro lado del mostrador. */
   .fila.vencido{background:#c0392b;color:#fff;border-bottom-color:#a5301f}
   .fila.vencido .hora small{opacity:.85}
-  /* PRÓXIMO (dentro de la hora): amarillo, para que no agarre a nadie de sorpresa */
+  /* PRÓXIMO (dentro de la hora): crema, para que no agarre a nadie de sorpresa */
   .fila.pronto{background:#fdf3d8}
+  /* ── AHORA: LLEGÓ SU MOMENTO (27 ago 2026) ──────────────────────────────
+     Keno: "que se ponga en amarillo el registro que llegó a la hora o al día,
+     que se vea llamativo, que ya llegó su momento".
+     Antes, a las 9:15 en punto un pendiente de las 9:15 se ponía ROJO — y
+     rojo aquí significa "se te pasó". A las 9:15:00 no se le ha pasado a
+     nadie: es justo su momento. Son dos cosas distintas y ahora se ven
+     distintas.
+     Es el estado MÁS llamativo de los tres, a propósito: "hazlo ahorita" es
+     más accionable que "ya se te pasó". */
+  .fila.ahora{background:#ffd400;color:#1a1400;border-bottom-color:#d4ae00;
+    animation:pzRespira 2s ease-in-out infinite}
+  @keyframes pzRespira{0%,100%{background:#ffd400}50%{background:#fff384}}
+  .fila.ahora .dia{background:#1a1400;color:#ffd400}
+  .fila.ahora .hh{color:#5c4d00}
+  .fila.ahora .fijo{color:#5c4d00}
+  /* ⚠️ Si el navegador decidiera frenar la animación, la fila se queda en
+     amarillo sólido y se sigue viendo igual de bien. A diferencia del
+     deslizado —donde congelarse sí lo mataba— aquí el respiro es el adorno,
+     no el mensaje. */
 
   /* ── Cuando no hay nada ── */
   .vacio{flex:1;display:flex;flex-direction:column;align-items:center;
@@ -327,16 +346,27 @@ function pzSonar(){
     return;
   }
   try {
-    [0, 0.42].forEach(function(retraso){
-      var o = audioCtx.createOscillator(), g = audioCtx.createGain();
-      o.type = 'square'; o.frequency.value = 880;
-      var t = audioCtx.currentTime + retraso;
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
-      o.connect(g); g.connect(audioCtx.destination);
-      o.start(t); o.stop(t + 0.36);
-    });
+    // ⚠️ TRES NOTAS QUE SUBEN, TRES VECES (27 ago 2026).
+    //    Antes eran dos pitidos de 880 Hz — el MISMO tono que el `playDing()`
+    //    de confirmación del inventario. Dos sonidos parecidos en un taller
+    //    con ruido acaban significando lo mismo: nada.
+    //    Una escala que SUBE se oye como "algo está empezando", y repetida
+    //    tres veces no se confunde con ninguna confirmación de un solo tono.
+    var NOTAS = [659, 880, 1175];          // mi · la · re
+    var t0 = audioCtx.currentTime + 0.02;
+    for(var v = 0; v < 3; v++){
+      for(var i = 0; i < NOTAS.length; i++){
+        var t = t0 + v * 0.66 + i * 0.15;
+        var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = 'square'; o.frequency.value = NOTAS[i];
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.34, t + 0.012);
+        g.gain.setValueAtTime(0.34, t + 0.10);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.145);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(t); o.stop(t + 0.15);
+      }
+    }
   } catch(e){}
 }
 // Se intenta al cargar; si el navegador no deja, sale el aviso del toque.
@@ -365,6 +395,47 @@ function _diaCorto(iso){
   return d.getDate() + ' ' + MESES[d.getMonth()].slice(0,3).toUpperCase();
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// EL ESTADO DE UN PENDIENTE — UNA SOLA FUNCIÓN (27 ago 2026)
+// ──────────────────────────────────────────────────────────────────────────
+// ⚠️ ESTO NACIÓ DE UN BUG. El color de la fila y la decisión de sonar se
+//    calculaban en DOS lugares distintos, y ya se habían separado: el color
+//    respetaba la regla de "sin hora" (rojo hasta que acaba el día) y el
+//    SONIDO no — usaba la hora cruda, o sea las 00:00. Resultado: un pendiente
+//    sin hora **sonaba a medianoche** y se ponía rojo a las 11:59 de la noche.
+//    Nadie lo habría notado: la pantalla se veía bien y la alarma sonaba con
+//    la tienda cerrada.
+//    Ahora hay UNA función y las dos preguntan aquí. Si mañana cambia la
+//    regla, cambia en un solo lugar.
+// ══════════════════════════════════════════════════════════════════════════
+// Cuánto aguanta en amarillo antes de darse por tarde.
+var MIN_DE_GRACIA = 30;
+function pzEstado(p, ahora){
+  var nada = { clase:'', paso:false, etiqueta:'' };
+  if(!p.cuando) return nada;
+  if(p.sinHora){
+    // Sin hora = su momento es TODO el día. Amarillo desde que amanece y
+    // rojo cuando el día se acaba.
+    var ini = new Date(p.cuando); ini.setHours(0,0,0,0);
+    var fin = new Date(p.cuando); fin.setHours(23,59,59,999);
+    if(ahora > fin.getTime()) return { clase:'vencido', paso:false, etiqueta:'' };
+    if(ahora >= ini.getTime()) return { clase:'ahora', paso:false, etiqueta:'HOY' };
+    return nada;
+    // ⚠️ `paso:false` siempre: NO suena. Sin hora no hay un instante que
+    //    anunciar, y la única opción sería sonar a las 00:00 con la tienda
+    //    vacía — que es justo el bug que esto vino a arreglar.
+  }
+  var falta = p.cuando - ahora;
+  if(falta > 3600000) return nada;
+  if(falta > 0) return { clase:'pronto', paso:false, etiqueta:'' };
+  // `paso:true` quiere decir "su momento ya llegó" — sirve para la alarma.
+  // Va también en vencido: si la pantalla estuvo apagada durante la media
+  // hora de gracia, al prenderla el pendiente igual queda marcado.
+  if(-falta <= MIN_DE_GRACIA * 60000)
+    return { clase:'ahora', paso:true, etiqueta:'AHORA' };
+  return { clase:'vencido', paso:true, etiqueta:'' };
+}
+
 function pzPintar(){
   var ahora = Date.now();
   // Solo lo que falta. Lo hecho desaparece: el pizarrón es de pendientes.
@@ -376,14 +447,26 @@ function pzPintar(){
              sinHora:!!p.sinHora };
   }).filter(function(p){ return !p.hecho && p.texto; });
 
-  // Lo más urgente arriba. Los que no traen hora, hasta el final.
+  // Lo más urgente arriba. Los que no traen hora, al final DE SU DÍA.
+  // ⚠️ Lo sin hora se guarda a las 00:00 de su día, así que ordenando por la
+  //    hora cruda se iba hasta ARRIBA — "sacar la basura" le ganaba a
+  //    "prender motor ISX a las 9:15". Para ordenar cuenta como el FINAL de su
+  //    día: queda dentro del día correcto pero después de todo lo que sí
+  //    tiene hora. (Para pintarlo sigue mandando `pzEstado`; esto es solo el
+  //    orden.)
+  lista.forEach(function(p){
+    p.orden = p.cuando;
+    if(p.cuando && p.sinHora){
+      var f = new Date(p.cuando); f.setHours(23,59,59,999); p.orden = f.getTime();
+    }
+  });
   lista.sort(function(a,b){
     // Fijados hasta arriba, siempre.
     if(a.fijado !== b.fijado) return a.fijado ? -1 : 1;
-    if(!a.cuando && !b.cuando) return 0;
-    if(!a.cuando) return 1;
-    if(!b.cuando) return -1;
-    return a.cuando - b.cuando;
+    if(!a.orden && !b.orden) return 0;
+    if(!a.orden) return 1;
+    if(!b.orden) return -1;
+    return a.orden - b.orden;
   });
 
   // ⚠️ EL SONIDO: solo cuando algo ACABA de vencerse. En la primera pintada
@@ -391,10 +474,17 @@ function pzPintar(){
   //    no, al prender la compu sonaría una ráfaga por cada pendiente viejo.
   var primeraVez = !pzPintar._yaCorrio;
   var suena = false;
+  // ⚠️ SE GUARDA LA HORA A LA QUE SONÓ, NO UN SIMPLE "YA SONÓ" (27 ago 2026).
+  //    Antes guardaba un 1. Si Raúl movía un pendiente de las 9:15 a las 4 de
+  //    la tarde —que es JUSTO lo que se hace cuando no alcanzaste— el 1 seguía
+  //    ahí y a las 4 la alarma **ya nunca sonaba**. Peor: la fila sí se ponía
+  //    amarilla, porque el color no consulta esto. La pantalla se veía
+  //    perfecta y el sonido estaba muerto para ese pendiente para siempre.
+  //    Guardando la hora, cambiarla lo vuelve a habilitar solo.
   lista.forEach(function(p){
-    if(!p.cuando || p.cuando > ahora) return;      // todavía no le toca
-    if(YA_SONO[p.id]) return;                      // ya sonó antes
-    YA_SONO[p.id] = 1;
+    if(!pzEstado(p, ahora).paso) return;            // todavía no le toca
+    if(YA_SONO[p.id] === p.cuando) return;          // ya sonó a ESA hora
+    YA_SONO[p.id] = p.cuando;
     if(!primeraVez) suena = true;
   });
   // Limpiar del recuerdo los que ya no existen, para que no crezca sin fin.
@@ -406,23 +496,19 @@ function pzPintar(){
   var cont = document.getElementById('pz-lista');
   var pie = document.getElementById('pz-pie');
   if(!lista.length){
-    cont.innerHTML = '<div class="vacio"><div class="ic">✅</div>' +
-      '<div class="t">Nada pendiente</div></div>';
+    if(pzPintar._ultimo !== 'VACIO'){
+      cont.innerHTML = '<div class="vacio"><div class="ic">✅</div>' +
+        '<div class="t">Nada pendiente</div></div>';
+      pzPintar._ultimo = 'VACIO';
+    }
     pie.style.display = 'none';
     return;
   }
   // Se dibujan TODOS. El deslizado se encarga de irlos enseñando.
   var ver = lista;
-  cont.innerHTML = '<div id="pz-rollo">' + ver.map(function(p){
-    // ⚠️ Lo SIN HORA no está vencido a las 00:01 de su día: lo está cuando
-    //    el día se acaba. Sin esto, todo lo sin hora nacería en rojo.
-    var limite = p.cuando;
-    if(p.cuando && p.sinHora){
-      var fd = new Date(p.cuando); fd.setHours(23,59,59,999); limite = fd.getTime();
-    }
-    var venc = limite && limite <= ahora;
-    var pronto = p.cuando && !venc && !p.sinHora && (p.cuando - ahora) < 3600000;
-    var cls = venc ? ' vencido' : (pronto ? ' pronto' : '');
+  var htmlNuevo = '<div id="pz-rollo">' + ver.map(function(p){
+    var est = pzEstado(p, ahora);
+    var cls = est.clase ? ' ' + est.clase : '';
     // El tamaño del texto sale de lo que mide la frase: corto = enorme,
     // largo = mediano pero completo. Los cortes son a ojo de lo que cabe en
     // dos renglones a cada tamaño.
@@ -432,19 +518,43 @@ function pzPintar(){
     var g = n <= 26 ? 'g1' : (n <= 78 ? 'g2' : 'g3');
     return '<div class="fila' + cls + '">' +
       '<span class="cuando">' +
-        '<b class="dia">' + (p.cuando ? _esc(_diaCorto(p.iso)) : 'SIN FECHA') + '</b>' +
+        '<b class="dia">' + (est.etiqueta ? est.etiqueta :
+            (p.cuando ? _esc(_diaCorto(p.iso)) : 'SIN FECHA')) + '</b>' +
         '<span class="hh">' + (p.cuando && !p.sinHora ? _hhmm(p.iso) : '—') + '</span>' +
         (p.fijado ? '<span class="fijo">📌 FIJO</span>' : '') +
       '</span>' +
       '<span class="txt ' + g + '">' + _esc(p.texto) + '</span>' +
     '</div>';
   }).join('') + '</div>';
+  // ⚠️ SOLO SE REDIBUJA SI DE VERDAD CAMBIÓ ALGO (27 ago 2026).
+  //    Esto repintaba cada 4 segundos pasara lo que pasara, y eso rompía dos
+  //    cosas calladas:
+  //    1) el `translateY` del deslizado se borraba con el HTML, así que la
+  //       lista brincaba un cuadro hasta arriba cada 4 s;
+  //    2) la animación del amarillo se reiniciaba desde cero cada 4 s, o sea
+  //       que el "respiro" nunca se habría visto completo.
+  //    Comparar el HTML es exacto: si cambió la hora, el estado o el texto,
+  //    la cadena cambia y se redibuja. Si no, no hay nada que redibujar.
+  if(htmlNuevo !== pzPintar._ultimo){
+    cont.innerHTML = htmlNuevo;
+    pzPintar._ultimo = htmlNuevo;
+  }
   // El pie solo aparece cuando de verdad hay más de lo que cabe.
   var rollo = document.getElementById('pz-rollo');
   var sobra = rollo ? (rollo.scrollHeight - cont.clientHeight) : 0;
   if(sobra > 4){
     pie.style.display = '';
     pie.innerHTML = '<span>' + lista.length + ' pendientes · la lista se mueve sola</span>';
+    // ⚠️ SE VUELVE A PONER LA POSICIÓN AQUÍ MISMO (27 ago 2026).
+    //    Cuando el HTML sí cambia (alguien marcó uno hecho), el #pz-rollo
+    //    nuevo nace sin `transform` y la lista brinca hasta arriba. El
+    //    deslizado la regresaba al siguiente tick... salvo si el cambio caía
+    //    durante una de las pausas, donde ese tick hace `return` antes de
+    //    tocar el transform: la pantalla se quedaba brincada hasta 3.5 s.
+    //    Y de paso se recorta la posición: si la lista se acortó, `y` podía
+    //    quedar más abajo del nuevo final.
+    if(_desl.y > sobra) _desl.y = sobra;
+    if(rollo) rollo.style.transform = 'translateY(' + (-_desl.y) + 'px)';
   } else {
     pie.style.display = 'none';
     _desl.y = 0;

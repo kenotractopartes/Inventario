@@ -11724,6 +11724,7 @@ function _burroPicado(d, ev){
       fijado: false,
       repite: rep,
       sinHora: sinHora,
+      anclaDia: dia ? Number(dia.split('-')[2]) : 0,
       creadoEn: new Date().toISOString()
     }).then(function(){
       document.getElementById('piz-texto').value = '';
@@ -11771,6 +11772,7 @@ function _burroPicado(d, ev){
       fechaHora: iso,
       repite: rep,
       sinHora: sinHora,
+      anclaDia: dia ? Number(dia.split('-')[2]) : 0,
       editadoPor: quien,
       editadoEn: new Date().toISOString()
     }).then(function(){
@@ -11784,10 +11786,22 @@ function _burroPicado(d, ev){
   };
 
   // De un ISO a los dos campos del formulario.
-  function _pizPartes(iso){
+  // ⚠️ `sinHora` NO ES OPCIONAL AQUÍ (27 ago 2026).
+  //    Un pendiente sin hora se guarda a las 00:00. Sin este parámetro esta
+  //    función devolvía "00:00" como si fuera una hora escogida, el botón del
+  //    formulario decía «00:00» en vez de «Sin hora», y al Guardar
+  //    `sinHora = !hora` daba FALSE. O sea: abrir el renglón para corregirle
+  //    una falta de ortografía lo convertía en un pendiente de medianoche —
+  //    y esa noche la alarma sonaba en el mostrador vacío.
+  function _pizPartes(iso, sinHora){
     if(!iso) return { dia:'', hora:'' };
     var d = new Date(iso);
     if(isNaN(d)) return { dia:'', hora:'' };
+    if(sinHora) return {
+      dia: d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') +
+           '-' + String(d.getDate()).padStart(2,'0'),
+      hora: ''
+    };
     return {
       dia: d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') +
            '-' + String(d.getDate()).padStart(2,'0'),
@@ -11798,7 +11812,7 @@ function _burroPicado(d, ev){
   // El renglón convertido en formulario. Se usa igual en la lista de por
   // hacer y en la de ya hechos.
   function _pizFormulario(p){
-    var pt = _pizPartes(p.iso);
+    var pt = _pizPartes(p.iso, p.sinHora);
     return '<div class="pieza-item" style="display:block; border-left:4px solid #6b3fa0; background:#f8f4fd;">' +
       '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">' +
         '<div style="flex:1 1 220px; min-width:170px;">' +
@@ -11854,8 +11868,26 @@ function _burroPicado(d, ev){
       //    nunca se juntan dos del mismo pendiente sin hacer, y si nadie lo
       //    marca es porque de verdad sigue pendiente.
       if(!valor || !p.repite || !p.fechaHora) return;
-      var sig = _pizSiguiente(p.fechaHora, p.repite);
+      // ⚠️ UNA SOLA VUELTA POR PENDIENTE (27 ago 2026).
+      //    En el mostrador la pantalla es táctil y un doble toque en ✓ Hecho
+      //    generaba DOS pendientes idénticos para la semana siguiente. Igual
+      //    con ✓ Hecho → ↩ Deshacer → ✓ Hecho, que es el camino normal de
+      //    corregir un clic equivocado. Y a partir de ahí la cadena iba doble
+      //    para siempre: la pared enseñando el mismo renglón dos veces.
+      //    Cada vuelta trae `vieneDe`, así que basta con preguntar si ya
+      //    existe una hija de este pendiente.
+      var yaLaHay = Object.keys(PIZ_DATOS).some(function(k){
+        return (PIZ_DATOS[k] || {}).vieneDe === id;
+      });
+      if(yaLaHay) return;
+      var sig = _pizSiguiente(p.fechaHora, p.repite, p.anclaDia);
       if(!sig) return;
+      // ⚠️ `sinHora` SE COPIA. Sin esta línea la siguiente vuelta nacía como
+      //    un pendiente de las 00:00 en vez de uno sin hora: se habría puesto
+      //    rojo a la medianoche y la alarma habría sonado con la tienda
+      //    cerrada. El pendiente se veía bien la primera vez y se descomponía
+      //    solo a la segunda vuelta — que es la clase de falla que aquí
+      //    nadie relaciona con nada.
       firebase.database().ref('pendientes').push({
         texto: p.texto || '',
         fechaHora: sig,
@@ -11863,10 +11895,12 @@ function _burroPicado(d, ev){
         hecho: false,
         fijado: !!p.fijado,
         repite: p.repite,
+        sinHora: !!p.sinHora,
+        anclaDia: p.anclaDia || new Date(p.fechaHora).getDate(),
         creadoEn: new Date().toISOString(),
         vieneDe: id
       }).then(function(){
-        toast('🔁 Se apuntó la siguiente: ' + _pizCuando(sig).txt, 'success');
+        toast('🔁 Se apuntó la siguiente: ' + _pizCuando(sig, !!p.sinHora).txt, 'success');
       }).catch(function(){});
     }).catch(function(e){ alert('No se pudo: ' + ((e && e.code) || 'error')); });
   };
@@ -11887,7 +11921,14 @@ function _burroPicado(d, ev){
   //    tiene 31, se va al ÚLTIMO día de ese mes. Sin esto, JavaScript lo
   //    empuja al 1 del mes siguiente y el pendiente se salta un mes entero
   //    sin que nadie se dé cuenta.
-  function _pizSiguiente(iso, repite){
+  // ⚠️ EL DÍA ANCLA NO SE PIERDE (27 ago 2026).
+  //    "Cerrar mes" el 31 de enero, cada mes. Febrero no tiene 31, así que se
+  //    recortaba al 28 — bien. Pero la vuelta SIGUIENTE se calculaba desde ese
+  //    28, no desde el 31 original: 28 mar, 28 abr, 28 may... El pendiente de
+  //    FIN DE MES se quedaba tres días antes para siempre, y nadie lo iba a
+  //    relacionar con nada, porque cada vuelta suelta se ve razonable.
+  //    Por eso el pendiente carga su `anclaDia` y se recorta desde ahí.
+  function _pizSiguiente(iso, repite, ancla){
     if(!iso || !repite) return '';
     var d = new Date(iso);
     if(isNaN(d)) return '';
@@ -11895,7 +11936,7 @@ function _burroPicado(d, ev){
       d.setDate(d.getDate() + 7);
       return d.toISOString();
     }
-    var dia = d.getDate();
+    var dia = Number(ancla) || d.getDate();
     var m = d.getMonth() + 1, a = d.getFullYear();
     if(m > 11){ m = 0; a++; }
     var ultimo = new Date(a, m + 1, 0).getDate();
@@ -11922,12 +11963,29 @@ function _burroPicado(d, ev){
     var dif = Math.round((x - hoy) / 86400000);
     var dia = dif === 0 ? 'hoy' : (dif === 1 ? 'mañana' : (dif === -1 ? 'ayer'
               : d.getDate() + ' ' + MES[d.getMonth()]));
+    // ⚠️ LAS MISMAS TRES ETAPAS QUE LA PANTALLA DE LA PARED (`pzEstado` en
+    //    pizarron.html): próximo → AHORA (media hora de gracia) → tarde.
+    //    Si el inventario dijera "tarde" mientras la pared dice "AHORA",
+    //    Keno estaría viendo dos verdades del mismo pendiente. Cuando se
+    //    cambie una regla, hay que cambiar las dos — están a propósito
+    //    escritas igual para que se note.
+    var GRACIA = 30 * 60000;
+    var n = Date.now();
     if(sinHora){
+      var iniDelDia = new Date(d); iniDelDia.setHours(0,0,0,0);
       var finDelDia = new Date(d); finDelDia.setHours(23,59,59,999);
-      return { txt: dia + ' · sin hora', tarde: finDelDia.getTime() < Date.now() };
+      return { txt: dia + ' · sin hora',
+               tarde: finDelDia.getTime() < n,
+               ahora: n >= iniDelDia.getTime() && n <= finDelDia.getTime(),
+               marca: (n >= iniDelDia.getTime() && n <= finDelDia.getTime()) ? 'ES HOY' : '' };
     }
     var hh = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-    return { txt: dia + ' · ' + hh, tarde: d.getTime() <= Date.now() };
+    var falta = d.getTime() - n;
+    var enSuMomento = falta <= 0 && falta > -GRACIA;
+    return { txt: dia + ' · ' + hh,
+             tarde: falta <= -GRACIA,
+             ahora: enSuMomento,
+             marca: enSuMomento ? 'ES AHORA' : '' };
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -12010,14 +12068,23 @@ function _burroPicado(d, ev){
                fijado:!!p.fijado, repite:p.repite || '', sinHora:!!p.sinHora,
                ts:p.fechaHora ? new Date(p.fechaHora).getTime() : 0 };
     });
+    // ⚠️ MISMO ORDEN QUE LA PANTALLA DE LA PARED. Lo sin hora se guarda a las
+    //    00:00, así que por la hora cruda se iría hasta arriba y le ganaría a
+    //    lo que sí tiene hora ese día. Cuenta como el FINAL de su día.
+    todos.forEach(function(p){
+      p.orden = p.ts;
+      if(p.ts && p.sinHora){
+        var f = new Date(p.ts); f.setHours(23,59,59,999); p.orden = f.getTime();
+      }
+    });
     var faltan = todos.filter(function(p){ return !p.hecho; })
       .sort(function(a,b){
         // Los fijados mandan: siempre hasta arriba, pase lo que pase.
         if(a.fijado !== b.fijado) return a.fijado ? -1 : 1;
-        if(!a.ts && !b.ts) return 0;
-        if(!a.ts) return 1;
-        if(!b.ts) return -1;
-        return a.ts - b.ts;
+        if(!a.orden && !b.orden) return 0;
+        if(!a.orden) return 1;
+        if(!b.orden) return -1;
+        return a.orden - b.orden;
       });
     var hechos = todos.filter(function(p){ return p.hecho; })
       .sort(function(a,b){ return (b.ts||0) - (a.ts||0); }).slice(0, 12);
@@ -12037,7 +12104,8 @@ function _burroPicado(d, ev){
         var c = _pizCuando(p.iso, p.sinHora);
         return '<div class="pieza-item" style="display:flex; justify-content:space-between;' +
           ' align-items:center; gap:10px;' +
-          (c.tarde ? ' border-left:4px solid #c0392b; background:#fdf2f0;' : '') + '">' +
+          (c.tarde ? ' border-left:4px solid #c0392b; background:#fdf2f0;'
+           : (c.ahora ? ' border-left:4px solid #d4a800; background:#fff7d9;' : '')) + '">' +
           '<div style="flex:1; min-width:0;">' +
             '<div style="font-size:16px; font-weight:800; color:#17140f;">' + escapeHtml(p.texto) +
               (p.fijado ? '<span class="piz-chip fijo">📌 FIJO</span>' : '') +
@@ -12045,8 +12113,10 @@ function _burroPicado(d, ev){
                 (p.repite === 'mes' ? 'MES' : 'SEMANA') + '</span>' : '') +
             '</div>' +
             '<div style="font-size:12.5px; margin-top:3px; font-family:Arial,sans-serif;' +
-              (c.tarde ? ' color:#c0392b; font-weight:800;' : ' color:#7b7468;') + '">' +
-              (c.tarde ? '🔴 ' : '🕒 ') + escapeHtml(c.txt) +
+              (c.tarde ? ' color:#c0392b; font-weight:800;'
+               : (c.ahora ? ' color:#8a6a12; font-weight:800;' : ' color:#7b7468;')) + '">' +
+              (c.tarde ? '🔴 ' : (c.ahora ? '🔔 ' : '🕒 ')) + escapeHtml(c.txt) +
+              (c.marca ? ' · ' + c.marca : '') +
               (p.quien ? ' · lo puso ' + escapeHtml(String(p.quien).split('@')[0]) : '') +
             '</div>' +
           '</div>' +
