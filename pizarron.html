@@ -343,7 +343,7 @@ function pzSonar(){
   if(!sonidoListo || !audioCtx || audioCtx.state !== 'running'){
     document.getElementById('toque').classList.add('on');
     pzDesbloquear(false);
-    return;
+    return false;
   }
   try {
     // ⚠️ TRES NOTAS QUE SUBEN, TRES VECES (27 ago 2026).
@@ -367,7 +367,8 @@ function pzSonar(){
         o.start(t); o.stop(t + 0.15);
       }
     }
-  } catch(e){}
+    return true;
+  } catch(e){ return false; }
 }
 // Se intenta al cargar; si el navegador no deja, sale el aviso del toque.
 setTimeout(function(){ pzDesbloquear(false); }, 400);
@@ -481,16 +482,26 @@ function pzPintar(){
   //    amarilla, porque el color no consulta esto. La pantalla se veía
   //    perfecta y el sonido estaba muerto para ese pendiente para siempre.
   //    Guardando la hora, cambiarla lo vuelve a habilitar solo.
+  // ⚠️ SE MARCA DESPUÉS DE SONAR, NO ANTES (27 ago 2026).
+  //    Antes se ponía la marca y luego se intentaba sonar. Si el navegador
+  //    tenía el audio bloqueado —que es lo NORMAL hasta que alguien toca la
+  //    pantalla— el pendiente ya quedaba marcado como "ya sonó" y **nunca
+  //    volvía a intentarlo**, ni después de desbloquearlo. La pantalla se veía
+  //    trabajando y la alarma estaba muerta.
+  //    Ahora, si no pudo sonar, no se marca: lo reintenta a los 4 segundos y
+  //    suena en cuanto alguien toca la pantalla.
+  var toca = [];
   lista.forEach(function(p){
     if(!pzEstado(p, ahora).paso) return;            // todavía no le toca
     if(YA_SONO[p.id] === p.cuando) return;          // ya sonó a ESA hora
-    YA_SONO[p.id] = p.cuando;
-    if(!primeraVez) suena = true;
+    toca.push(p);
   });
+  if(toca.length && (primeraVez || pzSonar())){
+    toca.forEach(function(p){ YA_SONO[p.id] = p.cuando; });
+  }
   // Limpiar del recuerdo los que ya no existen, para que no crezca sin fin.
   Object.keys(YA_SONO).forEach(function(k){ if(!PEND[k]) delete YA_SONO[k]; });
   _guardaSono();
-  if(suena) pzSonar();
   pzPintar._yaCorrio = true;
 
   var cont = document.getElementById('pz-lista');

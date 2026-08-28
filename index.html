@@ -11665,6 +11665,120 @@ function _burroPicado(d, ev){
     if(t) t.classList.remove('abierto');
   };
 
+  // ══════════════════════════════════════════════════════════════════════
+  // LA ALARMA TAMBIÉN AQUÍ (27 ago 2026)
+  // ──────────────────────────────────────────────────────────────────────
+  // Keno puso un pendiente, esperó su hora y **no sonó**. Y tenía razón: la
+  // alarma solo vivía en la pantalla de la pared (pizarron.html) — que a día
+  // de hoy ni siquiera está conectada, falta el cable. O sea que la única
+  // pantalla que existe era justo la que no podía avisar.
+  // Ahora el inventario suena igual que la pared. Mismo sonido, misma memoria
+  // de "ya sonó" (por computadora, en su localStorage).
+  // ══════════════════════════════════════════════════════════════════════
+  var PIZ_SONO = {}, _pizAudio = null, _pizPrimeraAlarma = true;
+  try { PIZ_SONO = JSON.parse(localStorage.getItem('piz_alarma_sono') || '{}') || {}; }
+  catch(e){ PIZ_SONO = {}; }
+
+  // Devuelve true SOLO si de verdad sonó. Si el navegador tiene el audio
+  // bloqueado devuelve false y el pendiente no se marca, para reintentarlo.
+  function _pizAlarma(){
+    try {
+      if(!_pizAudio) _pizAudio = new (window.AudioContext || window.webkitAudioContext)();
+      if(_pizAudio.state === 'suspended'){ try { _pizAudio.resume(); } catch(e){} }
+      if(_pizAudio.state !== 'running') return false;
+      // Las mismas tres notas que suben de la pantalla de la pared, para que
+      // sea el MISMO sonido en las dos y no haya que aprenderse dos.
+      var NOTAS = [659, 880, 1175];
+      var t0 = _pizAudio.currentTime + 0.02;
+      for(var v = 0; v < 3; v++){
+        for(var i = 0; i < NOTAS.length; i++){
+          var t = t0 + v * 0.66 + i * 0.15;
+          var o = _pizAudio.createOscillator(), g = _pizAudio.createGain();
+          o.type = 'square'; o.frequency.value = NOTAS[i];
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.34, t + 0.012);
+          g.gain.setValueAtTime(0.34, t + 0.10);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.145);
+          o.connect(g); g.connect(_pizAudio.destination);
+          o.start(t); o.stop(t + 0.15);
+        }
+      }
+      return true;
+    } catch(e){ return false; }
+  }
+
+  function _pizRevisarAlarma(){
+    var llaves = Object.keys(PIZ_DATOS);
+    // ⚠️ Sin datos todavía no se decide nada. Si se diera por "primera vuelta"
+    //    con la lista vacía, al llegar los datos de verdad sonaría una ráfaga
+    //    por cada pendiente viejo.
+    if(!llaves.length) return;
+    var primera = _pizPrimeraAlarma;
+    _pizPrimeraAlarma = false;
+    var toca = [];
+    llaves.forEach(function(k){
+      var p = PIZ_DATOS[k] || {};
+      // Lo sin hora NO suena: no hay un instante que anunciar.
+      if(p.hecho || !p.fechaHora || p.sinHora) return;
+      var c = _pizCuando(p.fechaHora, false);
+      if(!c.ahora && !c.tarde) return;
+      var ts = new Date(p.fechaHora).getTime();
+      if(PIZ_SONO[k] === ts) return;                 // ya sonó a ESA hora
+      toca.push({ id:k, ts:ts, texto:p.texto || '' });
+    });
+    if(!toca.length) return;
+    // En la primera vuelta se marca sin sonar: lo que ya estaba vencido al
+    // abrir el inventario no tiene por qué sonar en ráfaga.
+    if(!primera && !_pizAlarma()) return;            // no pudo: se reintenta
+    toca.forEach(function(x){ PIZ_SONO[x.id] = x.ts; });
+    Object.keys(PIZ_SONO).forEach(function(k){ if(!PIZ_DATOS[k]) delete PIZ_SONO[k]; });
+    try { localStorage.setItem('piz_alarma_sono', JSON.stringify(PIZ_SONO)); } catch(e){}
+    if(!primera){
+      toast('🔔 Es la hora: ' + toca.map(function(x){ return x.texto; }).join(' · '), 'success');
+    }
+  }
+
+  function _pizEscuchar(){
+    if(_pizEscuchando || !window.firebase || !firebase.database) return;
+    _pizEscuchando = true;
+    // ⚠️ `on('value')`: una conexion que solo recibe cuando algo cambia.
+    //    Nada de releer por reloj — la cuota de Firebase ya se agoto una vez.
+    firebase.database().ref('pendientes').on('value', function(s){
+      PIZ_DATOS = s.val() || {};
+      _pizRevisarAlarma();
+      pizPintar();
+    }, function(e){
+      console.warn('pendientes:', e);
+      var l = document.getElementById('piz-lista');
+      if(l) l.innerHTML = '<div class="info-bar" style="color:#b03a2e;">' +
+        '<b>No se pudieron leer los pendientes.</b> ' +
+        (e && e.code === 'PERMISSION_DENIED'
+          ? 'Falta el permiso en Firebase — avísale a Eugenio.'
+          : 'Revisa tu internet.') + '</div>';
+    });
+  }
+
+  // ⚠️ EL RELOJ LOCAL. No lee de Firebase — solo vuelve a preguntar la hora.
+  //    Sin esto, la etiqueta del renglón se quedaba congelada: un pendiente de
+  //    las 21:30 seguía diciendo «🕒 hoy · 21:30» a las 21:40, porque la lista
+  //    solo se repintaba cuando CAMBIABAN los datos. La etiqueta mentía.
+  setInterval(function(){
+    _pizRevisarAlarma();
+    // ⚠️ NO repintar mientras se está editando un renglón: se le borraría a
+    //    medias lo que esté escribiendo.
+    var t = document.getElementById('piz-tel');
+    if(t && t.classList.contains('abierto') && !PIZ_EDIT) pizPintar();
+  }, 20000);
+
+  // Engancharse desde que arranca el inventario, aunque nadie abra el panel:
+  // si solo escuchara al abrirlo, la alarma únicamente serviría con el panel
+  // en pantalla — que es como no tenerla.
+  (function esperar(intentos){
+    if(window.firebase && firebase.database && firebase.auth &&
+       firebase.auth().currentUser){ _pizEscuchar(); return; }
+    if(intentos > 0) setTimeout(function(){ esperar(intentos - 1); }, 1500);
+  })(60);
+
   window.pizAbrir = function(){
     var t = document.getElementById('piz-tel');
     if(t) t.classList.add('abierto');
@@ -11675,23 +11789,8 @@ function _burroPicado(d, ev){
       var bt = document.getElementById('piz-dia-txt');
       if(bt) bt.textContent = _pzBonita(d.value);
     }
-    if(!_pizEscuchando && window.firebase && firebase.database){
-      _pizEscuchando = true;
-      // ⚠️ `on('value')`: una conexion que solo recibe cuando algo cambia.
-      //    Nada de releer por reloj — la cuota de Firebase ya se agoto una vez.
-      firebase.database().ref('pendientes').on('value', function(s){
-        PIZ_DATOS = s.val() || {};
-        pizPintar();
-      }, function(e){
-        console.warn('pendientes:', e);
-        var l = document.getElementById('piz-lista');
-        if(l) l.innerHTML = '<div class="info-bar" style="color:#b03a2e;">' +
-          '<b>No se pudieron leer los pendientes.</b> ' +
-          (e && e.code === 'PERMISSION_DENIED'
-            ? 'Falta el permiso en Firebase — avísale a Eugenio.'
-            : 'Revisa tu internet.') + '</div>';
-      });
-    }
+    _pizEscuchar();
+
     pizPintar();
   };
 
