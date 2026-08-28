@@ -11681,27 +11681,28 @@ function _burroPicado(d, ev){
 
   // Devuelve true SOLO si de verdad sonó. Si el navegador tiene el audio
   // bloqueado devuelve false y el pendiente no se marca, para reintentarlo.
-  function _pizAlarma(){
+  function _pizAlarma(veces){
     try {
       if(!_pizAudio) _pizAudio = new (window.AudioContext || window.webkitAudioContext)();
       if(_pizAudio.state === 'suspended'){ try { _pizAudio.resume(); } catch(e){} }
       if(_pizAudio.state !== 'running') return false;
-      // Las mismas tres notas que suben de la pantalla de la pared, para que
-      // sea el MISMO sonido en las dos y no haya que aprenderse dos.
-      var NOTAS = [659, 880, 1175];
+      // ⚠️ UN SOLO BEEP POR REGISTRO (28 ago 2026). Keno lo pidió así: la
+      //    tanda de tres notas repetidas tres veces duraba ~2 s y en el
+      //    mostrador eso cansa — y lo que cansa se acaba apagando.
+      //    EXACTAMENTE el mismo sonido que la pantalla de la pared, para que
+      //    no haya que aprenderse dos. Si se cambia uno, se cambia el otro.
+      var cuantos = Math.max(1, Math.min(4, Number(veces) || 1));
       var t0 = _pizAudio.currentTime + 0.02;
-      for(var v = 0; v < 3; v++){
-        for(var i = 0; i < NOTAS.length; i++){
-          var t = t0 + v * 0.66 + i * 0.15;
-          var o = _pizAudio.createOscillator(), g = _pizAudio.createGain();
-          o.type = 'square'; o.frequency.value = NOTAS[i];
-          g.gain.setValueAtTime(0.0001, t);
-          g.gain.exponentialRampToValueAtTime(0.34, t + 0.012);
-          g.gain.setValueAtTime(0.34, t + 0.10);
-          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.145);
-          o.connect(g); g.connect(_pizAudio.destination);
-          o.start(t); o.stop(t + 0.15);
-        }
+      for(var v = 0; v < cuantos; v++){
+        var t = t0 + v * 0.5;
+        var o = _pizAudio.createOscillator(), g = _pizAudio.createGain();
+        o.type = 'square'; o.frequency.value = 1175;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.34, t + 0.012);
+        g.gain.setValueAtTime(0.34, t + 0.18);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+        o.connect(g); g.connect(_pizAudio.destination);
+        o.start(t); o.stop(t + 0.26);
       }
       return true;
     } catch(e){ return false; }
@@ -11729,7 +11730,7 @@ function _burroPicado(d, ev){
     if(!toca.length) return;
     // En la primera vuelta se marca sin sonar: lo que ya estaba vencido al
     // abrir el inventario no tiene por qué sonar en ráfaga.
-    if(!primera && !_pizAlarma()) return;            // no pudo: se reintenta
+    if(!primera && !_pizAlarma(toca.length)) return; // no pudo: se reintenta
     toca.forEach(function(x){ PIZ_SONO[x.id] = x.ts; });
     Object.keys(PIZ_SONO).forEach(function(k){ if(!PIZ_DATOS[k]) delete PIZ_SONO[k]; });
     try { localStorage.setItem('piz_alarma_sono', JSON.stringify(PIZ_SONO)); } catch(e){}

@@ -335,7 +335,7 @@ function pzDesbloquear(porToque){
     if(!porToque) document.getElementById('toque').classList.add('on');
   }
 }
-function pzSonar(){
+function pzSonar(veces){
   // ⚠️ SI NO PUEDE SONAR, LO DICE. Antes hacía `return` callado: si el
   //    navegador nunca dejó desbloquear el audio, la alarma no sonaría NUNCA
   //    y nadie sabría por qué — el pizarrón se vería trabajando y estaría
@@ -346,26 +346,31 @@ function pzSonar(){
     return false;
   }
   try {
-    // ⚠️ TRES NOTAS QUE SUBEN, TRES VECES (27 ago 2026).
-    //    Antes eran dos pitidos de 880 Hz — el MISMO tono que el `playDing()`
-    //    de confirmación del inventario. Dos sonidos parecidos en un taller
-    //    con ruido acaban significando lo mismo: nada.
-    //    Una escala que SUBE se oye como "algo está empezando", y repetida
-    //    tres veces no se confunde con ninguna confirmación de un solo tono.
-    var NOTAS = [659, 880, 1175];          // mi · la · re
+    // ⚠️ UN SOLO BEEP POR REGISTRO (28 ago 2026).
+    //    Keno: "necesito que sea un solo beep, en vez de 3 veces que suene
+    //    mejor una vez por registro y ya".
+    //    Antes eran tres notas que suben repetidas TRES veces (~2 s). Servía
+    //    para no confundirla con el "ya se guardó", pero en el mostrador dos
+    //    segundos de alarma cada vez cansan, y lo que cansa se acaba
+    //    apagando. Un beep se oye igual y no estorba.
+    //    Sigue sin parecerse a la confirmación: aquélla es un seno de 880 Hz,
+    //    ésta es cuadrada y más aguda.
+    //    Si entran DOS pendientes a la misma hora, suenan dos beeps — así se
+    //    sabe cuántos llegaron sin tener que voltear.
+    var cuantos = Math.max(1, Math.min(4, Number(veces) || 1));
+    // ⚠️ Tope de 4: si la pantalla estuvo apagada y de golpe vencen diez, una
+    //    ráfaga de diez beeps no informa, nomás asusta.
     var t0 = audioCtx.currentTime + 0.02;
-    for(var v = 0; v < 3; v++){
-      for(var i = 0; i < NOTAS.length; i++){
-        var t = t0 + v * 0.66 + i * 0.15;
-        var o = audioCtx.createOscillator(), g = audioCtx.createGain();
-        o.type = 'square'; o.frequency.value = NOTAS[i];
-        g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.34, t + 0.012);
-        g.gain.setValueAtTime(0.34, t + 0.10);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.145);
-        o.connect(g); g.connect(audioCtx.destination);
-        o.start(t); o.stop(t + 0.15);
-      }
+    for(var v = 0; v < cuantos; v++){
+      var t = t0 + v * 0.5;
+      var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'square'; o.frequency.value = 1175;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.34, t + 0.012);
+      g.gain.setValueAtTime(0.34, t + 0.18);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t + 0.26);
     }
     return true;
   } catch(e){ return false; }
@@ -496,7 +501,7 @@ function pzPintar(){
     if(YA_SONO[p.id] === p.cuando) return;          // ya sonó a ESA hora
     toca.push(p);
   });
-  if(toca.length && (primeraVez || pzSonar())){
+  if(toca.length && (primeraVez || pzSonar(toca.length))){
     toca.forEach(function(p){ YA_SONO[p.id] = p.cuando; });
   }
   // Limpiar del recuerdo los que ya no existen, para que no crezca sin fin.
