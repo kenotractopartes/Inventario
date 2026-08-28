@@ -75,6 +75,38 @@
   .piz-fecha{padding:11px 12px;font-size:15px;border:1px solid #d8d2c4;border-radius:7px;
     background:#fff;cursor:pointer;font-weight:700;color:#17140f;min-width:150px;text-align:left}
   .piz-fecha.vacia{color:#9a9384;font-weight:400}
+  /* ── LA HORA, COMO LA ALARMA DEL IPHONE (27 ago 2026) ──
+     El <input type="time"> de Windows saca una columnita de números que Keno
+     describió bien: no se entiende. Estas son dos ruedas que se giran con el
+     dedo o la rueda del mouse, con la banda de en medio marcando la escogida.
+     `scroll-snap` hace todo el trabajo: el navegador la centra solo. */
+  #pizhora-fondo{display:none;position:fixed;inset:0;background:rgba(23,20,15,.45);
+    z-index:100004;align-items:center;justify-content:center;padding:18px}
+  #pizhora-fondo.abierto{display:flex}
+  .pzh-caja{background:#fff;border-radius:16px;padding:18px;font-family:Arial,sans-serif;
+    box-shadow:0 20px 55px rgba(0,0,0,.32);width:300px;max-width:100%}
+  .pzh-tit{font-size:16px;font-weight:800;text-align:center;margin-bottom:2px}
+  .pzh-sub{font-size:12.5px;color:#8d8578;text-align:center;margin-bottom:12px}
+  .pzh-ruedas{position:relative;display:flex;gap:10px;justify-content:center;
+    height:210px;overflow:hidden}
+  /* La banda de en medio: lo que caiga aquí es lo escogido. */
+  .pzh-banda{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+    height:46px;background:#efe9fb;border-top:2px solid #6b3fa0;border-bottom:2px solid #6b3fa0;
+    pointer-events:none;border-radius:6px}
+  .pzh-rueda{flex:1;overflow-y:scroll;scroll-snap-type:y mandatory;text-align:center;
+    scrollbar-width:none;-ms-overflow-style:none}
+  .pzh-rueda::-webkit-scrollbar{display:none}
+  .pzh-rueda div{height:46px;line-height:46px;scroll-snap-align:center;
+    font-size:26px;font-weight:800;color:#b5aea0;font-variant-numeric:tabular-nums;
+    transition:color .12s, transform .12s}
+  .pzh-rueda div.sel{color:#17140f;transform:scale(1.12)}
+  .pzh-dosp{align-self:center;font-size:26px;font-weight:900;color:#6b3fa0;flex:none;
+    position:relative;z-index:2}
+  .pzh-pie{display:flex;gap:8px;margin-top:14px}
+  .pzh-pie button{flex:1;font:inherit;font-size:14.5px;font-weight:800;padding:12px;
+    border-radius:9px;border:1px solid #c9c3b6;background:#f7f5f0;cursor:pointer}
+  .pzh-pie button.ok{background:#6b3fa0;color:#fff;border-color:#6b3fa0}
+  .pzh-pie button.quitar{background:#fff;color:#b03a2e;border-color:#e0b8b2}
   @media (max-width:640px){ .pzc-mes{min-width:0;width:100%} .pzc-meses{gap:0} }
   @media (max-width: 760px){
     .piz-cab h2 { font-size:17px; }
@@ -805,6 +837,24 @@
   <div class="pzc-caja" id="pizcal-caja"></div>
 </div>
 
+<div id="pizhora-fondo" onclick="if(event.target.id==='pizhora-fondo')pizHoraCerrar()">
+  <div class="pzh-caja">
+    <div class="pzh-tit">¿A qué hora?</div>
+    <div class="pzh-sub">Gírale con el dedo o con la rueda del mouse</div>
+    <div class="pzh-ruedas">
+      <div class="pzh-banda"></div>
+      <div class="pzh-rueda" id="pzh-hh"></div>
+      <span class="pzh-dosp">:</span>
+      <div class="pzh-rueda" id="pzh-mm"></div>
+    </div>
+    <div class="pzh-pie">
+      <button type="button" class="quitar" onclick="pizHoraQuitar()">Sin hora</button>
+      <button type="button" onclick="pizHoraCerrar()">Cancelar</button>
+      <button type="button" class="ok" onclick="pizHoraAplicar()">Listo</button>
+    </div>
+  </div>
+</div>
+
 <div id="piz-tel" role="dialog" aria-label="Pendientes del mostrador">
   <div class="piz-cab">
     <div>
@@ -844,8 +894,12 @@
       <div>
         <label style="display:block; font-size:11px; font-weight:800; color:#7b7468;
           text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px;">A qué hora</label>
-        <input type="time" id="piz-hora"
-          style="padding:11px 12px; font-size:15px; border:1px solid #d8d2c4; border-radius:7px;">
+        <!-- ⚠️ Botón + ruedas, no <input type="time">: el de Windows saca una
+             columnita de números que nadie entiende. Y si se deja vacío, se
+             queda SIN HORA — antes se le ponía 09:00 por mi cuenta. -->
+        <input type="hidden" id="piz-hora">
+        <button type="button" class="piz-fecha vacia" id="piz-hora-txt"
+          style="min-width:120px;" onclick="pizHoraAbrir('piz-hora')">Sin hora</button>
       </div>
       <div>
         <label style="display:block; font-size:11px; font-weight:800; color:#7b7468;
@@ -11492,6 +11546,120 @@ function _burroPicado(d, ev){
     c.innerHTML = t;
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // LA HORA, COMO LA ALARMA DEL IPHONE (27 ago 2026)
+  // Keno: "que sea como el formato de Apple cuando pones una alarma, más
+  // fácil de entender". Dos ruedas que se giran, con la banda de en medio
+  // marcando lo escogido. El navegador las centra solo con `scroll-snap`.
+  //
+  // ⚠️ Y si no escoge hora, NO se le pone: "si no escoge una hora de ese
+  //    registro no le pongas hora". Antes se le metía 09:00 por mi cuenta,
+  //    que es inventarle un dato que nadie dijo.
+  //
+  // Los minutos van de 5 en 5. De uno en uno serían 60 vueltas de rueda para
+  // algo que en un mostrador nunca se necesita al minuto exacto. Si un
+  // registro viejo trae 09:04, se respeta y se enseña tal cual.
+  // ══════════════════════════════════════════════════════════════════════
+  var PIZHORA = { destino:'', hh:'09', mm:'00' };
+
+  // ⚠️ EL VALOR SE LEE DE LA POSICIÓN, NO DEL EVENTO (27 ago 2026).
+  //    Primero esto dependía del evento `scroll` para saber qué número quedó
+  //    en medio. En el navegador de pruebas ese evento NO se dispara nunca
+  //    —la posición cambia y el evento no llega— así que la rueda se habría
+  //    visto perfecta y no habría registrado NADA. Puede que en el Chrome de
+  //    la tienda sí llegue, pero no me fío: una rueda muda que se ve bien es
+  //    justo la clase de falla que aquí sale cara.
+  //    Ahora el valor se calcula AL DARLE LISTO, leyendo dónde quedó la rueda.
+  //    El evento solo sirve para ir resaltando mientras se gira.
+  function _pzhLeer(cual){
+    var c = document.getElementById(cual);
+    if(!c) return null;
+    var idx = Math.round(c.scrollTop / 46);
+    var hijos = c.children;
+    if(idx < 0) idx = 0;
+    if(idx >= hijos.length) idx = hijos.length - 1;
+    for(var k = 0; k < hijos.length; k++) hijos[k].classList.toggle('sel', k === idx);
+    return hijos[idx] ? hijos[idx].getAttribute('data-v') : null;
+  }
+  function _pzhLlenar(cual, valores, sel){
+    var c = document.getElementById(cual);
+    // ⚠️ Y además se puede PICAR cada número. En una computadora con mouse es
+    //    más rápido que girar, y si algún día la rueda no respondiera al
+    //    scroll, esto sigue funcionando.
+    c.innerHTML = valores.map(function(v, i){
+      return '<div data-v="' + v + '" data-i="' + i + '"' +
+             (v === sel ? ' class="sel"' : '') + '>' + v + '</div>';
+    }).join('');
+    // Aire arriba y abajo para que el primero y el último puedan quedar en el
+    // centro; sin esto no se pueden escoger.
+    var aire = (c.clientHeight - 46) / 2;
+    c.style.paddingTop = aire + 'px';
+    c.style.paddingBottom = aire + 'px';
+    var i = Math.max(0, valores.indexOf(sel));
+    c.scrollTop = i * 46;
+    if(!c._enganchado){
+      c._enganchado = true;
+      c.addEventListener('scroll', function(){
+        clearTimeout(c._t);
+        c._t = setTimeout(function(){ _pzhLeer(cual); }, 80);
+      });
+      c.addEventListener('click', function(ev){
+        var d = ev.target.closest('div[data-i]');
+        if(!d) return;
+        // ⚠️ Salto INSTANTÁNEO, no suave. Con `behavior:'smooth'` la rueda
+        //    seguía en camino cuando se leía la posición y escogía el número
+        //    de al lado: picabas 45 y guardaba 40. Un desplazamiento bonito no
+        //    vale un dato equivocado.
+        c.scrollTop = Number(d.getAttribute('data-i')) * 46;
+        _pzhLeer(cual);
+      });
+    }
+  }
+  window.pizHoraAbrir = function(destino){
+    PIZHORA.destino = destino;
+    var v = (document.getElementById(destino) || {}).value || '';
+    var p = v.split(':');
+    PIZHORA.hh = p[0] || '09';
+    PIZHORA.mm = p[1] || '00';
+    document.getElementById('pizhora-fondo').classList.add('abierto');
+    var HH = [], MM = [], i;
+    for(i = 0; i < 24; i++) HH.push(String(i).padStart(2,'0'));
+    for(i = 0; i < 60; i += 5) MM.push(String(i).padStart(2,'0'));
+    // Si el registro traía un minuto que no es múltiplo de 5 (los viejos), se
+    // mete a la rueda para no perdérselo.
+    if(MM.indexOf(PIZHORA.mm) === -1 && /^\d\d$/.test(PIZHORA.mm)){
+      MM.push(PIZHORA.mm);
+      MM.sort();
+    }
+    setTimeout(function(){
+      _pzhLlenar('pzh-hh', HH, PIZHORA.hh);
+      _pzhLlenar('pzh-mm', MM, PIZHORA.mm);
+    }, 20);
+  };
+  window.pizHoraCerrar = function(){
+    document.getElementById('pizhora-fondo').classList.remove('abierto');
+  };
+  function _pzhPinta(destino, valor){
+    var inp = document.getElementById(destino);
+    if(inp) inp.value = valor;
+    var btn = document.getElementById(destino + '-txt');
+    if(btn){
+      btn.textContent = valor || 'Sin hora';
+      btn.classList.toggle('vacia', !valor);
+    }
+  }
+  window.pizHoraAplicar = function(){
+    // Se lee de dónde quedaron las ruedas, no de lo que recuerde una variable.
+    var hh = _pzhLeer('pzh-hh') || PIZHORA.hh;
+    var mm = _pzhLeer('pzh-mm') || PIZHORA.mm;
+    _pzhPinta(PIZHORA.destino, hh + ':' + mm);
+    pizHoraCerrar();
+  };
+  window.pizHoraQuitar = function(){
+    _pzhPinta(PIZHORA.destino, '');
+    pizHoraCerrar();
+  };
+
   window.pizCerrar = function(){
     var t = document.getElementById('piz-tel');
     if(t) t.classList.remove('abierto');
@@ -11532,15 +11700,17 @@ function _burroPicado(d, ev){
     if(!t){ alert('¿Qué hay que hacer? Escríbelo primero.'); return; }
     var dia = document.getElementById('piz-dia').value || '';
     var hora = document.getElementById('piz-hora').value || '';
-    // Sin dia no hay alarma posible: se guarda igual pero se avisa, porque en
-    // la pantalla sale hasta abajo como "SIN HORA".
-    var iso = '';
+    // ⚠️ SIN HORA ES SIN HORA (27 ago 2026). Antes se le metía 09:00 cuando
+    //    nadie escogía, o sea inventarle un dato. Ahora se guarda la fecha a
+    //    las 00:00 y se marca `sinHora`, para poder distinguir "es para el
+    //    viernes" de "es el viernes a medianoche" — que no es lo mismo, sobre
+    //    todo para decidir cuándo se pone rojo.
+    var iso = '', sinHora = false;
     if(dia){
-      var hh = hora || '09:00';
-      var p = dia.split('-'), q = hh.split(':');
-      var f = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]),
-                       Number(q[0]) || 0, Number(q[1]) || 0, 0);
-      iso = f.toISOString();
+      var p = dia.split('-'), q = (hora || '00:00').split(':');
+      iso = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]),
+                     Number(q[0]) || 0, Number(q[1]) || 0, 0).toISOString();
+      sinHora = !hora;
     }
     if(!window.firebase || !firebase.database){ alert('Sin conexión. Intenta en un momento.'); return; }
     var quien = '';
@@ -11553,10 +11723,11 @@ function _burroPicado(d, ev){
       hecho: false,
       fijado: false,
       repite: rep,
+      sinHora: sinHora,
       creadoEn: new Date().toISOString()
     }).then(function(){
       document.getElementById('piz-texto').value = '';
-      document.getElementById('piz-hora').value = '';
+      _pzhPinta('piz-hora', '');
       try { playDing(); } catch(e){}
       toast('✓ Apuntado — ya sale en la pantalla', 'success');
     }).catch(function(e){
@@ -11582,14 +11753,13 @@ function _burroPicado(d, ev){
     if(!t){ alert('El texto no puede quedar vacío.'); return; }
     var dia = document.getElementById('piz-e-dia').value || '';
     var hora = document.getElementById('piz-e-hora').value || '';
-    // Misma regla que al registrar: sin hora se asume 09:00; sin día, el
-    // pendiente se queda "sin fecha" y en la pantalla sale hasta abajo.
-    var iso = '';
+    // Misma regla que al registrar: sin hora es SIN HORA, no las 9.
+    var iso = '', sinHora = false;
     if(dia){
-      var hh = hora || '09:00';
-      var p = dia.split('-'), q = hh.split(':');
+      var p = dia.split('-'), q = (hora || '00:00').split(':');
       iso = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]),
                      Number(q[0]) || 0, Number(q[1]) || 0, 0).toISOString();
+      sinHora = !hora;
     }
     var quien = '';
     try { quien = (firebase.auth().currentUser || {}).email || ''; } catch(e){}
@@ -11600,6 +11770,7 @@ function _burroPicado(d, ev){
       texto: t.slice(0, 60),
       fechaHora: iso,
       repite: rep,
+      sinHora: sinHora,
       editadoPor: quien,
       editadoEn: new Date().toISOString()
     }).then(function(){
@@ -11657,8 +11828,10 @@ function _burroPicado(d, ev){
         '<div>' +
           '<label style="display:block; font-size:10.5px; font-weight:800; color:#7b7468;' +
             ' text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">A qué hora</label>' +
-          '<input type="time" id="piz-e-hora" value="' + pt.hora + '"' +
-            ' style="padding:9px 10px; font-size:15px; border:1px solid #c9b6e8; border-radius:6px;">' +
+          '<input type="hidden" id="piz-e-hora" value="' + pt.hora + '">' +
+          '<button type="button" class="piz-fecha' + (pt.hora ? '' : ' vacia') + '" id="piz-e-hora-txt"' +
+            ' style="min-width:110px;" onclick="pizHoraAbrir(\'piz-e-hora\')">' +
+            (pt.hora || 'Sin hora') + '</button>' +
         '</div>' +
         '<div style="display:flex; gap:6px;">' +
           '<button class="btn btn-small" onclick="pizGuardar(\'' + p.id + '\')"' +
@@ -11736,16 +11909,23 @@ function _burroPicado(d, ev){
       .catch(function(e){ alert('No se pudo borrar: ' + ((e && e.code) || 'error')); });
   };
 
-  function _pizCuando(iso){
-    if(!iso) return { txt:'Sin hora', tarde:false };
+  // ⚠️ `sinHora` cambia CUÁNDO se pone rojo. Un pendiente "para el viernes"
+  //    sin hora NO está tarde a las 00:01 del viernes: está tarde cuando el
+  //    viernes se acaba. Sin esta distinción, todo lo sin hora nacería vencido.
+  function _pizCuando(iso, sinHora){
+    if(!iso) return { txt:'Sin fecha', tarde:false };
     var d = new Date(iso);
-    if(isNaN(d)) return { txt:'Sin hora', tarde:false };
+    if(isNaN(d)) return { txt:'Sin fecha', tarde:false };
     var MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
     var hoy = new Date(); hoy.setHours(0,0,0,0);
     var x = new Date(d); x.setHours(0,0,0,0);
     var dif = Math.round((x - hoy) / 86400000);
     var dia = dif === 0 ? 'hoy' : (dif === 1 ? 'mañana' : (dif === -1 ? 'ayer'
               : d.getDate() + ' ' + MES[d.getMonth()]));
+    if(sinHora){
+      var finDelDia = new Date(d); finDelDia.setHours(23,59,59,999);
+      return { txt: dia + ' · sin hora', tarde: finDelDia.getTime() < Date.now() };
+    }
     var hh = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
     return { txt: dia + ' · ' + hh, tarde: d.getTime() <= Date.now() };
   }
@@ -11762,7 +11942,7 @@ function _burroPicado(d, ev){
       return { texto:String(p.texto || ''), iso:p.fechaHora || '', hecho:!!p.hecho,
                creado:p.creadoEn || '', quien:p.quienLoPuso || '',
                marco:p.quienLoMarco || '', hechoEn:p.fechaHecho || '',
-               fijado:!!p.fijado, repite:p.repite || '',
+               fijado:!!p.fijado, repite:p.repite || '', sinHora:!!p.sinHora,
                ts:p.fechaHora ? new Date(p.fechaHora).getTime() : 0 };
     }).sort(function(a,b){ return (b.ts||0) - (a.ts||0); });
     if(!todos.length){ alert('Todavía no hay pendientes que bajar.'); return; }
@@ -11827,7 +12007,7 @@ function _burroPicado(d, ev){
       var p = PIZ_DATOS[k] || {};
       return { id:k, texto:String(p.texto || ''), iso:p.fechaHora || '',
                hecho:!!p.hecho, quien:p.quienLoPuso || '',
-               fijado:!!p.fijado, repite:p.repite || '',
+               fijado:!!p.fijado, repite:p.repite || '', sinHora:!!p.sinHora,
                ts:p.fechaHora ? new Date(p.fechaHora).getTime() : 0 };
     });
     var faltan = todos.filter(function(p){ return !p.hecho; })
@@ -11854,7 +12034,7 @@ function _burroPicado(d, ev){
     } else {
       html += '<div style="padding:12px 14px;">' + faltan.map(function(p){
         if(PIZ_EDIT === p.id) return _pizFormulario(p);
-        var c = _pizCuando(p.iso);
+        var c = _pizCuando(p.iso, p.sinHora);
         return '<div class="pieza-item" style="display:flex; justify-content:space-between;' +
           ' align-items:center; gap:10px;' +
           (c.tarde ? ' border-left:4px solid #c0392b; background:#fdf2f0;' : '') + '">' +
@@ -11893,7 +12073,7 @@ function _burroPicado(d, ev){
           '<div class="card-meta">los últimos ' + hechos.length + '</div></div></div>' +
         '<div style="padding:12px 14px;">' + hechos.map(function(p){
           if(PIZ_EDIT === p.id) return _pizFormulario(p);
-          var c = _pizCuando(p.iso);
+          var c = _pizCuando(p.iso, p.sinHora);
           return '<div class="pieza-item" style="display:flex; justify-content:space-between;' +
             ' align-items:center; gap:10px; opacity:.62;">' +
             '<div style="flex:1; min-width:0;">' +

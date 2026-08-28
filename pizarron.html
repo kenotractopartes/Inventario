@@ -64,8 +64,17 @@
   header .luz.ok{background:#39b866}
   header .luz.mal{background:#e8503a}
 
-  /* ── La lista ── */
-  main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+  /* ── La lista ──
+     ⚠️ `main` es la ventana; `#pz-rollo` es la tira larga que se desliza
+     adentro. Keno: "que puedas desplegar lentamente el pizarrón de arriba
+     para abajo". Se mueve con `transform`, que la tarjeta de video dibuja
+     sola — nada de repintar la lista 60 veces por segundo. */
+  main{flex:1;position:relative;overflow:hidden}
+  #pz-rollo{position:absolute;left:0;right:0;top:0;display:flex;flex-direction:column;
+    will-change:transform}
+  /* Cada renglón mide lo suyo (ya no se reparten el alto entre todos): así la
+     tira puede ser más larga que la pantalla, que es lo que hace el deslizado. */
+  #pz-rollo .fila{flex:none;min-height:14.6vh}
   .fila{
     flex:1;display:flex;align-items:center;gap:2.4vh;
     padding:0 2.6vh;border-bottom:.35vh solid #e6e0d2;min-height:0;
@@ -210,24 +219,28 @@
 // que achicarse y ya no se leería desde el fondo — que es todo el punto.
 // ══════════════════════════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════════════════════════
-// ROTAR EN VEZ DE ACHICAR (27 ago 2026)
+// SE DESLIZA SOLO, LENTO (27 ago 2026)
 // ──────────────────────────────────────────────────────────────────────────
-// Con 20 pendientes no caben todos con letra de 6 cm, y achicarlos para que
-// entren rompe lo único que importa: que se lean desde el fondo.
+// Keno hizo 8 registros, vio 6 en la pared y los otros 2 solo en el
+// inventario. Su idea: "que puedas desplegar lentamente el pizarrón de arriba
+// para abajo, y entre más abajo, más alcanzan a ver todos los demás".
 //
-// Keno pidió una barra desplegable. No sirve aquí: la pantalla está en la
-// pared y NADIE le va a picar — no hay mouse ni quién la mueva. Lo que hacen
-// las pantallas de aeropuerto es ROTAR solas, y eso sí funciona sin que nadie
-// toque nada.
+// Antes iba por páginas que saltaban cada 12 s. El deslizado es mejor: no hay
+// brincos, se lee mientras se mueve, y cuando todo cabe NI SE MUEVE — o sea
+// que en un día tranquilo la pantalla está quieta, como debe.
 //
-// ⚠️ CON UNA REGLA ENCIMA: lo VENCIDO y lo FIJADO no rota NUNCA. Se queda
-//    siempre a la vista y solo rotan los de más abajo. Si lo urgente se fuera
-//    en la rotación, alguien podría pasar frente a la pantalla justo en la
-//    página equivocada y no enterarse — que es exactamente lo que este
-//    pizarrón existe para evitar.
+// Va de ida y vuelta (baja, se detiene, sube, se detiene) en vez de dar la
+// vuelta de golpe: un salto seco al principio se ve como si se hubiera
+// trabado.
+//
+// ⚠️ TODOS los pendientes se dibujan siempre. Ya no se esconde ninguno, así
+//    que la regla de "lo urgente nunca desaparece" se cumple sola: está en la
+//    tira y el deslizado lo va enseñando. Y como lo urgente va hasta arriba,
+//    es lo primero que se ve en cada vuelta.
 // ══════════════════════════════════════════════════════════════════════════
-var SEGUNDOS_POR_PAGINA = 12;
-var _pagina = 0;
+var PX_POR_SEGUNDO = 26;      // qué tan lento baja
+var PAUSA_MS = 3500;          // cuánto se detiene arriba y abajo
+var _desl = { y:0, dir:1, quieto:0, t:0 };
 
 // ⚠️ SEIS, no siete (27 ago 2026). Keno pidió que las frases largas se
 //    regresen hacia abajo en vez de cortarse. Dos renglones de texto grande
@@ -269,15 +282,8 @@ function pzReloj(){
 //    revisar si algo se venció. No gasta ni una lectura de la cuota.
 // ⚠️ Este reloj NO lee de Firebase: solo repinta y pasa de página. No gasta
 //    ni una lectura de la cuota, aunque corra cada 4 segundos.
-var _tick = 0;
 setInterval(function(){
   pzReloj();
-  _tick += 4;
-  if(_tick >= SEGUNDOS_POR_PAGINA){
-    _tick = 0;
-    var n = pzPintar._paginas || 1;
-    if(n > 1) _pagina = (_pagina + 1) % n;
-  }
   pzPintar();
   // ⚠️ Chrome SUSPENDE el audio solo despues de un rato sin usarlo. Si eso
   //    pasa, se intenta revivir en silencio; si no se deja, el aviso del
@@ -366,7 +372,8 @@ function pzPintar(){
     var p = PEND[k] || {};
     return { id:k, texto:String(p.texto||'').trim(),
              cuando:p.fechaHora ? new Date(p.fechaHora).getTime() : 0,
-             iso:p.fechaHora || '', hecho:!!p.hecho, fijado:!!p.fijado };
+             iso:p.fechaHora || '', hecho:!!p.hecho, fijado:!!p.fijado,
+             sinHora:!!p.sinHora };
   }).filter(function(p){ return !p.hecho && p.texto; });
 
   // Lo más urgente arriba. Los que no traen hora, hasta el final.
@@ -404,30 +411,17 @@ function pzPintar(){
     pie.style.display = 'none';
     return;
   }
-  // ── QUÉ SE VE EN ESTA VUELTA ──────────────────────────────────────────
-  // Los que NO pueden desaparecer: fijados y vencidos.
-  var quedan = lista.filter(function(p){
-    return p.fijado || (p.cuando && p.cuando <= ahora);
-  });
-  var rotan = lista.filter(function(p){ return quedan.indexOf(p) === -1; });
-  var ver, paginas = 1;
-  if(quedan.length >= MAX_FILAS){
-    // Hay tantos urgentes que no caben: entonces rotan ELLOS, pero siguen
-    // siendo los únicos que se ven. Nunca se enseña lo tranquilo mientras
-    // haya urgente sin ver.
-    paginas = Math.ceil(quedan.length / MAX_FILAS);
-    if(_pagina >= paginas) _pagina = 0;
-    ver = quedan.slice(_pagina * MAX_FILAS, _pagina * MAX_FILAS + MAX_FILAS);
-  } else {
-    var huecos = MAX_FILAS - quedan.length;
-    paginas = huecos > 0 ? Math.max(1, Math.ceil(rotan.length / huecos)) : 1;
-    if(_pagina >= paginas) _pagina = 0;
-    ver = quedan.concat(rotan.slice(_pagina * huecos, _pagina * huecos + huecos));
-  }
-  pzPintar._paginas = paginas;
-  cont.innerHTML = ver.map(function(p){
-    var venc = p.cuando && p.cuando <= ahora;
-    var pronto = p.cuando && !venc && (p.cuando - ahora) < 3600000;
+  // Se dibujan TODOS. El deslizado se encarga de irlos enseñando.
+  var ver = lista;
+  cont.innerHTML = '<div id="pz-rollo">' + ver.map(function(p){
+    // ⚠️ Lo SIN HORA no está vencido a las 00:01 de su día: lo está cuando
+    //    el día se acaba. Sin esto, todo lo sin hora nacería en rojo.
+    var limite = p.cuando;
+    if(p.cuando && p.sinHora){
+      var fd = new Date(p.cuando); fd.setHours(23,59,59,999); limite = fd.getTime();
+    }
+    var venc = limite && limite <= ahora;
+    var pronto = p.cuando && !venc && !p.sinHora && (p.cuando - ahora) < 3600000;
     var cls = venc ? ' vencido' : (pronto ? ' pronto' : '');
     // El tamaño del texto sale de lo que mide la frase: corto = enorme,
     // largo = mediano pero completo. Los cortes son a ojo de lo que cabe en
@@ -439,24 +433,53 @@ function pzPintar(){
     return '<div class="fila' + cls + '">' +
       '<span class="cuando">' +
         '<b class="dia">' + (p.cuando ? _esc(_diaCorto(p.iso)) : 'SIN FECHA') + '</b>' +
-        '<span class="hh">' + (p.cuando ? _hhmm(p.iso) : '—') + '</span>' +
+        '<span class="hh">' + (p.cuando && !p.sinHora ? _hhmm(p.iso) : '—') + '</span>' +
         (p.fijado ? '<span class="fijo">📌 FIJO</span>' : '') +
       '</span>' +
       '<span class="txt ' + g + '">' + _esc(p.texto) + '</span>' +
     '</div>';
-  }).join('');
-  if(paginas > 1){
+  }).join('') + '</div>';
+  // El pie solo aparece cuando de verdad hay más de lo que cabe.
+  var rollo = document.getElementById('pz-rollo');
+  var sobra = rollo ? (rollo.scrollHeight - cont.clientHeight) : 0;
+  if(sobra > 4){
     pie.style.display = '';
-    var puntos = '';
-    for(var q = 0; q < paginas; q++){
-      puntos += '<span class="pg' + (q === _pagina ? ' on' : '') + '"></span>';
-    }
-    pie.innerHTML = '<span>' + lista.length + ' pendientes</span>' +
-      '<span class="pags">' + puntos + '</span>';
+    pie.innerHTML = '<span>' + lista.length + ' pendientes · la lista se mueve sola</span>';
   } else {
     pie.style.display = 'none';
+    _desl.y = 0;
+    if(rollo) rollo.style.transform = 'translateY(0)';
   }
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// EL DESLIZADO
+// Baja despacio, se detiene abajo, sube, se detiene arriba. Y si todo cabe,
+// NO SE MUEVE: en un día tranquilo la pantalla está quieta.
+// ══════════════════════════════════════════════════════════════════════════
+// ⚠️ Con `setInterval`, NO con `requestAnimationFrame`. rAF es lo "correcto"
+//    para animar, pero se congela en cuanto el navegador cree que nadie está
+//    viendo la pestaña — y una pantalla de pared es justo el caso donde eso
+//    pasa sin que nadie se entere: se quedaría trabada y se vería como si el
+//    pizarrón estuviera muerto. Con 30 cuadros por segundo un deslizado de 26
+//    px/s se ve igual de suave, y el movimiento lo dibuja la tarjeta de video
+//    (`transform` + `will-change`), no el procesador.
+var _MS = 33;
+setInterval(function deslizar(){
+  var rollo = document.getElementById('pz-rollo');
+  var caja = document.getElementById('pz-lista');
+  if(!rollo || !caja) return;
+  var sobra = rollo.scrollHeight - caja.clientHeight;
+  if(sobra <= 4){
+    if(_desl.y !== 0){ _desl.y = 0; rollo.style.transform = 'translateY(0)'; }
+    return;
+  }
+  if(_desl.quieto > 0){ _desl.quieto -= _MS; return; }
+  _desl.y += _desl.dir * (PX_POR_SEGUNDO * _MS / 1000);
+  if(_desl.y >= sobra){ _desl.y = sobra; _desl.dir = -1; _desl.quieto = PAUSA_MS; }
+  if(_desl.y <= 0){ _desl.y = 0; _desl.dir = 1; _desl.quieto = PAUSA_MS; }
+  rollo.style.transform = 'translateY(' + (-_desl.y) + 'px)';
+}, _MS);
 function _esc(s){
   return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
