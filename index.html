@@ -36,6 +36,46 @@
     font-size:19px; line-height:1; padding:8px 13px; border-radius:8px; font-weight:800; }
   .piz-x:hover { background:rgba(255,255,255,.32); }
   .piz-cuerpo { flex:1; overflow-y:auto; padding:16px; }
+  /* ── Marcas de un pendiente ── */
+  .piz-chip { display:inline-block; font:800 10.5px/1 Arial,sans-serif; padding:4px 7px;
+    border-radius:5px; margin-left:6px; vertical-align:middle; letter-spacing:.3px; }
+  .piz-chip.fijo { background:#6b3fa0; color:#fff; }
+  .piz-chip.rep  { background:#1e6f5c; color:#fff; }
+  /* ── El calendario tipo Airbnb (mismo que el del Panel de Papá) ── */
+  #pizcal-fondo{display:none;position:fixed;inset:0;background:rgba(23,20,15,.45);z-index:100003;
+    align-items:center;justify-content:center;padding:18px}
+  #pizcal-fondo.abierto{display:flex}
+  .pzc-caja{background:#fff;border-radius:15px;padding:18px 20px 16px;font-family:Arial,sans-serif;
+    box-shadow:0 20px 55px rgba(0,0,0,.32);max-width:100%;max-height:92vh;overflow:auto}
+  .pzc-cab{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .pzc-cab button{font:inherit;font-size:19px;line-height:1;border:0;background:#f2ede1;
+    color:#4a3410;width:38px;height:38px;border-radius:50%;cursor:pointer;font-weight:800}
+  .pzc-cab button:hover{background:#e4dcc8}
+  .pzc-meses{display:flex;gap:26px}
+  .pzc-mes{min-width:250px}
+  .pzc-tit{text-align:center;font-weight:800;font-size:15px;margin-bottom:10px;text-transform:capitalize}
+  .pzc-sem{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:3px}
+  .pzc-sem span{text-align:center;font-size:11px;font-weight:800;color:#9a9384}
+  .pzc-dias{display:grid;grid-template-columns:repeat(7,1fr);gap:1px 0}
+  .pzc-d{font:inherit;font-size:13.5px;font-weight:600;border:0;background:transparent;
+    color:#17140f;height:36px;cursor:pointer;border-radius:50%;padding:0}
+  .pzc-d:hover{background:#f2ede1}
+  .pzc-d.hoy{box-shadow:inset 0 0 0 2px #c9a24b}
+  .pzc-d.sel{background:#6b3fa0;color:#fff}
+  .pzc-d.pas{color:#c9c3b6}
+  .pzc-vacio{height:36px}
+  .pzc-pie{display:flex;align-items:center;justify-content:space-between;gap:14px;
+    margin-top:14px;padding-top:13px;border-top:1px solid #eee7d8;flex-wrap:wrap}
+  .pzc-eleg{font-size:14.5px;font-weight:800;color:#4a3410}
+  .pzc-bot{display:flex;gap:8px}
+  .pzc-bot button{font:inherit;font-size:14px;font-weight:800;padding:11px 18px;border-radius:9px;
+    border:1px solid #c9c3b6;background:#f7f5f0;cursor:pointer}
+  .pzc-bot button.ok{background:#6b3fa0;color:#fff;border-color:#6b3fa0}
+  /* La cajita que se ve en el formulario en lugar del calendario de Windows */
+  .piz-fecha{padding:11px 12px;font-size:15px;border:1px solid #d8d2c4;border-radius:7px;
+    background:#fff;cursor:pointer;font-weight:700;color:#17140f;min-width:150px;text-align:left}
+  .piz-fecha.vacia{color:#9a9384;font-weight:400}
+  @media (max-width:640px){ .pzc-mes{min-width:0;width:100%} .pzc-meses{gap:0} }
   @media (max-width: 760px){
     .piz-cab h2 { font-size:17px; }
     .piz-cuerpo { padding:11px; }
@@ -761,13 +801,21 @@
      ⚠️ Marcar "hecho" SOLO se puede aqui, nunca desde la pantalla: asi nadie
         apaga la alarma sin haber hecho la chamba. Es a proposito.
      ══════════════════════════════════════════════════════════════════════ -->
+<div id="pizcal-fondo" onclick="if(event.target.id==='pizcal-fondo')pizCalCerrar()">
+  <div class="pzc-caja" id="pizcal-caja"></div>
+</div>
+
 <div id="piz-tel" role="dialog" aria-label="Pendientes del mostrador">
   <div class="piz-cab">
     <div>
       <h2>📋 Pendientes del mostrador</h2>
       <div class="sub">Esto es lo que sale en la pantalla de la pared</div>
     </div>
-    <button class="piz-x" onclick="pizCerrar()" title="Cerrar (Esc)">✕</button>
+    <div style="display:flex; gap:8px; align-items:center; flex:none;">
+      <button class="piz-x" onclick="pizPDF()" title="Bajar TODOS los pendientes en PDF"
+        style="font-size:14px; font-weight:800; padding:9px 14px;">📄 PDF</button>
+      <button class="piz-x" onclick="pizCerrar()" title="Cerrar (Esc)">✕</button>
+    </div>
   </div>
   <div class="piz-cuerpo">
   <div class="card" style="padding:16px; margin-bottom:14px;">
@@ -787,14 +835,27 @@
       <div>
         <label style="display:block; font-size:11px; font-weight:800; color:#7b7468;
           text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px;">Qué día</label>
-        <input type="date" id="piz-dia"
-          style="padding:11px 12px; font-size:15px; border:1px solid #d8d2c4; border-radius:7px;">
+        <!-- ⚠️ Botón, no <input type="date">: el calendario de Windows sale
+             chiquito y distinto en cada máquina. Este es el mismo de siempre. -->
+        <input type="hidden" id="piz-dia">
+        <button type="button" class="piz-fecha" id="piz-dia-txt"
+          onclick="pizCalAbrir('piz-dia')">Escoge el día</button>
       </div>
       <div>
         <label style="display:block; font-size:11px; font-weight:800; color:#7b7468;
           text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px;">A qué hora</label>
         <input type="time" id="piz-hora"
           style="padding:11px 12px; font-size:15px; border:1px solid #d8d2c4; border-radius:7px;">
+      </div>
+      <div>
+        <label style="display:block; font-size:11px; font-weight:800; color:#7b7468;
+          text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px;">¿Se repite?</label>
+        <select id="piz-repite"
+          style="padding:11px 12px; font-size:15px; border:1px solid #d8d2c4; border-radius:7px; background:#fff;">
+          <option value="">No se repite</option>
+          <option value="semana">Cada semana</option>
+          <option value="mes">Cada mes</option>
+        </select>
       </div>
       <button class="btn" onclick="pizAgregar()"
         style="padding:12px 20px; background:#6b3fa0; color:#fff; border-color:#6b3fa0;
@@ -11344,6 +11405,93 @@ function _burroPicado(d, ev){
   // abiertos en la misma lista se prestan a guardar el equivocado.
   var PIZ_EDIT = null;
 
+  // ══════════════════════════════════════════════════════════════════════
+  // CALENDARIO PROPIO (27 ago 2026)
+  // Keno lo pidió igual al de la hoja de facturado del Panel. Aquí es de UN
+  // solo día (un pendiente tiene una fecha, no un rango), pero se ve igual.
+  // Va como botón y no como <input type="date"> porque el de Windows sale
+  // chiquito, distinto en cada máquina, y en la tele de la tienda ni se lee.
+  // ══════════════════════════════════════════════════════════════════════
+  var PIZCAL = { destino:'', sel:'', mes:'' };
+  var PZ_MESES = ['enero','febrero','marzo','abril','mayo','junio','julio',
+                  'agosto','septiembre','octubre','noviembre','diciembre'];
+  function _pzHoy(){
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') +
+           '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function _pzMesSig(ym, n){
+    var a = Number(ym.slice(0,4)), m = Number(ym.slice(5,7)) + n;
+    while(m < 1){ m += 12; a--; } while(m > 12){ m -= 12; a++; }
+    return a + '-' + String(m).padStart(2,'0');
+  }
+  function _pzBonita(iso){
+    if(!iso) return 'Escoge el día';
+    var p = String(iso).split('-');
+    var d = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]), 12);
+    var SEM = ['dom','lun','mar','mié','jue','vie','sáb'];
+    return SEM[d.getDay()] + ' ' + Number(p[2]) + ' de ' + PZ_MESES[Number(p[1])-1];
+  }
+  window.pizCalAbrir = function(destino){
+    PIZCAL.destino = destino;
+    PIZCAL.sel = (document.getElementById(destino) || {}).value || '';
+    PIZCAL.mes = (PIZCAL.sel || _pzHoy()).slice(0,7);
+    document.getElementById('pizcal-fondo').classList.add('abierto');
+    pizCalPintar();
+  };
+  window.pizCalCerrar = function(){
+    document.getElementById('pizcal-fondo').classList.remove('abierto');
+  };
+  window.pizCalMover = function(n){ PIZCAL.mes = _pzMesSig(PIZCAL.mes, n); pizCalPintar(); };
+  window.pizCalClic = function(iso){ PIZCAL.sel = iso; pizCalPintar(); };
+  window.pizCalHoy = function(){ PIZCAL.sel = _pzHoy(); PIZCAL.mes = PIZCAL.sel.slice(0,7); pizCalPintar(); };
+  window.pizCalAplicar = function(){
+    if(!PIZCAL.sel) return;
+    var inp = document.getElementById(PIZCAL.destino);
+    if(inp) inp.value = PIZCAL.sel;
+    var btn = document.getElementById(PIZCAL.destino + '-txt');
+    if(btn){ btn.textContent = _pzBonita(PIZCAL.sel); btn.classList.remove('vacia'); }
+    pizCalCerrar();
+  };
+  function _pzMesHtml(ym){
+    var a = Number(ym.slice(0,4)), m = Number(ym.slice(5,7));
+    var hueco = new Date(a, m-1, 1, 12).getDay();
+    var dias = new Date(a, m, 0, 12).getDate();
+    var hoy = _pzHoy();
+    var t = '<div class="pzc-mes"><div class="pzc-tit">' + PZ_MESES[m-1] + ' ' + a + '</div>' +
+      '<div class="pzc-sem"><span>D</span><span>L</span><span>M</span><span>M</span>' +
+      '<span>J</span><span>V</span><span>S</span></div><div class="pzc-dias">';
+    var i;
+    for(i = 0; i < hueco; i++) t += '<span class="pzc-vacio"></span>';
+    for(i = 1; i <= dias; i++){
+      var iso = a + '-' + String(m).padStart(2,'0') + '-' + String(i).padStart(2,'0');
+      var c = 'pzc-d';
+      if(iso === PIZCAL.sel) c += ' sel';
+      if(iso === hoy) c += ' hoy';
+      // Los días que ya pasaron se ven apagados, pero SÍ se pueden escoger:
+      // a veces se apunta algo que ya se debía haber hecho.
+      if(iso < hoy) c += ' pas';
+      t += '<button type="button" class="' + c + '" onclick="pizCalClic(\'' + iso + '\')">' + i + '</button>';
+    }
+    return t + '</div></div>';
+  }
+  function pizCalPintar(){
+    var c = document.getElementById('pizcal-caja'); if(!c) return;
+    var dos = window.innerWidth >= 640;
+    var t = '<div class="pzc-cab"><button type="button" onclick="pizCalMover(-1)">‹</button>' +
+      '<div style="flex:1"></div><button type="button" onclick="pizCalMover(1)">›</button></div>' +
+      '<div class="pzc-meses">' + _pzMesHtml(PIZCAL.mes) +
+      (dos ? _pzMesHtml(_pzMesSig(PIZCAL.mes, 1)) : '') + '</div>' +
+      '<div class="pzc-pie"><span class="pzc-eleg">' + _pzBonita(PIZCAL.sel) + '</span>' +
+      '<span class="pzc-bot">' +
+        '<button type="button" onclick="pizCalHoy()">Hoy</button>' +
+        '<button type="button" onclick="pizCalCerrar()">Cancelar</button>' +
+        '<button type="button" class="ok" onclick="pizCalAplicar()"' +
+          (PIZCAL.sel ? '' : ' disabled') + '>Aplicar</button>' +
+      '</span></div>';
+    c.innerHTML = t;
+  }
+
   window.pizCerrar = function(){
     var t = document.getElementById('piz-tel');
     if(t) t.classList.remove('abierto');
@@ -11355,9 +11503,9 @@ function _burroPicado(d, ev){
     // Se pone la fecha de hoy por default: casi todo es para hoy.
     var d = document.getElementById('piz-dia');
     if(d && !d.value){
-      var n = new Date();
-      d.value = n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0') +
-                '-' + String(n.getDate()).padStart(2,'0');
+      d.value = _pzHoy();
+      var bt = document.getElementById('piz-dia-txt');
+      if(bt) bt.textContent = _pzBonita(d.value);
     }
     if(!_pizEscuchando && window.firebase && firebase.database){
       _pizEscuchando = true;
@@ -11397,11 +11545,14 @@ function _burroPicado(d, ev){
     if(!window.firebase || !firebase.database){ alert('Sin conexión. Intenta en un momento.'); return; }
     var quien = '';
     try { quien = (firebase.auth().currentUser || {}).email || ''; } catch(e){}
+    var rep = (document.getElementById('piz-repite') || {}).value || '';
     firebase.database().ref('pendientes').push({
       texto: t.slice(0, 60),
       fechaHora: iso,
       quienLoPuso: quien,
       hecho: false,
+      fijado: false,
+      repite: rep,
       creadoEn: new Date().toISOString()
     }).then(function(){
       document.getElementById('piz-texto').value = '';
@@ -11444,9 +11595,11 @@ function _burroPicado(d, ev){
     try { quien = (firebase.auth().currentUser || {}).email || ''; } catch(e){}
     // ⚠️ `update`, no `set`: así no se borran `hecho`, `quienLoPuso` ni
     //    `creadoEn`. Un `set` los habría dejado en blanco sin avisar.
+    var rep = (document.getElementById('piz-e-repite') || {}).value || '';
     firebase.database().ref('pendientes/' + id).update({
       texto: t.slice(0, 60),
       fechaHora: iso,
+      repite: rep,
       editadoPor: quien,
       editadoEn: new Date().toISOString()
     }).then(function(){
@@ -11487,8 +11640,19 @@ function _burroPicado(d, ev){
         '<div>' +
           '<label style="display:block; font-size:10.5px; font-weight:800; color:#7b7468;' +
             ' text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Qué día</label>' +
-          '<input type="date" id="piz-e-dia" value="' + pt.dia + '"' +
-            ' style="padding:9px 10px; font-size:15px; border:1px solid #c9b6e8; border-radius:6px;">' +
+          '<input type="hidden" id="piz-e-dia" value="' + pt.dia + '">' +
+          '<button type="button" class="piz-fecha' + (pt.dia ? '' : ' vacia') + '" id="piz-e-dia-txt"' +
+            ' onclick="pizCalAbrir(\'piz-e-dia\')">' + _pzBonita(pt.dia) + '</button>' +
+        '</div>' +
+        '<div>' +
+          '<label style="display:block; font-size:10.5px; font-weight:800; color:#7b7468;' +
+            ' text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">¿Se repite?</label>' +
+          '<select id="piz-e-repite" style="padding:9px 10px; font-size:15px;' +
+            ' border:1px solid #c9b6e8; border-radius:6px; background:#fff;">' +
+            '<option value=""' + (p.repite ? '' : ' selected') + '>No se repite</option>' +
+            '<option value="semana"' + (p.repite === 'semana' ? ' selected' : '') + '>Cada semana</option>' +
+            '<option value="mes"' + (p.repite === 'mes' ? ' selected' : '') + '>Cada mes</option>' +
+          '</select>' +
         '</div>' +
         '<div>' +
           '<label style="display:block; font-size:10.5px; font-weight:800; color:#7b7468;' +
@@ -11508,14 +11672,63 @@ function _burroPicado(d, ev){
   window.pizHecho = function(id, valor){
     var quien = '';
     try { quien = (firebase.auth().currentUser || {}).email || ''; } catch(e){}
+    var p = PIZ_DATOS[id] || {};
     firebase.database().ref('pendientes/' + id).update(valor
       ? { hecho:true, quienLoMarco:quien, fechaHecho:new Date().toISOString() }
       : { hecho:false, quienLoMarco:'', fechaHecho:'' }
-    ).catch(function(e){ alert('No se pudo: ' + ((e && e.code) || 'error')); });
+    ).then(function(){
+      // ⚠️ La siguiente vuelta se crea AL MARCARLO HECHO, no por reloj. Así
+      //    nunca se juntan dos del mismo pendiente sin hacer, y si nadie lo
+      //    marca es porque de verdad sigue pendiente.
+      if(!valor || !p.repite || !p.fechaHora) return;
+      var sig = _pizSiguiente(p.fechaHora, p.repite);
+      if(!sig) return;
+      firebase.database().ref('pendientes').push({
+        texto: p.texto || '',
+        fechaHora: sig,
+        quienLoPuso: p.quienLoPuso || quien,
+        hecho: false,
+        fijado: !!p.fijado,
+        repite: p.repite,
+        creadoEn: new Date().toISOString(),
+        vieneDe: id
+      }).then(function(){
+        toast('🔁 Se apuntó la siguiente: ' + _pizCuando(sig).txt, 'success');
+      }).catch(function(){});
+    }).catch(function(e){ alert('No se pudo: ' + ((e && e.code) || 'error')); });
   };
 
   // ⚠️ Borrar pide confirmacion: un pendiente borrado no deja rastro. Marcar
   //    "hecho" es lo normal; borrar es para los que se apuntaron mal.
+  // ── FIJAR ────────────────────────────────────────────────────────────
+  // Un pendiente fijado se queda arriba de todo hasta que alguien lo desfije.
+  // No caduca ni rota en la pantalla de la pared: es para lo que SIEMPRE tiene
+  // que estar a la vista.
+  window.pizFijar = function(id, valor){
+    firebase.database().ref('pendientes/' + id).update({ fijado: !!valor })
+      .catch(function(e){ alert('No se pudo: ' + ((e && e.code) || 'error')); });
+  };
+
+  // ── LA SIGUIENTE VUELTA DE UNO QUE SE REPITE ─────────────────────────
+  // ⚠️ El mes se suma con cuidado: si algo es el 31 y el mes que sigue no
+  //    tiene 31, se va al ÚLTIMO día de ese mes. Sin esto, JavaScript lo
+  //    empuja al 1 del mes siguiente y el pendiente se salta un mes entero
+  //    sin que nadie se dé cuenta.
+  function _pizSiguiente(iso, repite){
+    if(!iso || !repite) return '';
+    var d = new Date(iso);
+    if(isNaN(d)) return '';
+    if(repite === 'semana'){
+      d.setDate(d.getDate() + 7);
+      return d.toISOString();
+    }
+    var dia = d.getDate();
+    var m = d.getMonth() + 1, a = d.getFullYear();
+    if(m > 11){ m = 0; a++; }
+    var ultimo = new Date(a, m + 1, 0).getDate();
+    return new Date(a, m, Math.min(dia, ultimo), d.getHours(), d.getMinutes(), 0).toISOString();
+  }
+
   window.pizBorrar = function(id, texto){
     if(!confirm('¿Borrar "' + texto + '"?\n\nEsto no se puede deshacer. Si ya se hizo,' +
                 ' mejor márcalo como hecho.')) return;
@@ -11537,6 +11750,76 @@ function _burroPicado(d, ev){
     return { txt: dia + ' · ' + hh, tarde: d.getTime() <= Date.now() };
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // EL PDF DE TODOS LOS PENDIENTES (27 ago 2026)
+  // Keno lo pidió con: cuándo se creó, qué es, para cuándo estaba, y si se
+  // hizo o no. Es el papel para revisar la semana con el mostrador.
+  // Van TODOS —hechos y no hechos— porque el chiste es ver qué se cumplió.
+  // ══════════════════════════════════════════════════════════════════════
+  window.pizPDF = function(){
+    var todos = Object.keys(PIZ_DATOS).map(function(k){
+      var p = PIZ_DATOS[k] || {};
+      return { texto:String(p.texto || ''), iso:p.fechaHora || '', hecho:!!p.hecho,
+               creado:p.creadoEn || '', quien:p.quienLoPuso || '',
+               marco:p.quienLoMarco || '', hechoEn:p.fechaHecho || '',
+               fijado:!!p.fijado, repite:p.repite || '',
+               ts:p.fechaHora ? new Date(p.fechaHora).getTime() : 0 };
+    }).sort(function(a,b){ return (b.ts||0) - (a.ts||0); });
+    if(!todos.length){ alert('Todavía no hay pendientes que bajar.'); return; }
+    if(!window.jspdf || !window.jspdf.jsPDF){
+      alert('No cargó la librería del PDF. Revisa tu internet y vuelve a intentar.');
+      return;
+    }
+    var f = function(iso, conHora){
+      if(!iso) return '—';
+      var d = new Date(iso);
+      if(isNaN(d)) return '—';
+      var s = String(d.getDate()).padStart(2,'0') + '/' +
+              String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+      return conHora ? (s + '  ' + String(d.getHours()).padStart(2,'0') + ':' +
+                        String(d.getMinutes()).padStart(2,'0')) : s;
+    };
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'letter' });
+    var hoy = new Date();
+    doc.setFontSize(16); doc.setFont(undefined, 'bold');
+    doc.text('Pendientes del mostrador', 40, 42);
+    doc.setFontSize(10); doc.setFont(undefined, 'normal');
+    doc.text('Tracto Partes Magaña · ' + f(hoy.toISOString(), true) + '  ·  ' +
+             todos.length + ' registro(s), ' +
+             todos.filter(function(x){ return x.hecho; }).length + ' ya hechos', 40, 60);
+    doc.autoTable({
+      startY: 74,
+      head: [['Se apuntó', 'Qué hay que hacer', 'Para cuándo', '¿Se hizo?', 'Quién lo marcó']],
+      body: todos.map(function(p){
+        return [
+          f(p.creado, true),
+          p.texto + (p.fijado ? '  [FIJO]' : '') +
+            (p.repite ? '  [cada ' + (p.repite === 'mes' ? 'mes' : 'semana') + ']' : ''),
+          f(p.iso, true),
+          p.hecho ? ('SÍ · ' + f(p.hechoEn, true)) : 'NO',
+          p.hecho ? String(p.marco || '').split('@')[0] : '—'
+        ];
+      }),
+      styles: { fontSize: 9, cellPadding: 5, overflow: 'linebreak' },
+      headStyles: { fillColor: [107, 63, 160], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [248, 246, 250] },
+      columnStyles: { 0:{cellWidth:96}, 1:{cellWidth:250}, 2:{cellWidth:96},
+                      3:{cellWidth:118}, 4:{cellWidth:100} },
+      // Lo que NO se hizo, en rojo: es lo que se va a platicar en la junta.
+      didParseCell: function(d){
+        if(d.section === 'body' && d.column.index === 3 && d.cell.raw === 'NO'){
+          d.cell.styles.textColor = [176, 58, 46];
+          d.cell.styles.fontStyle = 'bold';
+        }
+      }
+    });
+    doc.save('Pendientes ' + hoy.getFullYear() + '-' +
+             String(hoy.getMonth()+1).padStart(2,'0') + '-' +
+             String(hoy.getDate()).padStart(2,'0') + '.pdf');
+    try { playDing(); } catch(e){}
+  };
+
   function pizPintar(){
     var cont = document.getElementById('piz-lista');
     if(!cont) return;
@@ -11544,10 +11827,13 @@ function _burroPicado(d, ev){
       var p = PIZ_DATOS[k] || {};
       return { id:k, texto:String(p.texto || ''), iso:p.fechaHora || '',
                hecho:!!p.hecho, quien:p.quienLoPuso || '',
+               fijado:!!p.fijado, repite:p.repite || '',
                ts:p.fechaHora ? new Date(p.fechaHora).getTime() : 0 };
     });
     var faltan = todos.filter(function(p){ return !p.hecho; })
       .sort(function(a,b){
+        // Los fijados mandan: siempre hasta arriba, pase lo que pase.
+        if(a.fijado !== b.fijado) return a.fijado ? -1 : 1;
         if(!a.ts && !b.ts) return 0;
         if(!a.ts) return 1;
         if(!b.ts) return -1;
@@ -11573,7 +11859,11 @@ function _burroPicado(d, ev){
           ' align-items:center; gap:10px;' +
           (c.tarde ? ' border-left:4px solid #c0392b; background:#fdf2f0;' : '') + '">' +
           '<div style="flex:1; min-width:0;">' +
-            '<div style="font-size:16px; font-weight:800; color:#17140f;">' + escapeHtml(p.texto) + '</div>' +
+            '<div style="font-size:16px; font-weight:800; color:#17140f;">' + escapeHtml(p.texto) +
+              (p.fijado ? '<span class="piz-chip fijo">📌 FIJO</span>' : '') +
+              (p.repite ? '<span class="piz-chip rep">🔁 CADA ' +
+                (p.repite === 'mes' ? 'MES' : 'SEMANA') + '</span>' : '') +
+            '</div>' +
             '<div style="font-size:12.5px; margin-top:3px; font-family:Arial,sans-serif;' +
               (c.tarde ? ' color:#c0392b; font-weight:800;' : ' color:#7b7468;') + '">' +
               (c.tarde ? '🔴 ' : '🕒 ') + escapeHtml(c.txt) +
@@ -11582,6 +11872,10 @@ function _burroPicado(d, ev){
           '</div>' +
           '<div style="display:flex; gap:6px; flex:none;">' +
             '<button class="btn btn-small btn-mini btn-success" onclick="pizHecho(\'' + p.id + '\', true)">✓ Hecho</button>' +
+            '<button class="btn btn-small btn-mini" title="' +
+              (p.fijado ? 'Quitarlo de fijo' : 'Dejarlo fijo hasta que tú lo quites') + '" ' +
+              (p.fijado ? 'style="background:#6b3fa0;color:#fff;border-color:#6b3fa0;" ' : '') +
+              'onclick="pizFijar(\'' + p.id + '\', ' + (p.fijado ? 'false' : 'true') + ')">📌</button>' +
             '<button class="btn btn-small btn-mini" title="Cambiar el texto, el día o la hora" ' +
               'onclick="pizEditar(\'' + p.id + '\')">✏️</button>' +
             '<button class="btn btn-small btn-mini btn-danger" title="Borrar (no deja rastro)" ' +
