@@ -18,27 +18,27 @@
 <style>
   /* El mismo rojo que usa la pantalla de la pared para lo vencido: el botón
      y el pizarrón hablan el mismo idioma. */
-  .pend-btn { background:#c0392b !important; color:#fff !important; border-color:#c0392b !important; font-weight:800 !important; }
-  .pend-btn:hover { background:#a5301f !important; color:#fff !important; }
+  .piz-btn { background:#c0392b !important; color:#fff !important; border-color:#c0392b !important; font-weight:800 !important; }
+  .piz-btn:hover { background:#a5301f !important; color:#fff !important; }
   .envios-btn { background:#1e6f5c !important; color:#fff !important; border-color:#1e6f5c !important; font-weight:800 !important; }
   .envios-btn:hover { background:#17594a !important; color:#fff !important; }
 
   /* ── Panel flotante de PENDIENTES (27 ago 2026) ──
      Mismo comportamiento que el de Envíos: tapa la pantalla, se cierra con la
      ✕ o con Esc. Fondo claro porque adentro van tarjetas, no un mapa. */
-  #pend-tel { position:fixed; inset:0; z-index:100001; background:#f4f1ea; display:none; }
-  #pend-tel.abierto { display:flex; flex-direction:column; }
-  .pend-cab { flex:none; display:flex; align-items:center; justify-content:space-between;
+  #piz-tel { position:fixed; inset:0; z-index:100001; background:#f4f1ea; display:none; }
+  #piz-tel.abierto { display:flex; flex-direction:column; }
+  .piz-cab { flex:none; display:flex; align-items:center; justify-content:space-between;
     gap:12px; padding:14px 18px; background:#c0392b; color:#fff; }
-  .pend-cab h2 { margin:0; font-size:19px; font-weight:800; }
-  .pend-cab .sub { font-size:12.5px; opacity:.88; margin-top:2px; font-family:Arial,sans-serif; }
-  .pend-x { flex:none; background:rgba(255,255,255,.18); border:0; color:#fff; cursor:pointer;
+  .piz-cab h2 { margin:0; font-size:19px; font-weight:800; }
+  .piz-cab .sub { font-size:12.5px; opacity:.88; margin-top:2px; font-family:Arial,sans-serif; }
+  .piz-x { flex:none; background:rgba(255,255,255,.18); border:0; color:#fff; cursor:pointer;
     font-size:19px; line-height:1; padding:8px 13px; border-radius:8px; font-weight:800; }
-  .pend-x:hover { background:rgba(255,255,255,.32); }
-  .pend-cuerpo { flex:1; overflow-y:auto; padding:16px; }
+  .piz-x:hover { background:rgba(255,255,255,.32); }
+  .piz-cuerpo { flex:1; overflow-y:auto; padding:16px; }
   @media (max-width: 760px){
-    .pend-cab h2 { font-size:17px; }
-    .pend-cuerpo { padding:11px; }
+    .piz-cab h2 { font-size:17px; }
+    .piz-cuerpo { padding:11px; }
   }
   #env-tel { position:fixed; inset:0; z-index:100001; background:#0f1417; display:none; }
   #env-tel.abierto { display:flex; flex-direction:column; }
@@ -464,6 +464,61 @@
   }
 </style>
 </head>
+<!-- ══════════════════════════════════════════════════════════════════════
+     🔴 ESPERAR A QUE CARGUE (27 ago 2026)
+     ──────────────────────────────────────────────────────────────────────
+     Los botones del header se dibujan en el renglón ~490, pero sus funciones
+     no existen hasta el final del archivo, DESPUÉS de bajar las librerías
+     de Firebase, que son de red. MEDIDO: a los 40 ms el botón ya se ve y
+     (⚠️ ojo: NO escribir la etiqueta de script literal dentro de un
+      comentario — parte el archivo en dos para quien lo revise)
+     `pizAbrir`, `abrirEnvios` y hasta `showView` valen `undefined`. Le picas,
+     truena en silencio y parece que la app no hace nada.
+     Keno lo vivió así: "le pico a Pendientes y no entra; hasta la tercera o
+     cuarta vez ya me deja".
+
+     `alTeclear()` lo resuelve: si la función ya existe la llama de una; si no,
+     ESPERA a que aparezca y la llama sola, enseñando "Cargando…" mientras. El
+     clic nunca se pierde.
+
+     Va en el <head> porque tiene que existir ANTES que los botones que lo
+     usan. Es la misma trampa de siempre en este archivo: el orden manda.
+     ══════════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  var esperando = null;
+  window.alTeclear = function(nombre){
+    var f = window[nombre];
+    if (typeof f === 'function') { try { f(); } catch(e){ console.error(nombre, e); } return; }
+    if (esperando) return;                 // ya hay uno esperando; no se apilan
+    esperando = nombre;
+    var aviso = document.createElement('div');
+    aviso.textContent = '⏳ Cargando…';
+    aviso.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);' +
+      'z-index:200000;background:#17140f;color:#f4e7cd;padding:10px 18px;border-radius:9px;' +
+      'font:700 15px Arial,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.35)';
+    if (document.body) document.body.appendChild(aviso);
+    var t0 = Date.now();
+    (function reintenta(){
+      var g = window[nombre];
+      if (typeof g === 'function'){
+        aviso.remove(); esperando = null;
+        try { g(); } catch(e){ console.error(nombre, e); }
+        return;
+      }
+      // 15 s es de sobra hasta con internet malo. Si ni asi, se DICE: nunca se
+      // deja a alguien picandole a un boton muerto sin saber por que.
+      if (Date.now() - t0 > 15000){
+        aviso.remove(); esperando = null;
+        alert('La página todavía no termina de cargar.\n\nRevisa el internet y vuelve a picarle en un momento.');
+        return;
+      }
+      setTimeout(reintenta, 100);
+    })();
+  };
+})();
+</script>
+
 <body>
 
 <header style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -491,10 +546,10 @@
     <!-- 📋 PENDIENTES — lo que hay que hacer hoy, y lo que sale en la pantalla
          de la pared. Va en ROJO y pegado a Envíos porque es lo que se mira de
          reojo mil veces al día, no algo que se busca en un menú. -->
-    <button class="btn-hdr pend-btn" onclick="pendAbrir()" title="Pendientes del mostrador — lo que sale en la pantalla de la pared">📋 Pendientes</button>
-    <button class="btn-hdr envios-btn" onclick="abrirEnvios()" title="Cuánto ha costado enviar a cada ciudad">📦 Envíos</button>
-    <button class="btn-hdr sat-btn" onclick="abrirSat()" title="Buscar la clave del SAT de una pieza">🔎 Buscador SAT</button>
-    <button class="btn-hdr burro-btn" onclick="abrirBurrito()" title="El menú de los mariscos… y algo más">🫏 El Burrito Feliz</button>
+    <button class="btn-hdr piz-btn" onclick="alTeclear('pizAbrir')" title="Pendientes del mostrador — lo que sale en la pantalla de la pared">📋 Pendientes</button>
+    <button class="btn-hdr envios-btn" onclick="alTeclear('abrirEnvios')" title="Cuánto ha costado enviar a cada ciudad">📦 Envíos</button>
+    <button class="btn-hdr sat-btn" onclick="alTeclear('abrirSat')" title="Buscar la clave del SAT de una pieza">🔎 Buscador SAT</button>
+    <button class="btn-hdr burro-btn" onclick="alTeclear('abrirBurrito')" title="El menú de los mariscos… y algo más">🫏 El Burrito Feliz</button>
     <!-- ENGRANE DERECHO — SOLO EN EL CELULAR. Fotos, Registrar Camión y
          Compra de Mercancía. Al vendedor en Solo Ver le sale nada más Fotos:
          las otras dos llevan "solo-editor", igual que los botones originales. -->
@@ -504,7 +559,7 @@
   <!-- Las dos cajitas que se abren. Viven aquí adentro para poder colgarse
        del encabezado; en pantalla grande nunca se muestran. -->
   <div class="eng-panel izq" id="eng-panel-izq">
-    <button onclick="engCerrar(); pendAbrir()">📋 Pendientes</button>
+    <button onclick="engCerrar(); alTeclear('pizAbrir')">📋 Pendientes</button>
 <button id="eng-dormidas" onclick="engCerrar(); verDormidas()">🐌 Dormidas</button>
     <button onclick="engCerrar(); renderCamiones(); openModal('modal-ultimos')">📋 Últimos registros</button>
     <button class="solo-editor" onclick="engCerrar(); renderHistorialAcciones(); openModal('modal-historial')">🕐 Historial de acciones</button>
@@ -706,15 +761,15 @@
      ⚠️ Marcar "hecho" SOLO se puede aqui, nunca desde la pantalla: asi nadie
         apaga la alarma sin haber hecho la chamba. Es a proposito.
      ══════════════════════════════════════════════════════════════════════ -->
-<div id="pend-tel" role="dialog" aria-label="Pendientes del mostrador">
-  <div class="pend-cab">
+<div id="piz-tel" role="dialog" aria-label="Pendientes del mostrador">
+  <div class="piz-cab">
     <div>
       <h2>📋 Pendientes del mostrador</h2>
       <div class="sub">Esto es lo que sale en la pantalla de la pared</div>
     </div>
-    <button class="pend-x" onclick="pendCerrar()" title="Cerrar (Esc)">✕</button>
+    <button class="piz-x" onclick="pizCerrar()" title="Cerrar (Esc)">✕</button>
   </div>
-  <div class="pend-cuerpo">
+  <div class="piz-cuerpo">
   <div class="card" style="padding:16px; margin-bottom:14px;">
     <div style="font-size:13px; color:#7b7468; margin-bottom:14px;">
       Lo que se apunte aquí sale en la <b>pantalla de la pared</b>. Cuando llega
@@ -725,23 +780,23 @@
       <div style="flex:1 1 260px; min-width:200px;">
         <label style="display:block; font-size:11px; font-weight:800; color:#7b7468;
           text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px;">Qué hay que hacer</label>
-        <input type="text" id="pend-texto" maxlength="60" placeholder="Ej. Pagar el predial"
+        <input type="text" id="piz-texto" maxlength="60" placeholder="Ej. Pagar el predial"
           style="width:100%; padding:11px 12px; font-size:15px; border:1px solid #d8d2c4; border-radius:7px;"
-          onkeydown="if(event.key==='Enter') pendAgregar()">
+          onkeydown="if(event.key==='Enter') pizAgregar()">
       </div>
       <div>
         <label style="display:block; font-size:11px; font-weight:800; color:#7b7468;
           text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px;">Qué día</label>
-        <input type="date" id="pend-dia"
+        <input type="date" id="piz-dia"
           style="padding:11px 12px; font-size:15px; border:1px solid #d8d2c4; border-radius:7px;">
       </div>
       <div>
         <label style="display:block; font-size:11px; font-weight:800; color:#7b7468;
           text-transform:uppercase; letter-spacing:.6px; margin-bottom:4px;">A qué hora</label>
-        <input type="time" id="pend-hora"
+        <input type="time" id="piz-hora"
           style="padding:11px 12px; font-size:15px; border:1px solid #d8d2c4; border-radius:7px;">
       </div>
-      <button class="btn" onclick="pendAgregar()"
+      <button class="btn" onclick="pizAgregar()"
         style="padding:12px 20px; background:#6b3fa0; color:#fff; border-color:#6b3fa0;
         font-weight:800; font-size:15px;">➕ Agregar</button>
     </div>
@@ -754,7 +809,7 @@
       chicos. Escríbelo corto y se lee desde el fondo del mostrador.
     </div>
   </div>
-  <div id="pend-lista"></div>
+  <div id="piz-lista"></div>
   </div>
 </div>
 
@@ -11284,36 +11339,36 @@ function _burroPicado(d, ev){
   // Lo que se escribe aqui es lo que enseña pizarron.html en la pared.
   // Nodo `pendientes` de Firebase RTDB (mismo proyecto inventario-julio-26).
   // ══════════════════════════════════════════════════════════════════════
-  var PEND_DATOS = {}, _pendEscuchando = false;
+  var PIZ_DATOS = {}, _pizEscuchando = false;
   // Qué renglón se está editando ahorita. Solo uno a la vez: dos formularios
   // abiertos en la misma lista se prestan a guardar el equivocado.
-  var PEND_EDIT = null;
+  var PIZ_EDIT = null;
 
-  window.pendCerrar = function(){
-    var t = document.getElementById('pend-tel');
+  window.pizCerrar = function(){
+    var t = document.getElementById('piz-tel');
     if(t) t.classList.remove('abierto');
   };
 
-  window.pendAbrir = function(){
-    var t = document.getElementById('pend-tel');
+  window.pizAbrir = function(){
+    var t = document.getElementById('piz-tel');
     if(t) t.classList.add('abierto');
     // Se pone la fecha de hoy por default: casi todo es para hoy.
-    var d = document.getElementById('pend-dia');
+    var d = document.getElementById('piz-dia');
     if(d && !d.value){
       var n = new Date();
       d.value = n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0') +
                 '-' + String(n.getDate()).padStart(2,'0');
     }
-    if(!_pendEscuchando && window.firebase && firebase.database){
-      _pendEscuchando = true;
+    if(!_pizEscuchando && window.firebase && firebase.database){
+      _pizEscuchando = true;
       // ⚠️ `on('value')`: una conexion que solo recibe cuando algo cambia.
       //    Nada de releer por reloj — la cuota de Firebase ya se agoto una vez.
       firebase.database().ref('pendientes').on('value', function(s){
-        PEND_DATOS = s.val() || {};
-        pendPintar();
+        PIZ_DATOS = s.val() || {};
+        pizPintar();
       }, function(e){
         console.warn('pendientes:', e);
-        var l = document.getElementById('pend-lista');
+        var l = document.getElementById('piz-lista');
         if(l) l.innerHTML = '<div class="info-bar" style="color:#b03a2e;">' +
           '<b>No se pudieron leer los pendientes.</b> ' +
           (e && e.code === 'PERMISSION_DENIED'
@@ -11321,14 +11376,14 @@ function _burroPicado(d, ev){
             : 'Revisa tu internet.') + '</div>';
       });
     }
-    pendPintar();
+    pizPintar();
   };
 
-  window.pendAgregar = function(){
-    var t = (document.getElementById('pend-texto').value || '').trim();
+  window.pizAgregar = function(){
+    var t = (document.getElementById('piz-texto').value || '').trim();
     if(!t){ alert('¿Qué hay que hacer? Escríbelo primero.'); return; }
-    var dia = document.getElementById('pend-dia').value || '';
-    var hora = document.getElementById('pend-hora').value || '';
+    var dia = document.getElementById('piz-dia').value || '';
+    var hora = document.getElementById('piz-hora').value || '';
     // Sin dia no hay alarma posible: se guarda igual pero se avisa, porque en
     // la pantalla sale hasta abajo como "SIN HORA".
     var iso = '';
@@ -11349,8 +11404,8 @@ function _burroPicado(d, ev){
       hecho: false,
       creadoEn: new Date().toISOString()
     }).then(function(){
-      document.getElementById('pend-texto').value = '';
-      document.getElementById('pend-hora').value = '';
+      document.getElementById('piz-texto').value = '';
+      document.getElementById('piz-hora').value = '';
       try { playDing(); } catch(e){}
       toast('✓ Apuntado — ya sale en la pantalla', 'success');
     }).catch(function(e){
@@ -11363,19 +11418,19 @@ function _burroPicado(d, ev){
   // ⚠️ Al abrir uno se cierra el otro. Y se repinta desde los datos de la
   //    nube, así que lo que estuviera a medio escribir se descarta — que es lo
   //    correcto: si no le diste Guardar, no querías guardarlo.
-  window.pendEditar = function(id){
-    PEND_EDIT = id;
-    pendPintar();
-    var t = document.getElementById('pe-txt');
+  window.pizEditar = function(id){
+    PIZ_EDIT = id;
+    pizPintar();
+    var t = document.getElementById('piz-e-txt');
     if(t){ t.focus(); t.select(); }
   };
-  window.pendCancelar = function(){ PEND_EDIT = null; pendPintar(); };
+  window.pizCancelar = function(){ PIZ_EDIT = null; pizPintar(); };
 
-  window.pendGuardar = function(id){
-    var t = (document.getElementById('pe-txt').value || '').trim();
+  window.pizGuardar = function(id){
+    var t = (document.getElementById('piz-e-txt').value || '').trim();
     if(!t){ alert('El texto no puede quedar vacío.'); return; }
-    var dia = document.getElementById('pe-dia').value || '';
-    var hora = document.getElementById('pe-hora').value || '';
+    var dia = document.getElementById('piz-e-dia').value || '';
+    var hora = document.getElementById('piz-e-hora').value || '';
     // Misma regla que al registrar: sin hora se asume 09:00; sin día, el
     // pendiente se queda "sin fecha" y en la pantalla sale hasta abajo.
     var iso = '';
@@ -11395,17 +11450,17 @@ function _burroPicado(d, ev){
       editadoPor: quien,
       editadoEn: new Date().toISOString()
     }).then(function(){
-      PEND_EDIT = null;
+      PIZ_EDIT = null;
       try { playDing(); } catch(e){}
       toast('✓ Cambiado', 'success');
-      pendPintar();
+      pizPintar();
     }).catch(function(e){
       alert('No se pudo guardar: ' + ((e && e.code) || 'error'));
     });
   };
 
   // De un ISO a los dos campos del formulario.
-  function _pendPartes(iso){
+  function _pizPartes(iso){
     if(!iso) return { dia:'', hora:'' };
     var d = new Date(iso);
     if(isNaN(d)) return { dia:'', hora:'' };
@@ -11418,39 +11473,39 @@ function _burroPicado(d, ev){
 
   // El renglón convertido en formulario. Se usa igual en la lista de por
   // hacer y en la de ya hechos.
-  function _pendFormulario(p){
-    var pt = _pendPartes(p.iso);
+  function _pizFormulario(p){
+    var pt = _pizPartes(p.iso);
     return '<div class="pieza-item" style="display:block; border-left:4px solid #6b3fa0; background:#f8f4fd;">' +
       '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">' +
         '<div style="flex:1 1 220px; min-width:170px;">' +
           '<label style="display:block; font-size:10.5px; font-weight:800; color:#7b7468;' +
             ' text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Qué hay que hacer</label>' +
-          '<input type="text" id="pe-txt" maxlength="60" value="' + escapeHtml(p.texto) + '"' +
+          '<input type="text" id="piz-e-txt" maxlength="60" value="' + escapeHtml(p.texto) + '"' +
             ' style="width:100%; padding:9px 10px; font-size:15px; border:1px solid #c9b6e8; border-radius:6px;"' +
-            ' onkeydown="if(event.key===\'Enter\') pendGuardar(\'' + p.id + '\'); if(event.key===\'Escape\') pendCancelar();">' +
+            ' onkeydown="if(event.key===\'Enter\') pizGuardar(\'' + p.id + '\'); if(event.key===\'Escape\') pizCancelar();">' +
         '</div>' +
         '<div>' +
           '<label style="display:block; font-size:10.5px; font-weight:800; color:#7b7468;' +
             ' text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">Qué día</label>' +
-          '<input type="date" id="pe-dia" value="' + pt.dia + '"' +
+          '<input type="date" id="piz-e-dia" value="' + pt.dia + '"' +
             ' style="padding:9px 10px; font-size:15px; border:1px solid #c9b6e8; border-radius:6px;">' +
         '</div>' +
         '<div>' +
           '<label style="display:block; font-size:10.5px; font-weight:800; color:#7b7468;' +
             ' text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px;">A qué hora</label>' +
-          '<input type="time" id="pe-hora" value="' + pt.hora + '"' +
+          '<input type="time" id="piz-e-hora" value="' + pt.hora + '"' +
             ' style="padding:9px 10px; font-size:15px; border:1px solid #c9b6e8; border-radius:6px;">' +
         '</div>' +
         '<div style="display:flex; gap:6px;">' +
-          '<button class="btn btn-small" onclick="pendGuardar(\'' + p.id + '\')"' +
+          '<button class="btn btn-small" onclick="pizGuardar(\'' + p.id + '\')"' +
             ' style="background:#6b3fa0; color:#fff; border-color:#6b3fa0; font-weight:800;">Guardar</button>' +
-          '<button class="btn btn-small" onclick="pendCancelar()">Cancelar</button>' +
+          '<button class="btn btn-small" onclick="pizCancelar()">Cancelar</button>' +
         '</div>' +
       '</div>' +
     '</div>';
   }
 
-  window.pendHecho = function(id, valor){
+  window.pizHecho = function(id, valor){
     var quien = '';
     try { quien = (firebase.auth().currentUser || {}).email || ''; } catch(e){}
     firebase.database().ref('pendientes/' + id).update(valor
@@ -11461,14 +11516,14 @@ function _burroPicado(d, ev){
 
   // ⚠️ Borrar pide confirmacion: un pendiente borrado no deja rastro. Marcar
   //    "hecho" es lo normal; borrar es para los que se apuntaron mal.
-  window.pendBorrar = function(id, texto){
+  window.pizBorrar = function(id, texto){
     if(!confirm('¿Borrar "' + texto + '"?\n\nEsto no se puede deshacer. Si ya se hizo,' +
                 ' mejor márcalo como hecho.')) return;
     firebase.database().ref('pendientes/' + id).remove()
       .catch(function(e){ alert('No se pudo borrar: ' + ((e && e.code) || 'error')); });
   };
 
-  function _pendCuando(iso){
+  function _pizCuando(iso){
     if(!iso) return { txt:'Sin hora', tarde:false };
     var d = new Date(iso);
     if(isNaN(d)) return { txt:'Sin hora', tarde:false };
@@ -11482,11 +11537,11 @@ function _burroPicado(d, ev){
     return { txt: dia + ' · ' + hh, tarde: d.getTime() <= Date.now() };
   }
 
-  function pendPintar(){
-    var cont = document.getElementById('pend-lista');
+  function pizPintar(){
+    var cont = document.getElementById('piz-lista');
     if(!cont) return;
-    var todos = Object.keys(PEND_DATOS).map(function(k){
-      var p = PEND_DATOS[k] || {};
+    var todos = Object.keys(PIZ_DATOS).map(function(k){
+      var p = PIZ_DATOS[k] || {};
       return { id:k, texto:String(p.texto || ''), iso:p.fechaHora || '',
                hecho:!!p.hecho, quien:p.quienLoPuso || '',
                ts:p.fechaHora ? new Date(p.fechaHora).getTime() : 0 };
@@ -11512,8 +11567,8 @@ function _burroPicado(d, ev){
       html += '<div style="padding:22px; text-align:center; color:#9a9384;">Nada pendiente. 👌</div>';
     } else {
       html += '<div style="padding:12px 14px;">' + faltan.map(function(p){
-        if(PEND_EDIT === p.id) return _pendFormulario(p);
-        var c = _pendCuando(p.iso);
+        if(PIZ_EDIT === p.id) return _pizFormulario(p);
+        var c = _pizCuando(p.iso);
         return '<div class="pieza-item" style="display:flex; justify-content:space-between;' +
           ' align-items:center; gap:10px;' +
           (c.tarde ? ' border-left:4px solid #c0392b; background:#fdf2f0;' : '') + '">' +
@@ -11526,11 +11581,11 @@ function _burroPicado(d, ev){
             '</div>' +
           '</div>' +
           '<div style="display:flex; gap:6px; flex:none;">' +
-            '<button class="btn btn-small btn-mini btn-success" onclick="pendHecho(\'' + p.id + '\', true)">✓ Hecho</button>' +
+            '<button class="btn btn-small btn-mini btn-success" onclick="pizHecho(\'' + p.id + '\', true)">✓ Hecho</button>' +
             '<button class="btn btn-small btn-mini" title="Cambiar el texto, el día o la hora" ' +
-              'onclick="pendEditar(\'' + p.id + '\')">✏️</button>' +
+              'onclick="pizEditar(\'' + p.id + '\')">✏️</button>' +
             '<button class="btn btn-small btn-mini btn-danger" title="Borrar (no deja rastro)" ' +
-              'onclick="pendBorrar(\'' + p.id + '\', ' + JSON.stringify(p.texto).replace(/"/g, '&quot;') + ')">🗑</button>' +
+              'onclick="pizBorrar(\'' + p.id + '\', ' + JSON.stringify(p.texto).replace(/"/g, '&quot;') + ')">🗑</button>' +
           '</div>' +
         '</div>';
       }).join('') + '</div>';
@@ -11543,8 +11598,8 @@ function _burroPicado(d, ev){
           '<div><div class="card-title">Ya hechos</div>' +
           '<div class="card-meta">los últimos ' + hechos.length + '</div></div></div>' +
         '<div style="padding:12px 14px;">' + hechos.map(function(p){
-          if(PEND_EDIT === p.id) return _pendFormulario(p);
-          var c = _pendCuando(p.iso);
+          if(PIZ_EDIT === p.id) return _pizFormulario(p);
+          var c = _pizCuando(p.iso);
           return '<div class="pieza-item" style="display:flex; justify-content:space-between;' +
             ' align-items:center; gap:10px; opacity:.62;">' +
             '<div style="flex:1; min-width:0;">' +
@@ -11554,9 +11609,9 @@ function _burroPicado(d, ev){
                 escapeHtml(c.txt) + '</div>' +
             '</div>' +
             '<div style="display:flex; gap:6px; flex:none;">' +
-              '<button class="btn btn-small btn-mini" onclick="pendHecho(\'' + p.id + '\', false)">↩ Deshacer</button>' +
+              '<button class="btn btn-small btn-mini" onclick="pizHecho(\'' + p.id + '\', false)">↩ Deshacer</button>' +
               '<button class="btn btn-small btn-mini" title="Corregirlo" ' +
-                'onclick="pendEditar(\'' + p.id + '\')">✏️</button>' +
+                'onclick="pizEditar(\'' + p.id + '\')">✏️</button>' +
             '</div>' +
           '</div>';
         }).join('') + '</div></div>';
