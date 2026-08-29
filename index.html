@@ -7981,6 +7981,14 @@ let _filtroModelo = null;
 // Marca del camión y buscador, solo en Cofres y Puertas. null/'' = todo.
 let _filtroMarcaCam = null;
 let _filtroTextoFam = '';
+// ⚠️ El buscador de arriba de las familias (28 ago 2026). Se guarda TAL CUAL
+//    lo teclea Raúl —no en minúsculas— porque este mismo texto se vuelve a
+//    pintar en la casilla: si se guardara ya convertido, vería cómo se le
+//    convierte lo que escribe mientras escribe.
+//    Es una variable PROPIA y no `_filtroTextoFam` a propósito: esa se borra
+//    sola al cambiar de familia (ver `setFiltro`), y esta tiene que aguantar
+//    justamente para poder buscar a través de todas.
+let _buscaPzTexto = '';
 
 // ══════════════════════════════════════════════════════════════════
 // EL LIBRAJE DE DIFERENCIALES Y MANCUERNAS (ago 2026)
@@ -8167,6 +8175,13 @@ function setFiltroMarcaCam(v){
   renderBusqueda();
 }
 function filtrarTextoFam(v){ _filtroTextoFam = (v || '').toLowerCase().trim(); renderBusqueda(); }
+// ⚠️ Al teclear se repintan SOLO LOS RESULTADOS, no la caja de filtros. Si se
+//    llamara a `renderBusqueda()` se reconstruiría la casilla en cada letra y
+//    en el teléfono se pierden caracteres — ya pasó con el buscador de FOTOS
+//    ("189" no encontraba nada). Ese es el motivo de que exista
+//    `_renderResultadosBusqueda` aparte; aquí se aprovecha igual.
+function buscarEnPiezas(v){ _buscaPzTexto = v || ''; _renderResultadosBusqueda(); }
+function limpiarBuscaPiezas(){ _buscaPzTexto = ''; renderBusqueda(); }
 // Las piezas de la familia que ya pasaron el filtro de marca. De aquí sale
 // el desplegable de modelos, para que solo enseñe lo que de verdad queda.
 function _basePorMarca(fam){
@@ -8530,6 +8545,10 @@ function renderBusqueda() {
   const _busFoco = !!(_busPrev && document.activeElement === _busPrev);
   const _famPrev = document.getElementById('buscador-familia');
   const _famFoco = !!(_famPrev && document.activeElement === _famPrev);
+  // Lo mismo para el buscador de piezas: una sincronización de la nube puede
+  // repintar todo a media palabra y dejarlo escribiendo en el aire.
+  const _pzPrev = document.getElementById('buscador-piezas-todo');
+  const _pzFoco = !!(_pzPrev && document.activeElement === _pzPrev);
   // Fila 1: especiales (Todas, Sin Precio, Bajo Pedido). Fila 2: familias.
   const filtros = document.getElementById('filtros-familia');
   filtros.innerHTML =
@@ -8540,6 +8559,27 @@ function renderBusqueda() {
       `<button class="filter-chip ${_filtroApartadas ? 'active' : ''}" style="background:#7e57c2; color:#fff; border-color:#7e57c2; font-weight:800;" onclick="toggleApartadasFiltro()">🔖 APARTADAS${nApartadas ? ` (${nApartadas})` : ''}</button>` +
       `<button class="filter-chip ${_filtroFotos ? 'active' : ''}" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800;" onclick="toggleFotosFiltro()">📷 FOTOS${nFotos ? ` (${nFotos})` : ''}</button>` +
       `<button class="filter-chip ${_filtroSinFotos ? 'active' : ''}" style="background:#fff; color:#185FA5; border-color:#185FA5; font-weight:800;" onclick="toggleSinFotosFiltro()">📷❌ SIN FOTOS${nSinFotos ? ` (${nSinFotos})` : ''}</button>` +
+    '</div>' +
+    // ══════════════════════════════════════════════════════════════════════
+    // EL BUSCADOR, ENTRE LA RAYA Y LAS FAMILIAS (28 ago 2026)
+    // ──────────────────────────────────────────────────────────────────────
+    // Keno lo pidió aquí exactamente: "va a estar la línea, luego el buscador,
+    // luego una línea larga y luego las familias de producto".
+    //
+    // ⚠️ DICE "PIEZAS" Y NO "PIEZAS Y CAMIONES" A PROPÓSITO. El de Inicio se
+    //    llama así porque ahí sí lista camiones; éste filtra las PIEZAS de
+    //    esta pantalla —que es lo que Keno escogió que hiciera— y prometer
+    //    camiones sería un título que miente. Busca en los mismos campos que
+    //    el otro (folio, marca, serie, VIN, motor y hasta el camión de donde
+    //    salió la pieza), así que el texto de ayuda sí es el mismo.
+    // ══════════════════════════════════════════════════════════════════════
+    '<div style="margin-bottom:18px; padding-bottom:16px; border-bottom:2px solid #ddd6c8;">' +
+      '<h3 style="margin:0 0 10px">Buscador de Piezas</h3>' +
+      '<div style="display:flex; gap:8px; align-items:center; max-width:640px;">' +
+        '<input type="text" id="buscador-piezas-todo" placeholder="\ud83d\udd0d Buscar folio, marca, serie, VIN, motor..." ' +
+          'value="' + escapeHtml(_buscaPzTexto) + '" oninput="buscarEnPiezas(this.value)" style="flex:1; min-width:0;">' +
+        '<button class="btn btn-mini" onclick="limpiarBuscaPiezas()" title="Limpiar b\u00fasqueda" style="white-space:nowrap;">\u2715 Limpiar</button>' +
+      '</div>' +
     '</div>' +
     ((_filtroFotos || _filtroSinFotos)
       ? '<div style="margin:-6px 0 14px;"><input type="text" id="buscador-fotos" placeholder="🔍 Buscar aquí dentro (modelo, serie, folio...)" value="' + String(_busVal).replace(/"/g,'&quot;') + '" oninput="filtrarFotosTexto(this.value)" style="width:100%; max-width:520px; padding:12px 14px; font-size:16px; border:2px solid #185FA5; border-radius:8px;"></div>'
@@ -8570,6 +8610,10 @@ function renderBusqueda() {
     var _bf = document.getElementById('buscador-familia');
     if (_bf) { _bf.focus(); _bf.setSelectionRange(_bf.value.length, _bf.value.length); }
   }
+  if (_pzFoco) {
+    var _bp = document.getElementById('buscador-piezas-todo');
+    if (_bp) { try { _bp.focus(); _bp.setSelectionRange(_bp.value.length, _bp.value.length); } catch(e){} }
+  }
 
   // Si Raúl estaba tecleando en el buscador, devolverle el foco y el cursor.
   if (_busFoco) {
@@ -8585,6 +8629,11 @@ function renderBusqueda() {
 
 function _renderResultadosBusqueda() {
   let piezas = DATA.piezas.filter(p => !p.vendida);
+  // ⚠️ Va ARRIBA de todo lo demás para que busque en TODAS las familias, con
+  //    o sin familia escogida, y para que se combine con los otros filtros en
+  //    vez de pelearse con ellos.
+  const _qPz = _buscaPzTexto.toLowerCase().trim();
+  if (_qPz) piezas = piezas.filter(p => coincideBusqueda(textoBuscablePieza(p), _qPz));
   if (_filtroFamilia) piezas = piezas.filter(p => p.familia === _filtroFamilia);
   // Filtros exclusivos de Chasis (Consecutivo + Baja federal, se combinan).
   if (_filtroFamilia === 'chasis') {
@@ -8632,7 +8681,8 @@ function _renderResultadosBusqueda() {
   } else if (_filtroSinFotos) {
     info.innerHTML = `<strong>${piezas.length}</strong> pieza(s) <strong style="color:#185FA5;">SIN FOTOS</strong>${_filtroFotosTexto ? ` que coinciden con "<strong>${escapeHtml(_filtroFotosTexto)}</strong>"` : ' — a estas les falta foto. Toca 📷 en una pieza para subirlas.'}`;
   } else {
-    info.innerHTML = `Mostrando: <strong>${piezas.length}</strong> pieza(s) en patio`;
+    info.innerHTML = `Mostrando: <strong>${piezas.length}</strong> pieza(s) en patio` +
+      (_qPz ? ` que coinciden con "<strong>${escapeHtml(_buscaPzTexto)}</strong>"` : '');
   }
 
   // Agrupar SOLO por familia (todas las piezas de una familia juntas).
