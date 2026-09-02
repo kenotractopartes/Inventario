@@ -13357,7 +13357,15 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
         (SAL.soloProd ? '<button class="sal-btn chico" onclick="salTodosProd()">\u2039 ' +
            esc(SAL.soloProd) + '  \u00b7  ver todos</button>' : '') +
         '<div style="flex:1"></div>' +
-        '<button class="sal-btn gris chico" onclick="salImportar()">⬇️ Importar histórico</button>' +
+        // ⚠️ EL BOTÓN DE IMPORTAR SE RETIRÓ (2 sep 2026), NO SE BORRÓ.
+        //    Keno lo mandó traer, lo importó, mandó limpiarlo, y al verlo
+        //    dijo: «mejor quítame todo, que Raúl la empiece por su lado
+        //    desde cero». La lista SAL_HIST sigue entera arriba; para
+        //    revivirlo basta descomentar esta línea. Se retiró para que
+        //    nadie lo pique por accidente y le deshaga la decisión.
+        // '<button class="sal-btn gris chico" onclick="salImportar()">⬇️ Importar histórico</button>' +
+        (nImportados() ? '<button class="sal-btn gris chico" onclick="salQuitarHistorico()">' +
+           '🗑 Quitar el histórico (' + nImportados() + ')</button>' : '') +
       '</div>' +
       // ⚠️ ESTE MES CONTRA EL PASADO: ESCONDIDO, NO BORRADO (2 sep 2026).
       //    Keno lo pidió, lo vio funcionando y dijo «por ahora no es
@@ -13672,6 +13680,50 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
   };
 
   // ── Importar el histórico de Maura, UNA sola vez ──
+  // ══════════════════════════════════════════════════════════════════════
+  // QUITAR EL HISTÓRICO IMPORTADO (2 sep 2026)
+  // ──────────────────────────────────────────────────────────────────────
+  // ⚠️ ESTO NO ES UN «BORRAR TODO», Y LA DIFERENCIA IMPORTA.
+  //    Solo toca los renglones con origen === 'maura', o sea los que trajo
+  //    la importación. Lo que Raúl teclee NO lo puede tocar ni queriendo.
+  //    Un botón de «borrar todo» en una app que Raúl va a usar todos los
+  //    días es una trampa esperando: dentro de seis meses alguien lo pica y
+  //    se lleva meses de captura real.
+  //
+  // ⚠️ Y SE DESAPARECE SOLO. Cuando ya no queda nada importado, nImportados()
+  //    da 0 y el botón deja de dibujarse. Es de un solo uso por diseño.
+  //
+  //    Se hizo por aquí y no desde la terminal porque la regla del proyecto
+  //    es que a la base se escribe DESDE la app. Saltarse eso ya costó 243
+  //    piezas del inventario una vez.
+  // ══════════════════════════════════════════════════════════════════════
+  function nImportados(){
+    return Object.keys(SAL.datos).filter(function(k){
+      return (SAL.datos[k]||{}).origen === 'maura'; }).length;
+  }
+
+  window.salQuitarHistorico = function(){
+    var ids = Object.keys(SAL.datos).filter(function(k){
+      return (SAL.datos[k]||{}).origen === 'maura'; });
+    if(!ids.length){ avisa('Ya no hay nada del histórico.'); return; }
+    var suma = ids.reduce(function(a,k){ return a + (Number(SAL.datos[k].precio)||0); }, 0);
+    var mios = Object.keys(SAL.datos).length - ids.length;
+
+    if(!confirm('¿Quitar las ' + ids.length + ' salidas que trajo el histórico de Maura?\n\n' +
+                'Suman ' + dinero(suma) + ', de mayo a septiembre.\n\n' +
+                (mios ? 'Las ' + mios + ' que capturaste tú NO se tocan.\n\n'
+                      : 'No hay nada capturado a mano, así que la lista queda vacía.\n\n') +
+                'Esto NO se puede deshacer desde aquí.')) return;
+    if(!confirm('Segunda confirmación 🔒\n\nSe van a quitar ' + ids.length +
+                ' salidas (' + dinero(suma) + ').\n\n¿Seguro?')) return;
+
+    var lote = {};
+    ids.forEach(function(k){ lote[k] = null; });
+    firebase.database().ref(NODO).update(lote)
+      .then(function(){ avisa('🗑 ' + ids.length + ' salidas del histórico quitadas'); })
+      .catch(function(){ avisa('No se pudo quitar. Revisa tu internet.', 'error'); });
+  };
+
   window.salImportar = function(){
     var yaHay = Object.keys(SAL.datos).filter(function(k){
       return (SAL.datos[k]||{}).origen === 'maura'; }).length;
