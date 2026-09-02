@@ -13036,6 +13036,13 @@ function _burroPicado(d, ev){
   .sal-btn.gris { background:#efece4; color:#4a4438; border-color:#cfc9bb; }
   .sal-btn.gris:hover { background:#e2ded3; }
   .sal-btn.chico { font-size:12px; padding:6px 12px; }
+  /* El día del formulario se ve como los demás campos, no como un botón:
+     Raúl no tiene que aprender que ése se pica distinto. */
+  .sal-fecha-btn { font:inherit; font-size:14px; padding:8px 10px; text-align:left;
+    border:1px solid #cfc9bb; border-radius:8px; background:#fff; color:#17140f;
+    cursor:pointer; width:100%; }
+  .sal-fecha-btn:hover { border-color:#8a6a12; }
+  .sal-fecha-btn:focus { outline:2px solid #8a6a12; outline-offset:-1px; }
   .sal-tabs { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
   .sal-tab { font:inherit; font-size:13.5px; font-weight:800; padding:8px 16px; border-radius:9px;
              border:1px solid #cfc9bb; background:#fff; color:#7b7468; cursor:pointer; }
@@ -13136,7 +13143,8 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
 // ══════════════════════════════════════════════════════════════════════════
 (function(){
   var NODO = 'salidas_taller';
-  var SAL = { datos:{}, vista:'producto', desde:'', hasta:'', esc:false, listo:false, err:'' };
+  var SAL = { datos:{}, vista:'producto', desde:'', hasta:'', esc:false, listo:false, err:'',
+              editando:'' };   // el id del renglón que se está corrigiendo, o vacío
 
   // ── El catálogo, sacado de los 237 egresos reales de taller de Maura ──
   //    Raúl puede agregar los que falten; se guardan solos.
@@ -13154,13 +13162,14 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     n = Number(n)||0;
     return '$' + n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
   }
-  var MES3 = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-  // El formato que le gusta a Keno: 29-may-2026
+  var MES3 = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  // El formato que pidió Keno: 2/Sep/26 — día sin cero adelante, mes de tres
+  // letras con mayúscula, y el año de dos dígitos.
   function fechaBonita(iso){
     if(!iso) return '—';
     var p = String(iso).split('-');
     if(p.length < 3) return iso;
-    return Number(p[2]) + '-' + MES3[Number(p[1])-1] + '-' + p[0];
+    return Number(p[2]) + '/' + MES3[Number(p[1])-1] + '/' + String(p[0]).slice(2);
   }
   function hoyISO(){
     var d = new Date();
@@ -13236,10 +13245,11 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
   function formulario(){
     var hoy = hoyISO();
     return '<div class="sal-caja" id="sal-form">' +
-      '<h3>Anotar una salida</h3>' +
-      '<div class="ayuda">Cuando alguien te pida material o dinero, anótalo aquí. ' +
+      '<h3 id="sal-form-tit">Anotar una salida</h3>' +
+      '<div class="ayuda" id="sal-form-ayuda">Cuando alguien te pida material o dinero, anótalo aquí. ' +
       'El precio es opcional — si no lo sabes, déjalo en blanco: el renglón cuenta ' +
       'igual para saber cada cuándo lo piden.</div>' +
+      '<div id="sal-editando" style="display:none"></div>' +
       '<div class="sal-fila">' +
         '<div class="sal-campo" style="flex:1;min-width:150px">' +
           '<label>Quién lo pidió</label>' +
@@ -13259,11 +13269,17 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
           '<label>Precio (opcional)</label>' +
           '<input type="number" id="sal-precio" min="0" step="any" placeholder="—">' +
         '</div>' +
-        '<div class="sal-campo" style="width:150px">' +
+        // ⚠️ NO va <input type="date">. El calendario del navegador se ve
+        //    distinto en cada compu, sale en inglés a veces, y no es el que
+        //    Keno quiere. Se usa el mismo de la casa —el de picar días— para
+        //    que el formulario y el filtro se vean igual.
+        '<div class="sal-campo" style="width:168px">' +
           '<label>Día</label>' +
-          '<input type="date" id="sal-fecha" value="' + hoy + '">' +
+          '<input type="hidden" id="sal-fecha" value="' + hoy + '">' +
+          '<button type="button" class="sal-fecha-btn" id="sal-fecha-txt" ' +
+            'onclick="salCalDia()">' + esc(fechaBonita(hoy)) + '</button>' +
         '</div>' +
-        '<button class="sal-btn" onclick="salGuardar()">Anotar</button>' +
+        '<button class="sal-btn" id="sal-btn-guardar" onclick="salGuardar()">Anotar</button>' +
       '</div>' +
       '<div class="sal-fila" style="margin-top:9px">' +
         '<div class="sal-campo" style="flex:1;min-width:220px">' +
@@ -13392,7 +13408,10 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
           '<td>' + (r.quien ? esc(r.quien) : '<span class="sal-chip viejo">sin nombre</span>') + '</td>' +
           '<td class="num">' + (r.precio != null ? dinero(r.precio) : '<span class="sal-chip sinprecio">sin precio</span>') + '</td>' +
           '<td style="color:#7b7468;font-size:12.5px">' + esc(r.nota).slice(0,54) + '</td>' +
-          '<td><button class="sal-btn gris chico" onclick="salBorrar(\'' + r.id + '\')">🗑</button></td>' +
+          '<td style="white-space:nowrap">' +
+            '<button class="sal-btn gris chico" title="Corregir" onclick="salEditar(\'' + r.id + '\')">✏️</button> ' +
+            '<button class="sal-btn gris chico" title="Borrar" onclick="salBorrar(\'' + r.id + '\')">🗑</button>' +
+          '</td>' +
         '</tr>';
       }).join('') + '</tbody></table>';
   }
@@ -13439,6 +13458,28 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     var nt = (document.getElementById('sal-nota').value||'').trim();
     if(!p){ avisa('¿Qué se llevó? Escríbelo primero.', 'error'); return; }
     if(!window.firebase || !firebase.database){ avisa('Sin conexión. Intenta en un momento.', 'error'); return; }
+
+    // ⚠️ SI ESTÁ CORRIGIENDO, ACTUALIZA — NO CREA OTRO. Sin esto, corregir un
+    //    renglón dejaría los dos: el malo y el bueno, y la cuenta de «cada
+    //    cuándo lo piden» saldría al doble sin que nadie lo note.
+    if(SAL.editando){
+      var vie = SAL.datos[SAL.editando] || {};
+      if(!confirm('¿Guardar los cambios?\n\nANTES:  ' + (vie.producto||'') + ' · ' +
+                  fechaBonita(vie.fecha) + ' · ' + (vie.quien||'sin nombre') +
+                  (vie.precio==null?' · sin precio':' · $'+vie.precio) +
+                  '\n\nQUEDA:  ' + p + ' · ' + fechaBonita(f) + ' · ' + (q||'sin nombre') +
+                  ((pr==='' || pr==null) ? ' · sin precio' : ' · $'+pr))) return;
+      firebase.database().ref(NODO + '/' + SAL.editando).update({
+        producto: p.slice(0,40), quien: q.slice(0,30),
+        cantidad: Number(c) || 0,
+        precio: (pr === '' || pr == null) ? null : Number(pr),
+        fecha: f, nota: nt.slice(0,80),
+        editadoEn: new Date().toISOString()
+      }).then(function(){ salCancelarEdicion(); avisa('✓ Corregido'); })
+        .catch(function(){ avisa('No se pudo guardar el cambio.', 'error'); });
+      return;
+    }
+
     firebase.database().ref(NODO).push({
       producto: p.slice(0,40),
       quien: q.slice(0,30),
@@ -13461,12 +13502,68 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     }).catch(function(){ avisa('No se pudo guardar. Revisa tu internet.', 'error'); });
   };
 
+  // ⚠️ CORREGIR ES CARGAR EL RENGLÓN AL MISMO FORMULARIO, no otro modal.
+  //    Raúl ya sabe usar ese formulario; un segundo lugar donde escribir lo
+  //    mismo son dos formas de equivocarse. Mientras corrige sale un letrero
+  //    para que no se le olvide en qué está.
+  window.salEditar = function(id){
+    var r = SAL.datos[id]; if(!r) return;
+    SAL.editando = id;
+    document.getElementById('sal-quien').value = r.quien || '';
+    document.getElementById('sal-producto').value = r.producto || '';
+    document.getElementById('sal-cant').value = r.cantidad || '';
+    document.getElementById('sal-precio').value = (r.precio == null ? '' : r.precio);
+    document.getElementById('sal-nota').value = r.nota || '';
+    var f = r.fecha || hoyISO();
+    document.getElementById('sal-fecha').value = f;
+    var bt = document.getElementById('sal-fecha-txt'); if(bt) bt.textContent = fechaBonita(f);
+    document.getElementById('sal-form-tit').textContent = '✏️ Corrigiendo una salida';
+    document.getElementById('sal-form-ayuda').textContent =
+      'Cambia lo que esté mal y dale Guardar. Si te arrepientes, pica Cancelar.';
+    var av = document.getElementById('sal-editando');
+    av.style.display = '';
+    av.innerHTML = '<div class="sal-aviso" style="margin:0 0 11px">✏️ Estás corrigiendo <b>' +
+      esc(r.producto||'') + '</b> del <b>' + esc(fechaBonita(r.fecha)) + '</b>. ' +
+      'Lo que guardes reemplaza a lo que estaba. ' +
+      '<button class="sal-btn gris chico" style="margin-left:8px" onclick="salCancelarEdicion()">Cancelar</button></div>';
+    document.getElementById('sal-btn-guardar').textContent = 'Guardar cambios';
+    document.getElementById('sal-form').scrollIntoView({block:'start'});
+    document.getElementById('sal-producto').focus();
+  };
+
+  window.salCancelarEdicion = function(){
+    SAL.editando = '';
+    ['sal-quien','sal-producto','sal-cant','sal-precio','sal-nota'].forEach(function(id){
+      var e = document.getElementById(id); if(e) e.value = '';
+    });
+    var f = hoyISO();
+    document.getElementById('sal-fecha').value = f;
+    var bt = document.getElementById('sal-fecha-txt'); if(bt) bt.textContent = fechaBonita(f);
+    document.getElementById('sal-form-tit').textContent = 'Anotar una salida';
+    document.getElementById('sal-form-ayuda').textContent =
+      'Cuando alguien te pida material o dinero, anótalo aquí. El precio es opcional — ' +
+      'si no lo sabes, déjalo en blanco: el renglón cuenta igual para saber cada cuándo lo piden.';
+    var av = document.getElementById('sal-editando'); av.style.display = 'none'; av.innerHTML = '';
+    document.getElementById('sal-btn-guardar').textContent = 'Anotar';
+  };
+
+  // ⚠️ BORRAR VA CON DOBLE SEGURO Y ENSEÑANDO QUÉ SE PIERDE.
+  //    Es el mismo criterio que ya usa el sistema de Maura para cancelar un
+  //    cobro: lo que no se puede deshacer se confirma dos veces, y la segunda
+  //    dice el dato exacto para que no sea un «sí» automático.
   window.salBorrar = function(id){
     var r = SAL.datos[id] || {};
-    if(!confirm('¿Borrar esta salida?\n\n' + (r.producto||'') + '  ·  ' + fechaBonita(r.fecha) +
-                '\n\nNo deja rastro.')) return;
+    var que = (r.producto||'(sin producto)') + '  ·  ' + fechaBonita(r.fecha) +
+              '  ·  ' + (r.quien || 'sin nombre') +
+              (r.precio == null ? '  ·  sin precio' : '  ·  ' + dinero(r.precio));
+    if(!confirm('¿Borrar esta salida?\n\n' + que + '\n\nEsto NO se puede deshacer.')) return;
+    if(!confirm('Segunda confirmación 🔒\n\nSe va a borrar:\n\n' + que +
+                '\n\n¿Seguro?')) return;
     firebase.database().ref(NODO + '/' + id).remove()
-      .then(function(){ avisa('🗑 Borrado'); })
+      .then(function(){
+        if(SAL.editando === id) salCancelarEdicion();
+        avisa('🗑 Borrado');
+      })
       .catch(function(){ avisa('No se pudo borrar.', 'error'); });
   };
 
@@ -13498,10 +13595,23 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
   };
 
   // ══════════════════ EL CALENDARIO DE RANGO ══════════════════
-  var CAL = { mes:'', a:'', b:'' };
+  // El MISMO calendario sirve para las dos cosas: escoger un rango (el
+  // filtro de arriba) y escoger un solo día (el del formulario). Se distingue
+  // con `modo`. Dos calendarios distintos serían dos cosas que mantener y dos
+  // formas de verse.
+  var CAL = { mes:'', a:'', b:'', modo:'rango' };
   window.salCalAbrir = function(){
+    CAL.modo = 'rango';
     CAL.a = SAL.desde; CAL.b = SAL.hasta;
     CAL.mes = (SAL.desde || hoyISO()).slice(0,7);
+    document.getElementById('salcal-fondo').classList.add('abierto');
+    calPintar();
+  };
+  window.salCalDia = function(){
+    CAL.modo = 'dia';
+    var v = (document.getElementById('sal-fecha')||{}).value || hoyISO();
+    CAL.a = v; CAL.b = '';
+    CAL.mes = v.slice(0,7);
     document.getElementById('salcal-fondo').classList.add('abierto');
     calPintar();
   };
@@ -13512,6 +13622,7 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     calPintar();
   };
   window.salCalClic = function(iso){
+    if(CAL.modo === 'dia'){ CAL.a = iso; CAL.b = ''; calPintar(); return; }
     // Primer clic pone el inicio; el segundo cierra el rango. Si ya hay dos,
     // vuelve a empezar — como el calendario de reservas que le gusta a Keno.
     if(!CAL.a || (CAL.a && CAL.b)){ CAL.a = iso; CAL.b = ''; }
@@ -13520,6 +13631,13 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     calPintar();
   };
   window.salCalAplicar = function(){
+    if(CAL.modo === 'dia'){
+      var v = CAL.a || hoyISO();
+      var e = document.getElementById('sal-fecha'); if(e) e.value = v;
+      var b = document.getElementById('sal-fecha-txt'); if(b) b.textContent = fechaBonita(v);
+      salCalCerrar();
+      return;                    // ⚠️ NO repinta la lista: borraría lo escrito
+    }
     SAL.desde = CAL.a || ''; SAL.hasta = CAL.b || CAL.a || '';
     salCalCerrar(); pintarLista();
   };
@@ -13542,9 +13660,11 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     }
     document.getElementById('salcal-dias').innerHTML = h;
     document.getElementById('salcal-nota').textContent =
-      !CAL.a ? 'Pica el primer día' :
-      !CAL.b ? 'Ahora pica el último día' :
-      fechaBonita(CAL.a) + '  a  ' + fechaBonita(CAL.b);
+      CAL.modo === 'dia'
+        ? (CAL.a ? fechaBonita(CAL.a) : 'Pica el día')
+        : (!CAL.a ? 'Pica el primer día' :
+           !CAL.b ? 'Ahora pica el último día' :
+           fechaBonita(CAL.a) + '  a  ' + fechaBonita(CAL.b));
   }
 
   // ── Engancharse cuando ya haya sesión, aunque nadie abra el panel ──
