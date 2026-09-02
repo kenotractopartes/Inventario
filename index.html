@@ -677,6 +677,10 @@
          reojo mil veces al día, no algo que se busca en un menú. -->
     <button class="btn-hdr piz-btn" onclick="alTeclear('pizAbrir')" title="Pendientes del mostrador — lo que sale en la pantalla de la pared">📋 Pendientes</button>
     <button class="btn-hdr envios-btn" onclick="alTeclear('abrirEnvios')" title="Cuánto ha costado enviar a cada ciudad">📦 Envíos</button>
+    <!-- 🧰 SALIDAS DE TALLER — qué material sale, quién lo pidió y cada cuándo.
+         Va pegado a Envíos porque son de la misma familia: dinero que se va
+         en cosas chicas que nadie estaba midiendo. Solo Raúl la maneja. -->
+    <button class="btn-hdr solo-editor" onclick="alTeclear('abrirSalidas')" title="Control de lo que sale del taller: quién lo pidió y cada cuándo">🧰 Salidas</button>
     <button class="btn-hdr sat-btn" onclick="alTeclear('abrirSat')" title="Buscar la clave del SAT de una pieza">🔎 Buscador SAT</button>
     <button class="btn-hdr burro-btn" onclick="alTeclear('abrirBurrito')" title="El menú de los mariscos… y algo más">🫏 El Burrito Feliz</button>
     <!-- ENGRANE DERECHO — SOLO EN EL CELULAR. Fotos, Registrar Camión y
@@ -689,6 +693,7 @@
        del encabezado; en pantalla grande nunca se muestran. -->
   <div class="eng-panel izq" id="eng-panel-izq">
     <button onclick="engCerrar(); alTeclear('pizAbrir')">📋 Pendientes</button>
+<button class="solo-editor" onclick="engCerrar(); alTeclear('abrirSalidas')">🧰 Salidas de taller</button>
 <button id="eng-dormidas" onclick="engCerrar(); verDormidas()">🐌 Dormidas</button>
     <button onclick="engCerrar(); renderCamiones(); openModal('modal-ultimos')">📋 Últimos registros</button>
     <button class="solo-editor" onclick="engCerrar(); renderHistorialAcciones(); openModal('modal-historial')">🕐 Historial de acciones</button>
@@ -12980,6 +12985,579 @@ function _burroPicado(d, ev){
 })();
 </script>
 <!-- ═══════════════ FIN ENVÍOS ═══════════════ -->
+
+<!-- ═══════════════ SALIDAS DE TALLER (2 sep 2026) ═══════════════ -->
+<style>
+  /* ══════════════════════════════════════════════════════════════════════
+     CONTROL DE SALIDAS DEL TALLER
+     ──────────────────────────────────────────────────────────────────────
+     Keno: «siempre nos están pidiendo los chavos dinero y productos, pero
+     sentimos que se desperdicia mucho». Raúl pidió tres cosas: QUIÉN pide,
+     CUÁNDO, y —lo que más le importa— CADA CUÁNDO piden lo mismo.
+
+     La lista de productos NO se inventó: salió de los 237 egresos reales de
+     «gastos de taller» de Maura, más herramienta y limpieza. Los servicios
+     (recolección de basura, retirar agua de la fosa, desmontar llantas)
+     quedaron FUERA por decisión de Keno: nadie los «pide», se contratan.
+
+     ⚠️ El precio es OPCIONAL a propósito. Raúl no siempre lo sabe, y si
+        fuera obligatorio dejaría de capturar — y entonces se pierde lo que
+        de verdad importa, que es la frecuencia. Un renglón sin precio
+        cuenta igual para «cada cuándo lo piden».
+     ══════════════════════════════════════════════════════════════════════ */
+  #sal-tel { position:fixed; inset:0; z-index:100001; background:#f4f1ea; display:none; }
+  #sal-tel.abierto { display:flex; flex-direction:column; }
+  .sal-cab { background:#17140f; color:#fff; padding:11px 16px; display:flex;
+             align-items:center; gap:12px; flex-wrap:wrap; border-bottom:3px solid #8a6a12; }
+  /* ⚠️ EL COLOR VA EXPLÍCITO. Heredado del .sal-cab salía NEGRO SOBRE NEGRO:
+     el archivo trae una regla global de h2 que le gana a la del contenedor, y
+     el título quedaba invisible. Solo se vio en una captura de pantalla —
+     ninguna prueba de código lo habría cachado. */
+  .sal-cab h2 { margin:0; font-family:Georgia,'Times New Roman',serif; font-size:20px;
+                font-weight:700; color:#f4e7cd !important; }
+  .sal-cab .sub, .sal-cab > div { color:#f4e7cd; }
+  .sal-cab .sub { font-size:12px; opacity:.75; }
+  .sal-cab .cerrar { margin-left:auto; background:#2c2418; color:#f4e7cd; border:1px solid #4a3f2a;
+                     border-radius:8px; padding:7px 14px; font-weight:800; cursor:pointer; font-size:14px; }
+  .sal-cuerpo { flex:1; overflow-y:auto; padding:14px 16px 40px; }
+  .sal-caja { background:#fff; border:1px solid #ddd8cc; border-radius:12px; padding:14px; margin-bottom:14px; }
+  .sal-caja h3 { margin:0 0 3px; font-size:15px; font-weight:800; color:#17140f; }
+  .sal-caja .ayuda { font-size:12px; color:#7b7468; margin-bottom:11px; line-height:1.45; }
+  .sal-fila { display:flex; gap:9px; flex-wrap:wrap; align-items:flex-end; }
+  .sal-campo { display:flex; flex-direction:column; gap:3px; }
+  .sal-campo label { font-size:10.5px; font-weight:800; color:#7b7468; text-transform:uppercase; letter-spacing:.3px; }
+  .sal-campo input, .sal-campo select {
+    font:inherit; font-size:14px; padding:8px 10px; border:1px solid #cfc9bb;
+    border-radius:8px; background:#fff; color:#17140f; min-width:0; }
+  .sal-campo input:focus, .sal-campo select:focus { outline:2px solid #8a6a12; outline-offset:-1px; }
+  .sal-btn { font:inherit; font-size:14px; font-weight:800; padding:9px 18px; border-radius:9px;
+             border:1px solid #6b5410; background:#8a6a12; color:#fff; cursor:pointer; white-space:nowrap; }
+  .sal-btn:hover { background:#6b5410; }
+  .sal-btn.gris { background:#efece4; color:#4a4438; border-color:#cfc9bb; }
+  .sal-btn.gris:hover { background:#e2ded3; }
+  .sal-btn.chico { font-size:12px; padding:6px 12px; }
+  .sal-tabs { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+  .sal-tab { font:inherit; font-size:13.5px; font-weight:800; padding:8px 16px; border-radius:9px;
+             border:1px solid #cfc9bb; background:#fff; color:#7b7468; cursor:pointer; }
+  .sal-tab.on { background:#17140f; color:#f4e7cd; border-color:#17140f; }
+  .sal-tabla { width:100%; border-collapse:collapse; font-size:13.5px; }
+  .sal-tabla th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.3px;
+                  color:#7b7468; padding:7px 9px; border-bottom:2px solid #e6e0d2; white-space:nowrap; }
+  .sal-tabla td { padding:9px; border-bottom:1px solid #f0ece2; vertical-align:top; }
+  .sal-tabla tr:hover td { background:#faf8f3; }
+  .sal-tabla .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .sal-chip { display:inline-block; font-size:10px; font-weight:800; padding:2px 7px;
+              border-radius:6px; background:#efece4; color:#5a5344; }
+  .sal-chip.pronto { background:#fdf0d2; color:#8a6a12; }
+  .sal-chip.hoy { background:#e6f3ea; color:#1b5e32; }
+  .sal-chip.viejo { background:#f0eee9; color:#9a9384; }
+  .sal-chip.sinprecio { background:#fdecea; color:#b03a2e; }
+  .sal-vacio { padding:26px; text-align:center; color:#9a9384; font-size:14px; }
+  .sal-aviso { background:#fdf6e3; border:1px solid #e8d9a8; color:#7a5a12;
+               border-radius:9px; padding:9px 13px; font-size:12.5px; margin-bottom:11px; line-height:1.5; }
+  .sal-total { display:flex; gap:22px; flex-wrap:wrap; padding:11px 14px; background:#17140f;
+               color:#f4e7cd; border-radius:10px; margin-bottom:12px; }
+  .sal-total div span { display:block; font-size:10.5px; opacity:.7; text-transform:uppercase; letter-spacing:.4px; }
+  .sal-total div b { font-size:20px; font-variant-numeric:tabular-nums; }
+  /* ── El calendario de rango, con el mismo aire que el de pendientes ── */
+  #salcal-fondo { display:none; position:fixed; inset:0; background:rgba(20,18,14,.6); z-index:100002;
+                  align-items:center; justify-content:center; padding:16px; }
+  #salcal-fondo.abierto { display:flex; }
+  .salcal { background:#fff; border-radius:16px; padding:16px; max-width:340px; width:100%;
+            box-shadow:0 20px 60px rgba(0,0,0,.4); }
+  .salcal-top { display:flex; align-items:center; gap:10px; margin-bottom:11px; }
+  .salcal-top b { flex:1; text-align:center; font-size:16px; text-transform:capitalize; }
+  .salcal-top button { font:inherit; font-size:18px; font-weight:800; width:34px; height:34px;
+                       border-radius:9px; border:1px solid #cfc9bb; background:#fff; cursor:pointer; }
+  .salcal-dias { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .salcal-dias .enc { font-size:10px; font-weight:800; color:#9a9384; text-align:center; padding:4px 0; }
+  .salcal-dias button { font:inherit; font-size:13.5px; aspect-ratio:1; border:0; border-radius:8px;
+                        background:#f6f4ef; color:#17140f; cursor:pointer; }
+  .salcal-dias button:disabled { background:transparent; cursor:default; }
+  .salcal-dias button.rango { background:#f3e6c4; border-radius:0; }
+  .salcal-dias button.punta { background:#8a6a12; color:#fff; font-weight:800; }
+  .salcal-pie { display:flex; gap:8px; margin-top:13px; }
+  .salcal-pie button { flex:1; }
+  .salcal-nota { font-size:11.5px; color:#7b7468; text-align:center; margin-top:9px; }
+  @media (max-width:640px){
+    .sal-campo { flex:1 1 100%; }
+    .sal-campo input, .sal-campo select { width:100%; }
+    .sal-btn { width:100%; }
+  }
+</style>
+
+<div id="sal-tel" role="dialog" aria-label="Salidas de taller">
+  <div class="sal-cab">
+    <div>
+      <h2>🧰 Salidas de taller</h2>
+      <div class="sub">Qué sale, quién lo pidió y cada cuándo</div>
+    </div>
+    <button class="cerrar" onclick="salCerrar()">✕ Cerrar</button>
+  </div>
+  <div class="sal-cuerpo" id="sal-cuerpo"></div>
+</div>
+
+<div id="salcal-fondo" onclick="if(event.target.id==='salcal-fondo')salCalCerrar()">
+  <div class="salcal">
+    <div class="salcal-top">
+      <button onclick="salCalMover(-1)">‹</button>
+      <b id="salcal-mes"></b>
+      <button onclick="salCalMover(1)">›</button>
+    </div>
+    <div class="salcal-dias" id="salcal-dias"></div>
+    <div class="salcal-nota" id="salcal-nota"></div>
+    <div class="salcal-pie">
+      <button class="sal-btn gris" onclick="salCalCerrar()">Cancelar</button>
+      <button class="sal-btn" onclick="salCalAplicar()">Aplicar</button>
+    </div>
+  </div>
+</div>
+<!-- ═══════════════ FIN SALIDAS DE TALLER ═══════════════ -->
+
+<script>
+// Los 241 registros de taller de Maura (18 may – 1 sep 2026), ya
+// clasificados por producto. Se importan UNA vez con el botón.
+// NO traen quién pidió: eso no se registraba antes.
+var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RECOCIDO"},{"p":"THINNER","f":"2026-05-18","m":166.0,"t":"4 LITROS DE THINNER"},{"p":"CINTA","f":"2026-05-19","m":23.0,"t":"CINTA DE AISLAR"},{"p":"ASERRIN","f":"2026-05-19","m":200.0,"t":"ASERRIN"},{"p":"EMPLAYE / PLURIBURBUJA","f":"2026-05-20","m":1240.0,"t":"EMPLAYE, PULIBURBUJA"},{"p":"OTRO","f":"2026-05-21","m":1994.55,"t":"CALENTADOR DE AGUA ELECTRICO $1,984.55 COM. $10"},{"p":"GASOLINA","f":"2026-05-21","m":135.0,"t":"GASOLINA LAVAR PIEZAS"},{"p":"RESINA / FIBRA","f":"2026-05-22","m":680.0,"t":"1 GALON DE RESINA"},{"p":"CLAVOS / TORNILLERIA","f":"2026-05-22","m":60.0,"t":"1 KILO DE CLAVOS"},{"p":"LIJA","f":"2026-05-23","m":92.0,"t":"7 LIJAS , 1 LAINA"},{"p":"OTRO","f":"2026-05-25","m":800.0,"t":"PIEZAS VARIAS"},{"p":"TARIMA","f":"2026-05-25","m":1200.0,"t":"6 TARIMAS P/SENTAR REFACCIONES"},{"p":"CLAVOS / TORNILLERIA","f":"2026-05-25","m":300.0,"t":"1 KILO DE CLAVOS"},{"p":"HULE","f":"2026-05-25","m":10.0,"t":"1 HULE VERDE"},{"p":"CLAVOS / TORNILLERIA","f":"2026-05-26","m":145.0,"t":"TORNILLOS, TUERCAS, HUASAS"},{"p":"BROCA","f":"2026-05-27","m":100.0,"t":"1 BROCA 5/8"},{"p":"PRODUCTOS DE LIMPIEZA","f":"2026-05-27","m":996.44,"t":"PRODUCTOS DE LIMPIEZA"},{"p":"CLAVOS / TORNILLERIA","f":"2026-05-27","m":3.0,"t":"4 HUASAS 5/16"},{"p":"GASOLINA","f":"2026-05-28","m":200.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"CONEXION / NEUMATICO","f":"2026-05-28","m":200.0,"t":"3 ESPIGAS RAPIDAS NEUMATICAS P/PISTOLA DE AIRE"},{"p":"OXIGENO / GAS","f":"2026-05-28","m":800.0,"t":"GAS PARA TANQUE DE COMEDOR"},{"p":"BROCA","f":"2026-06-01","m":500.0,"t":"MACHUELO, BROCA"},{"p":"SPRAY / PINTURA","f":"2026-06-01","m":1320.0,"t":"1 GALON ESM. VERDE DETROIT"},{"p":"GASOLINA","f":"2026-06-02","m":200.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"COSTAL","f":"2026-06-02","m":200.0,"t":"20 COSTALES VACIO"},{"p":"OXIGENO / GAS","f":"2026-06-02","m":600.0,"t":"GAS PARA EQUIPO DE CORTE"},{"p":"THINNER","f":"2026-06-02","m":190.0,"t":"5 LITROS DE TINER"},{"p":"THINNER","f":"2026-06-02","m":700.0,"t":"THINNER STD 20LT"},{"p":"COSTAL","f":"2026-06-03","m":1100.0,"t":"2 COSTAL DE TRAPO INDUSTRIAL"},{"p":"TARIMA","f":"2026-06-03","m":1000.0,"t":"5 TARIMAS P/SENSTAR REFACCIONES"},{"p":"SPRAY / PINTURA","f":"2026-06-04","m":1330.0,"t":"1 GALON AMARILLO ESMALTE"},{"p":"CLAVOS / TORNILLERIA","f":"2026-06-05","m":206.0,"t":"3 BOLSAS DE REMACHES, 2 BROCHAS"},{"p":"EQUIPO DE SEGURIDAD","f":"2026-06-05","m":64.5,"t":"CARTUCHO DE MASCARILLA"},{"p":"GASOLINA","f":"2026-06-05","m":200.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"CLAVOS / TORNILLERIA","f":"2026-06-06","m":50.0,"t":"5 GRAPAS"},{"p":"HERRAMIENTA","f":"2026-06-08","m":246.0,"t":"TIJERAS LAMINA 8\""},{"p":"SPRAY / PINTURA","f":"2026-06-08","m":86.0,"t":"SPRAY NEGRO MATTE"},{"p":"HERRAMIENTA","f":"2026-06-09","m":209.0,"t":"1 DADO 7/8 $110=, 1 DADO 3/4 $99="},{"p":"GIS","f":"2026-06-09","m":100.0,"t":"10 GIS"},{"p":"CONEXION / NEUMATICO","f":"2026-06-09","m":69.0,"t":"REDUCCION 3/8 1/2"},{"p":"CONEXION / NEUMATICO","f":"2026-06-09","m":89.0,"t":"1 REDUCCION 1/2 3/8"},{"p":"DISCO DE CORTE","f":"2026-06-09","m":130.0,"t":"4 DISCO DE LAMINADO"},{"p":"DISCO DE CORTE","f":"2026-06-09","m":200.0,"t":"20 DISCO 4 1/2 X 1/16\" P/CORTE ACERO"},{"p":"CLAVOS / TORNILLERIA","f":"2026-06-09","m":100.0,"t":"TORNILLO, TUERCA, HUASAS"},{"p":"BISAGRA / HERRAJE","f":"2026-06-09","m":200.0,"t":"12 BISAGRAS 3X3"},{"p":"COSTAL","f":"2026-06-09","m":200.0,"t":"20 COSTAL VACIO"},{"p":"CLAVOS / TORNILLERIA","f":"2026-06-09","m":82.0,"t":"BROCA, BOLSA DE REMACHE"},{"p":"BROCHA","f":"2026-06-10","m":172.0,"t":"GUANTES, BROCHAS"},{"p":"CANDADO / LLAVE","f":"2026-06-11","m":250.0,"t":"PINZA PARA CANDADO"},{"p":"DISCO DE CORTE","f":"2026-06-11","m":400.0,"t":"10 DISCO 36 6\""},{"p":"LIJA","f":"2026-06-11","m":370.0,"t":"6 DISCOS DE LAMINADO, 10 LIJAS DE AGUA"},{"p":"DISCO DE CORTE","f":"2026-06-12","m":121.76,"t":"DISCO DE CORTE"},{"p":"OTRO","f":"2026-06-12","m":112.0,"t":"CATALIZADOR"},{"p":"TARIMA","f":"2026-06-12","m":1200.0,"t":"6 TARIMAS PARA SENTAR REFACCIONES"},{"p":"PASTA / MASILLA","f":"2026-06-12","m":550.0,"t":"1 GALON DE PASTA"},{"p":"BOLSA","f":"2026-06-15","m":150.0,"t":"1 KILO DE BOLSA"},{"p":"GASOLINA","f":"2026-06-15","m":200.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"OTRO","f":"2026-06-15","m":1000.01,"t":"2 KIT DE RELLENO 2K"},{"p":"ACEITE / GRASA","f":"2026-06-15","m":3000.0,"t":"HACER VENA DE ACEITE A 2 CAMPANA DE TRANSMISION"},{"p":"OTRO","f":"2026-06-15","m":1400.0,"t":"RESTO 2 ESCRITORIO"},{"p":"ESCOBA / FIBRA","f":"2026-06-16","m":250.0,"t":"2 ESCOBAS"},{"p":"OTRO","f":"2026-06-16","m":239.42,"t":"2 BOQUILLA PARA SOPLETE"},{"p":"OTRO","f":"2026-06-16","m":94.0,"t":"SERRUCHO"},{"p":"OTRO","f":"2026-06-17","m":199.0,"t":"REGULADOR"},{"p":"ALAMBRE","f":"2026-06-17","m":124.0,"t":"2 KILO ALAMBRE RECOCIDO"},{"p":"OTRO","f":"2026-06-17","m":60.0,"t":"PERIODICO"},{"p":"OTRO","f":"2026-06-17","m":68.44,"t":"100 PIJA C/PLANA"},{"p":"GASOLINA","f":"2026-06-17","m":200.0,"t":"GASOLINA P/TALLER"},{"p":"COSTAL","f":"2026-06-17","m":192.0,"t":"16 COSTAL VACIOS"},{"p":"OTRO","f":"2026-06-18","m":50.0,"t":"1 ESPONJA P/AFINE, 1 ESPONJA AMARILLA"},{"p":"SOLDADURA","f":"2026-06-18","m":450.0,"t":"5 KILOS SOLDADURA 1/8\""},{"p":"HERRAMIENTA","f":"2026-06-18","m":286.0,"t":"1 LLAVE, 1 CARETA"},{"p":"CLAVOS / TORNILLERIA","f":"2026-06-18","m":186.0,"t":"40 TORNILLOS CON TUERCA"},{"p":"CLAVOS / TORNILLERIA","f":"2026-06-18","m":74.0,"t":"TORNILLOS, HUASAS, BROCAS"},{"p":"OTRO","f":"2026-06-19","m":1500.0,"t":"VULCANIZADORA"},{"p":"TARIMA","f":"2026-06-19","m":1000.0,"t":"5 TARIMAS P/SENTAR REFACCIONES"},{"p":"GASOLINA","f":"2026-06-23","m":200.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"THINNER","f":"2026-06-23","m":200.0,"t":"5 LITROS DE THINNER"},{"p":"ALAMBRE","f":"2026-06-23","m":95.0,"t":"1 KILO DE ALAMBRE"},{"p":"OTRO","f":"2026-06-23","m":1500.0,"t":"PULIR CIGUEÑAL DETROIT"},{"p":"CLAVOS / TORNILLERIA","f":"2026-06-24","m":800.0,"t":"SACAR TORNILLOS CAPADOS DE CABEZA"},{"p":"DISCO DE CORTE","f":"2026-06-24","m":450.0,"t":"30 DISCOS DE CORTE"},{"p":"CLAVOS / TORNILLERIA","f":"2026-06-24","m":280.0,"t":"REMACHES 1/8, BROCAS"},{"p":"CLAVOS / TORNILLERIA","f":"2026-06-24","m":160.0,"t":"REMACHES 3/16, BROCA 3/16"},{"p":"CONEXION / NEUMATICO","f":"2026-06-25","m":320.0,"t":"RACH 3/8, REDUCCION 3/4 1/2"},{"p":"CLAVOS / TORNILLERIA","f":"2026-06-25","m":375.0,"t":"1 1/2 GRAPAS P/FLEJE 1/2"},{"p":"OTRO","f":"2026-06-25","m":1000.0,"t":"PULIR 2 ARBOL DE LEVAS ISX"},{"p":"OTRO","f":"2026-06-26","m":87.0,"t":"TERMINALES"},{"p":"OTRO","f":"2026-06-26","m":400.0,"t":"CHECAR RADIADOR"},{"p":"BROCHA","f":"2026-06-29","m":57.0,"t":"BROCHA"},{"p":"GASOLINA","f":"2026-06-30","m":200.0,"t":"GASOLINA PARA LAVAR PIEZAAS"},{"p":"OTRO","f":"2026-06-30","m":130.0,"t":"2 CARDA CIRCULAR"},{"p":"THINNER","f":"2026-07-01","m":1570.0,"t":"RESANDADOR, PRIMARIO UNIVERSAL GRIS, THINNER ACRILICO"},{"p":"OTRO","f":"2026-07-01","m":600.0,"t":"HACER 4 ABUJEROS A CABEZA N14"},{"p":"ESCOBA / FIBRA","f":"2026-07-02","m":446.0,"t":"BOLSAS, ESCOBA, TRAPEADOR"},{"p":"COSTAL","f":"2026-07-02","m":200.0,"t":"20 COSTAL VACIO"},{"p":"TRAPO INDUSTRIAL","f":"2026-07-04","m":1100.0,"t":"2 BOLSA TRAPO TIPO INDUSTRIAL"},{"p":"OTRO","f":"2026-07-06","m":100.0,"t":"ARMORALL"},{"p":"TARIMA","f":"2026-07-06","m":1000.0,"t":"5 TARIMAS P/SENTAR REFACCIONES"},{"p":"CLAVOS / TORNILLERIA","f":"2026-07-06","m":100.0,"t":"CLAVOS 22\" 1/2 , CLAVOS 3\""},{"p":"HERRAMIENTA","f":"2026-07-06","m":30.0,"t":"DESARMADOR PLANO"},{"p":"GASOLINA","f":"2026-07-06","m":100.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"PRODUCTOS DE LIMPIEZA","f":"2026-07-07","m":1002.24,"t":"PRODUCTOS DE LIMPIEZA"},{"p":"OTRO","f":"2026-07-07","m":309.0,"t":"1 LITRO SUMMA BERM."},{"p":"OTRO","f":"2026-07-07","m":114.0,"t":"4 BRILLOSA ESPECIAL, 2 PEGAMOSCA"},{"p":"GASOLINA","f":"2026-07-07","m":200.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"HERRAMIENTA","f":"2026-07-08","m":324.0,"t":"1 DADO 13/16, 1 DADO 10 MILIMITROS"},{"p":"HERRAMIENTA","f":"2026-07-08","m":2926.0,"t":"PISTOLA DE IMPACTO  $2,909= COM $17"},{"p":"HULE","f":"2026-07-08","m":20.0,"t":"2 HULE PARA MASILLA"},{"p":"OTRO","f":"2026-07-09","m":151.0,"t":"1 DESTAPACAÑO, 2 LITRO DE ACIDO"},{"p":"OTRO","f":"2026-07-09","m":254.24,"t":"LIGAS"},{"p":"GUANTES","f":"2026-07-09","m":34.0,"t":"2 PAR DE GUANTES"},{"p":"OTRO","f":"2026-07-10","m":1100.0,"t":"TAPA DE ARRANQUE PARA MOTOR 15HP DE COMPRESOR DE AIRE"},{"p":"THINNER","f":"2026-07-10","m":800.01,"t":"THINNER STD 20LT."},{"p":"EMPLAYE / PLURIBURBUJA","f":"2026-07-13","m":98.0,"t":"EMPLAYE"},{"p":"OTRO","f":"2026-07-13","m":1340.0,"t":"ARTICULOS VARIOS"},{"p":"GASOLINA","f":"2026-07-14","m":200.0,"t":"GASOLINA P/LAVAR PZAS"},{"p":"COSTAL","f":"2026-07-15","m":200.0,"t":"22 COSTALES"},{"p":"RESINA / FIBRA","f":"2026-07-15","m":680.0,"t":"1 GALON DE RESINA"},{"p":"GASOLINA","f":"2026-07-15","m":200.0,"t":"GASOLINA P/COMPRESORA"},{"p":"OTRO","f":"2026-07-15","m":151.15,"t":"ARRANCADOR"},{"p":"OXIGENO / GAS","f":"2026-07-16","m":900.0,"t":"2 TANQUE DE GAS PARA MONTACARGAS"},{"p":"OTRO","f":"2026-07-16","m":115.0,"t":"ESPATULAS"},{"p":"HERRAMIENTA","f":"2026-07-16","m":25.0,"t":"DESARMADOR"},{"p":"BROCHA","f":"2026-07-17","m":20.0,"t":"BROCHA"},{"p":"TARIMA","f":"2026-07-17","m":1000.0,"t":"5 TARIMAS"},{"p":"OTRO","f":"2026-07-18","m":700.0,"t":"REPARACION DE MANGUJERA DE ALTA 3/8"},{"p":"GASOLINA","f":"2026-07-18","m":100.0,"t":"GASOLINA PARA COMPRESOR"},{"p":"OXIGENO / GAS","f":"2026-07-20","m":600.0,"t":"TANQUE DE GAS PARA EQUIPO DE CORTE"},{"p":"OTRO","f":"2026-07-20","m":249.0,"t":"PIEZAS VARIAS"},{"p":"SOLDADURA","f":"2026-07-20","m":450.0,"t":"5 KILOS DE SOLDADURA"},{"p":"GASOLINA","f":"2026-07-20","m":200.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"BROCA","f":"2026-07-20","m":40.0,"t":"2 BROCA"},{"p":"OTRO","f":"2026-07-20","m":3900.0,"t":"CHECAR MEDIDA Y PULIR 3 CIGUEÑAL ISX"},{"p":"OTRO","f":"2026-07-21","m":510.0,"t":"CAMARA PARA LLANTA DE MONTACARGAS NISSAN"},{"p":"OTRO","f":"2026-07-21","m":1750.0,"t":"REPARACION DE SOPLETE PARA EQUIPO DE CORTE"},{"p":"COSTAL","f":"2026-07-21","m":200.0,"t":"COSTALES P/RECOGER ESCOMBRO"},{"p":"OTRO","f":"2026-07-21","m":900.0,"t":"RENTA ROMPEDORA"},{"p":"SOLDADURA","f":"2026-07-22","m":900.0,"t":"CAJA DE SOLDADURA"},{"p":"PAPEL HIGIENICO","f":"2026-07-22","m":375.84,"t":"HIG ROYAL BLUE JR C/12 ROLLOS"},{"p":"HERRAMIENTA","f":"2026-07-22","m":50.0,"t":"DADO 10MM  3/8"},{"p":"ACIDO MURIATICO","f":"2026-07-22","m":100.0,"t":"2 BOTE DE ACIDO MURIATICO"},{"p":"TARIMA","f":"2026-07-23","m":1000.0,"t":"5 TARIMAS"},{"p":"OTRO","f":"2026-07-24","m":425.0,"t":"VARIOS"},{"p":"EQUIPO DE SEGURIDAD","f":"2026-07-24","m":215.0,"t":"1 Mascarilla p/ayudante Sr Emilio"},{"p":"RESINA / FIBRA","f":"2026-07-24","m":680.0,"t":"GALON DE RESINA"},{"p":"RESINA / FIBRA","f":"2026-07-24","m":160.0,"t":"2 PAQ FIBRA 1/2 KG C/U"},{"p":"MANGUERA","f":"2026-07-24","m":300.0,"t":"CAMBIO DE BOQUILLA MANGUERA DE LAVADO"},{"p":"OXIGENO / GAS","f":"2026-07-25","m":1350.0,"t":"3 TANQUES GAS P/MONTACARGAS"},{"p":"OXIGENO / GAS","f":"2026-07-27","m":650.0,"t":"GAS P/EQUIPO DE CORTE"},{"p":"THINNER","f":"2026-07-27","m":1770.0,"t":"PINTURA, RESANADOR, THINNER"},{"p":"TARIMA","f":"2026-07-28","m":1000.0,"t":"5 TARIMAS"},{"p":"BOLSA","f":"2026-07-28","m":1100.0,"t":"BOLSAS DE TRAPOS"},{"p":"HERRAMIENTA","f":"2026-07-29","m":96.0,"t":"3 HOJAS DE SEGUETAS"},{"p":"GASOLINA","f":"2026-07-30","m":100.0,"t":"GASOLINA LAVAR PZAS"},{"p":"HERRAMIENTA","f":"2026-07-30","m":60.0,"t":"2 DADOS"},{"p":"HERRAMIENTA","f":"2026-07-31","m":375.0,"t":"PINZAS DE CORTE"},{"p":"OXIGENO / GAS","f":"2026-07-31","m":1550.0,"t":"3 tanques de gas y acerrin"},{"p":"CABLE / ELECTRICO","f":"2026-07-31","m":30.0,"t":"CONECTOR CABLE"},{"p":"OTRO","f":"2026-07-31","m":200.0,"t":"TORNIILO"},{"p":"TARIMA","f":"2026-08-03","m":1000.0,"t":"5 TARIMAS"},{"p":"MANGUERA","f":"2026-08-03","m":800.0,"t":"1 MANGUERA /CONEXION Y 1 CODO"},{"p":"THINNER","f":"2026-08-03","m":800.0,"t":"Tinner Porron"},{"p":"GASOLINA","f":"2026-08-04","m":200.0,"t":"GASOLINA P/LAVAR PZAS"},{"p":"OTRO","f":"2026-08-04","m":75.0,"t":"3 SELLOS P/MONTACARGAS"},{"p":"COSTAL","f":"2026-08-04","m":200.0,"t":"22 COSTALES VACIOS"},{"p":"SOLDADURA","f":"2026-08-04","m":450.0,"t":"5 KGS SOLDADURA"},{"p":"OTRO","f":"2026-08-05","m":72.0,"t":"3 CINTAS DE AISLAR"},{"p":"BISAGRA / HERRAJE","f":"2026-08-05","m":80.0,"t":"´PIJAS Y PUNTILLAS PARA INSTALAR BISAGRAS PORTON ENTRADA"},{"p":"TARIMA","f":"2026-08-05","m":1000.0,"t":"5 TARIMAS"},{"p":"OTRO","f":"2026-08-06","m":54.0,"t":"1 AFLOJATODO"},{"p":"OTRO","f":"2026-08-06","m":90.0,"t":"1 ARRANCADOR"},{"p":"EMPLAYE / PLURIBURBUJA","f":"2026-08-06","m":720.0,"t":"8 EMPLAYES 18\""},{"p":"HERRAMIENTA","f":"2026-08-06","m":540.0,"t":"PINZAS P/MAQUINA DE SOLDAR"},{"p":"OTRO","f":"2026-08-06","m":126.0,"t":"3 AFLOJATODO"},{"p":"ALAMBRE","f":"2026-08-07","m":49.0,"t":"1 CEPILLO DE ALAMBRE"},{"p":"OXIGENO / GAS","f":"2026-08-07","m":1350.0,"t":"3 TANQUES DE GAS P/MONTACARGAS"},{"p":"COSTAL","f":"2026-08-07","m":192.0,"t":"16 COSTALES VACIOS"},{"p":"OTRO","f":"2026-08-07","m":500.0,"t":"cajas de carton"},{"p":"ACIDO MURIATICO","f":"2026-08-07","m":37.0,"t":"acido muriatico"},{"p":"GASOLINA","f":"2026-08-08","m":100.0,"t":"GASOLINA P/LAVAR PZAS"},{"p":"OTRO","f":"2026-08-10","m":80.0,"t":"FUSIBLES"},{"p":"OTRO","f":"2026-08-10","m":1200.0,"t":"BARROTES P/CHASIS"},{"p":"OXIGENO / GAS","f":"2026-08-10","m":50.0,"t":"COMPLETAR PAGO DE 1 MANGUERA PARA GAS CON CONEXIONES DMG PAG"},{"p":"BROCA","f":"2026-08-10","m":32.0,"t":"2 BROCAS 3/19"},{"p":"GASOLINA","f":"2026-08-11","m":100.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"OTRO","f":"2026-08-12","m":50.0,"t":"1 METRO CINTILLA"},{"p":"CINTA","f":"2026-08-12","m":150.0,"t":"3 METROS CINTA"},{"p":"GASOLINA","f":"2026-08-13","m":500.0,"t":"DIESEL P/PRENDER MOTOR"},{"p":"HERRAMIENTA","f":"2026-08-13","m":200.0,"t":"DADO 15/16"},{"p":"OTRO","f":"2026-08-13","m":80.0,"t":"SELLOS"},{"p":"GASOLINA","f":"2026-08-13","m":100.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"COSTAL","f":"2026-08-13","m":200.0,"t":"20 COSTAL VACIO"},{"p":"TARIMA","f":"2026-08-13","m":800.0,"t":"4 TARIMAS P/SENTARA REFACCIONES"},{"p":"SOLDADURA","f":"2026-08-13","m":110.0,"t":"KILO DE SOLDADURA"},{"p":"GASOLINA","f":"2026-08-14","m":244.9,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"SOLDADURA","f":"2026-08-14","m":240.0,"t":"3 KILO SOLDADURA 1/8\"6013 CHAMPION"},{"p":"PAPEL HIGIENICO","f":"2026-08-14","m":701.8,"t":"PAPEL HIGIENICO, PAPEL P/MANOS"},{"p":"ACEITE / GRASA","f":"2026-08-15","m":237.58,"t":"GRASA ARMANDO MOTOR LUBRIPLATE"},{"p":"HERRAMIENTA","f":"2026-08-17","m":250.0,"t":"ADAPTADOR P/MATRACA ACERO"},{"p":"OTRO","f":"2026-08-17","m":136.0,"t":"ESPTAULA TRUPER"},{"p":"BROCHA","f":"2026-08-17","m":59.0,"t":"BROCHA"},{"p":"GASOLINA","f":"2026-08-18","m":200.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"OTRO","f":"2026-08-18","m":269.12,"t":"PAR DE CARBONES P/PULIDOR"},{"p":"MANGUERA","f":"2026-08-19","m":300.0,"t":"REPARACION DE 1 MANGUERA DE AIRE DE COMPRESORA"},{"p":"DISCO DE CORTE","f":"2026-08-20","m":300.0,"t":"30 DISCO DE CORTE"},{"p":"MANGUERA","f":"2026-08-20","m":400.0,"t":"REPARACION DE MANGUERA CON CASQUILLO DE HIDROLAVADORA"},{"p":"OTRO","f":"2026-08-21","m":550.0,"t":"CLAVIJA"},{"p":"HERRAMIENTA","f":"2026-08-21","m":156.0,"t":"3 DADO TORX"},{"p":"SOLDADURA","f":"2026-08-21","m":900.0,"t":"10 KILO DE SOLDADURA"},{"p":"CONEXION / NEUMATICO","f":"2026-08-21","m":122.0,"t":"JUEGO DE CONECTORES PARA COMPRESOR"},{"p":"GASOLINA","f":"2026-08-21","m":2500.0,"t":"DIESEL P/MONTACARGAS"},{"p":"TARIMA","f":"2026-08-21","m":1000.0,"t":"TARIMAS"},{"p":"HERRAMIENTA","f":"2026-08-22","m":49.0,"t":"DATO TURX"},{"p":"CLAVOS / TORNILLERIA","f":"2026-08-24","m":200.0,"t":"EXTRACCION DE TORNILLO"},{"p":"GASOLINA","f":"2026-08-24","m":100.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"OTRO","f":"2026-08-24","m":500.0,"t":"PIEZA DE COMPRESOR"},{"p":"THINNER","f":"2026-08-24","m":800.01,"t":"THINNER STANDARD 20 LT."},{"p":"OTRO","f":"2026-08-25","m":350.0,"t":"CODO PARA HIDROLAVADORA"},{"p":"CLAVOS / TORNILLERIA","f":"2026-08-25","m":78.0,"t":"REMACHES, BROCAS"},{"p":"GASOLINA","f":"2026-08-26","m":100.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"DISCO DE CORTE","f":"2026-08-27","m":426.0,"t":"10 DISCOS, 2 BROCHAS, 1 BOLSA DE REMACHES"},{"p":"RESINA / FIBRA","f":"2026-08-27","m":900.0,"t":"KIT REZINA GALON C/CATALIZADOR Y FIBRA"},{"p":"BROCA","f":"2026-08-27","m":28.0,"t":"2 BROCAS"},{"p":"GASOLINA","f":"2026-08-27","m":100.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"GASOLINA","f":"2026-08-28","m":200.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"TARIMA","f":"2026-08-28","m":1600.0,"t":"8 TARIMAS PARA SENTAR REFACCIONES"},{"p":"ALAMBRE","f":"2026-08-28","m":200.0,"t":"3 KILO ALAMBRE RECOCIDO"},{"p":"CLAVOS / TORNILLERIA","f":"2026-08-28","m":138.0,"t":"2 KILO CLAVO"},{"p":"OTRO","f":"2026-08-28","m":90.0,"t":"CLAVIJAS"},{"p":"OTRO","f":"2026-08-28","m":1280.0,"t":"PIEZAS VARIAS"},{"p":"GASOLINA","f":"2026-08-29","m":100.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"COSTAL","f":"2026-08-31","m":200.0,"t":"20 COSTALES VACIO"},{"p":"ALAMBRE","f":"2026-08-31","m":50.0,"t":"1 KILO ALAMBRE RECOCIDO"},{"p":"BROCHA","f":"2026-08-31","m":40.0,"t":"2 BROCHAS"},{"p":"OTRO","f":"2026-09-01","m":134.56,"t":"CARBONES PARA TALADRO"},{"p":"OXIGENO / GAS","f":"2026-09-01","m":1500.0,"t":"2 TANQUE DE GAS PARA MONTACARGAS Y 1 PARA EQUIPO DE CORTE"},{"p":"CLAVOS / TORNILLERIA","f":"2026-09-01","m":244.0,"t":"2 KILO SOLDADURA, 4 TORNILLOS"},{"p":"GASOLINA","f":"2026-09-01","m":200.0,"t":"GASOLINA PARA LAVAR PIEZAS"},{"p":"TARIMA","f":"2026-09-01","m":1000.0,"t":"5 TARIMAS P/SENTAR REFACCIONES"},{"p":"HERRAMIENTA","f":"2026-09-01","m":60.0,"t":"DADOS"}];
+// ══════════════════════════════════════════════════════════════════════════
+// SALIDAS DE TALLER — el motor (2 sep 2026)
+// ──────────────────────────────────────────────────────────────────────────
+// Keno: «siempre nos están pidiendo los chavos dinero y productos, pero
+// sentimos que se desperdicia mucho». Raúl quiere saber QUIÉN pide, CUÁNDO,
+// y sobre todo CADA CUÁNDO piden lo mismo.
+//
+// ⚠️ SOLO RAÚL MANEJA ESTA HOJA. La regla de Firebase de `salidas_taller` es
+//    la misma que la de `envios`: solo su cuenta lee y escribe.
+//
+// ⚠️ NO SE REDIBUJA EL FORMULARIO CUANDO LLEGAN DATOS. Solo la lista. Es la
+//    misma trampa que se pagó el 31 de agosto en el pizarrón de Maura:
+//    rehacer el panel con innerHTML le borra a la persona lo que está
+//    tecleando, a media palabra. Aquí ya nace resuelto.
+// ══════════════════════════════════════════════════════════════════════════
+(function(){
+  var NODO = 'salidas_taller';
+  var SAL = { datos:{}, vista:'producto', desde:'', hasta:'', esc:false, listo:false, err:'' };
+
+  // ── El catálogo, sacado de los 237 egresos reales de taller de Maura ──
+  //    Raúl puede agregar los que falten; se guardan solos.
+  var BASE = ['GASOLINA','THINNER','ESTOPA','LIJA','DISCO DE CORTE','CLAVOS / TORNILLERIA',
+    'BROCA','SOLDADURA','OXIGENO / GAS','BROCHA','TARIMA','COSTAL','ALAMBRE','MANGUERA',
+    'SPRAY / PINTURA','RESINA / FIBRA','TRAPO INDUSTRIAL','EMPLAYE / PLURIBURBUJA','GUANTES',
+    'CINTA','ACEITE / GRASA','PLUMON / MARCADOR','ESCOBA / FIBRA','HULE','CABLE / ELECTRICO',
+    'CANDADO / LLAVE','BOLSAS PARA BASURA','PAPEL HIGIENICO','ACIDO MURIATICO','HERRAMIENTA',
+    'ASERRIN','GIS','EQUIPO DE SEGURIDAD','BISAGRA / HERRAJE','PASTA / MASILLA',
+    'CONEXION / NEUMATICO','BOLSA','PRODUCTOS DE LIMPIEZA','OTRO'];
+
+  function esc(s){ return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function dinero(n){
+    n = Number(n)||0;
+    return '$' + n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  var MES3 = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  // El formato que le gusta a Keno: 29-may-2026
+  function fechaBonita(iso){
+    if(!iso) return '—';
+    var p = String(iso).split('-');
+    if(p.length < 3) return iso;
+    return Number(p[2]) + '-' + MES3[Number(p[1])-1] + '-' + p[0];
+  }
+  function hoyISO(){
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function dias(a, b){
+    if(!a || !b) return 0;
+    return Math.round((new Date(b+'T12:00:00') - new Date(a+'T12:00:00')) / 86400000);
+  }
+  function avisa(m, t){ try { toast(m, t||'success'); } catch(e){} }
+
+  // ── Las listas que se van aprendiendo solas ──
+  function productos(){
+    var s = {};
+    BASE.forEach(function(p){ s[p] = 1; });
+    Object.keys(SAL.datos).forEach(function(k){
+      var p = (SAL.datos[k]||{}).producto; if(p) s[String(p).toUpperCase()] = 1;
+    });
+    return Object.keys(s).sort();
+  }
+  function personas(){
+    var s = {};
+    Object.keys(SAL.datos).forEach(function(k){
+      var q = (SAL.datos[k]||{}).quien; if(q) s[String(q).toUpperCase()] = 1;
+    });
+    return Object.keys(s).sort();
+  }
+
+  // ── Firebase ──
+  function conectar(){
+    if(SAL.esc || !window.firebase || !firebase.database) return;
+    try {
+      if(!firebase.auth || !firebase.auth().currentUser) return;
+    } catch(e){ return; }
+    // ⚠️ LA BANDERA SE PONE DESPUÉS DE QUE `.on()` NO TRONÓ. Al revés —como
+    //    estaba— si `.on()` fallaba la bandera quedaba arriba para siempre y
+    //    la hoja se quedaba muda sin decir por qué. Es la misma falla que
+    //    dejó al inventario sin subir a la nube por `fbAplicandoRemoto`.
+    var ref;
+    try { ref = firebase.database().ref(NODO); }
+    catch(e){ SAL.err = 'No se pudo abrir las salidas.'; SAL.listo = true; pintarLista(); return; }
+    SAL.esc = true;
+    ref.on('value', function(s){
+      SAL.datos = s.val() || {};
+      SAL.listo = true; SAL.err = '';
+      pintarLista();                       // ⚠️ SOLO la lista, nunca el formulario
+    }, function(e){
+      SAL.err = (e && e.code === 'PERMISSION_DENIED')
+        ? 'Esta cuenta no tiene permiso. Esta hoja es solo de Raúl.'
+        : 'No se pudieron leer las salidas. Revisa tu internet.';
+      SAL.listo = true; pintarLista();
+    });
+  }
+
+  // ══════════════════════════ LO QUE SE VE ══════════════════════════
+  window.salCerrar = function(){
+    var t = document.getElementById('sal-tel'); if(t) t.classList.remove('abierto');
+  };
+  window.abrirSalidas = function(){
+    var t = document.getElementById('sal-tel'); if(!t) return;
+    t.classList.add('abierto');
+    conectar();
+    if(!document.getElementById('sal-form')) pintarTodo();
+    else pintarLista();
+  };
+
+  function pintarTodo(){
+    var c = document.getElementById('sal-cuerpo'); if(!c) return;
+    c.innerHTML = formulario() + '<div id="sal-lista-caja"></div>';
+    pintarLista();
+  }
+
+  function formulario(){
+    var hoy = hoyISO();
+    return '<div class="sal-caja" id="sal-form">' +
+      '<h3>Anotar una salida</h3>' +
+      '<div class="ayuda">Cuando alguien te pida material o dinero, anótalo aquí. ' +
+      'El precio es opcional — si no lo sabes, déjalo en blanco: el renglón cuenta ' +
+      'igual para saber cada cuándo lo piden.</div>' +
+      '<div class="sal-fila">' +
+        '<div class="sal-campo" style="flex:1;min-width:150px">' +
+          '<label>Quién lo pidió</label>' +
+          '<input type="text" id="sal-quien" list="sal-personas" placeholder="Ej: Pifas" autocomplete="off">' +
+          '<datalist id="sal-personas"></datalist>' +
+        '</div>' +
+        '<div class="sal-campo" style="flex:1.4;min-width:180px">' +
+          '<label>Qué se llevó</label>' +
+          '<input type="text" id="sal-producto" list="sal-productos" placeholder="Escribe o escoge" autocomplete="off">' +
+          '<datalist id="sal-productos"></datalist>' +
+        '</div>' +
+        '<div class="sal-campo" style="width:92px">' +
+          '<label>Cuántos</label>' +
+          '<input type="number" id="sal-cant" min="0" step="any" placeholder="1">' +
+        '</div>' +
+        '<div class="sal-campo" style="width:118px">' +
+          '<label>Precio (opcional)</label>' +
+          '<input type="number" id="sal-precio" min="0" step="any" placeholder="—">' +
+        '</div>' +
+        '<div class="sal-campo" style="width:150px">' +
+          '<label>Día</label>' +
+          '<input type="date" id="sal-fecha" value="' + hoy + '">' +
+        '</div>' +
+        '<button class="sal-btn" onclick="salGuardar()">Anotar</button>' +
+      '</div>' +
+      '<div class="sal-fila" style="margin-top:9px">' +
+        '<div class="sal-campo" style="flex:1;min-width:220px">' +
+          '<label>Nota (opcional)</label>' +
+          '<input type="text" id="sal-nota" placeholder="Ej: para el ISX del chasis 1770" autocomplete="off">' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function refrescarListas(){
+    var dp = document.getElementById('sal-productos');
+    if(dp) dp.innerHTML = productos().map(function(p){ return '<option value="'+esc(p)+'">'; }).join('');
+    var dq = document.getElementById('sal-personas');
+    if(dq) dq.innerHTML = personas().map(function(p){ return '<option value="'+esc(p)+'">'; }).join('');
+  }
+
+  // ── Los registros dentro del rango escogido ──
+  function enRango(){
+    var out = [];
+    Object.keys(SAL.datos).forEach(function(k){
+      var r = SAL.datos[k] || {};
+      if(!r.producto) return;
+      if(SAL.desde && r.fecha < SAL.desde) return;
+      if(SAL.hasta && r.fecha > SAL.hasta) return;
+      out.push({ id:k, producto:String(r.producto).toUpperCase(), quien:String(r.quien||'').toUpperCase(),
+                 fecha:r.fecha||'', cant:Number(r.cantidad)||0,
+                 precio:(r.precio==null||r.precio==='')?null:Number(r.precio),
+                 nota:r.nota||'', origen:r.origen||'' });
+    });
+    return out.sort(function(a,b){ return b.fecha.localeCompare(a.fecha); });
+  }
+
+  function pintarLista(){
+    var caja = document.getElementById('sal-lista-caja');
+    if(!caja){ return; }
+    refrescarListas();
+    if(SAL.err){ caja.innerHTML = '<div class="sal-caja"><div class="sal-aviso">⚠️ ' + esc(SAL.err) + '</div></div>'; return; }
+    if(!SAL.listo){ caja.innerHTML = '<div class="sal-caja"><div class="sal-vacio">Cargando…</div></div>'; return; }
+
+    var rs = enRango();
+    var total = rs.reduce(function(s,r){ return s + (r.precio||0); }, 0);
+    var sinPrecio = rs.filter(function(r){ return r.precio == null; }).length;
+
+    var h = '<div class="sal-caja">' +
+      '<div class="sal-fila" style="margin-bottom:11px">' +
+        '<button class="sal-btn gris chico" onclick="salCalAbrir()">📅 ' +
+          (SAL.desde || SAL.hasta
+            ? esc(fechaBonita(SAL.desde) + '  a  ' + fechaBonita(SAL.hasta))
+            : 'Todas las fechas') + '</button>' +
+        (SAL.desde || SAL.hasta ? '<button class="sal-btn gris chico" onclick="salRangoQuitar()">✕ quitar</button>' : '') +
+        '<div style="flex:1"></div>' +
+        '<button class="sal-btn gris chico" onclick="salImportar()">⬇️ Importar histórico</button>' +
+      '</div>' +
+      '<div class="sal-total">' +
+        '<div><span>Salidas</span><b>' + rs.length + '</b></div>' +
+        '<div><span>Suman</span><b>' + dinero(total) + '</b></div>' +
+        (sinPrecio ? '<div><span>Sin precio</span><b>' + sinPrecio + '</b></div>' : '') +
+      '</div>' +
+      '<div class="sal-tabs">' +
+        tab('producto','📦 Por producto') + tab('fecha','📅 Por fecha') + tab('persona','👤 Por persona') +
+      '</div>' +
+      (SAL.vista === 'producto' ? vistaProducto(rs)
+        : SAL.vista === 'persona' ? vistaPersona(rs) : vistaFecha(rs)) +
+    '</div>';
+    caja.innerHTML = h;
+  }
+  function tab(v, t){
+    return '<button class="sal-tab' + (SAL.vista===v?' on':'') + '" onclick="salVista(\'' + v + '\')">' + t + '</button>';
+  }
+
+  // ── LA VISTA QUE PIDIÓ RAÚL: cada cuándo piden cada cosa ──
+  function vistaProducto(rs){
+    if(!rs.length) return '<div class="sal-vacio">Todavía no hay salidas anotadas.</div>';
+    var g = {};
+    rs.forEach(function(r){
+      var k = r.producto;
+      if(!g[k]) g[k] = { n:0, total:0, fechas:[], quienes:{} };
+      g[k].n++; g[k].total += (r.precio||0);
+      if(r.fecha) g[k].fechas.push(r.fecha);
+      if(r.quien) g[k].quienes[r.quien] = (g[k].quienes[r.quien]||0) + 1;
+    });
+    var filas = Object.keys(g).map(function(k){
+      var x = g[k];
+      x.fechas.sort();
+      var ult = x.fechas[x.fechas.length-1] || '';
+      var cada = x.fechas.length > 1
+        ? Math.max(1, Math.round(dias(x.fechas[0], ult) / (x.fechas.length - 1))) : null;
+      var desdeUlt = ult ? dias(ult, hoyISO()) : null;
+      var top = Object.keys(x.quienes).sort(function(a,b){ return x.quienes[b]-x.quienes[a]; })[0] || '';
+      return { p:k, n:x.n, total:x.total, ult:ult, cada:cada, desdeUlt:desdeUlt, top:top };
+    }).sort(function(a,b){ return b.n - a.n; });
+
+    return '<table class="sal-tabla"><thead><tr>' +
+      '<th>Producto</th><th class="num">Veces</th><th>Cada</th><th>Última vez</th>' +
+      '<th>Quién lo pide más</th><th class="num">Lleva</th></tr></thead><tbody>' +
+      filas.map(function(f){
+        var chip = '';
+        if(f.cada != null && f.desdeUlt != null){
+          if(f.desdeUlt >= f.cada) chip = '<span class="sal-chip pronto">ya toca</span>';
+          else if(f.desdeUlt <= 1) chip = '<span class="sal-chip hoy">hoy</span>';
+        }
+        return '<tr>' +
+          '<td><b>' + esc(f.p) + '</b></td>' +
+          '<td class="num">' + f.n + '</td>' +
+          '<td>' + (f.cada != null ? ('~' + f.cada + ' días') : '<span class="sal-chip viejo">una sola vez</span>') + '</td>' +
+          '<td>' + esc(fechaBonita(f.ult)) +
+            (f.desdeUlt != null ? ' <span class="sal-chip viejo">hace ' + f.desdeUlt + ' d</span>' : '') +
+            ' ' + chip + '</td>' +
+          '<td>' + (f.top ? esc(f.top) : '<span class="sal-chip viejo">sin nombre</span>') + '</td>' +
+          '<td class="num">' + (f.total ? dinero(f.total) : '—') + '</td>' +
+        '</tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  function vistaFecha(rs){
+    if(!rs.length) return '<div class="sal-vacio">No hay salidas en esas fechas.</div>';
+    return '<table class="sal-tabla"><thead><tr>' +
+      '<th>Día</th><th>Producto</th><th class="num">Cant.</th><th>Quién</th>' +
+      '<th class="num">Precio</th><th>Nota</th><th></th></tr></thead><tbody>' +
+      rs.map(function(r){
+        return '<tr>' +
+          '<td>' + esc(fechaBonita(r.fecha)) + '</td>' +
+          '<td><b>' + esc(r.producto) + '</b></td>' +
+          '<td class="num">' + (r.cant || '—') + '</td>' +
+          '<td>' + (r.quien ? esc(r.quien) : '<span class="sal-chip viejo">sin nombre</span>') + '</td>' +
+          '<td class="num">' + (r.precio != null ? dinero(r.precio) : '<span class="sal-chip sinprecio">sin precio</span>') + '</td>' +
+          '<td style="color:#7b7468;font-size:12.5px">' + esc(r.nota).slice(0,54) + '</td>' +
+          '<td><button class="sal-btn gris chico" onclick="salBorrar(\'' + r.id + '\')">🗑</button></td>' +
+        '</tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  function vistaPersona(rs){
+    var conNombre = rs.filter(function(r){ return r.quien; });
+    if(!conNombre.length) return '<div class="sal-vacio">Todavía nadie tiene nombre anotado.<br>' +
+      '<span style="font-size:12.5px">Lo importado de Maura no trae quién pidió — eso empieza desde ahora.</span></div>';
+    var g = {};
+    conNombre.forEach(function(r){
+      if(!g[r.quien]) g[r.quien] = { n:0, total:0, prods:{} };
+      g[r.quien].n++; g[r.quien].total += (r.precio||0);
+      g[r.quien].prods[r.producto] = (g[r.quien].prods[r.producto]||0) + 1;
+    });
+    var filas = Object.keys(g).map(function(k){
+      var x = g[k];
+      var top = Object.keys(x.prods).sort(function(a,b){ return x.prods[b]-x.prods[a]; }).slice(0,3);
+      return { q:k, n:x.n, total:x.total, top:top.join(', ') };
+    }).sort(function(a,b){ return b.n - a.n; });
+    return '<table class="sal-tabla"><thead><tr>' +
+      '<th>Quién</th><th class="num">Veces</th><th>Lo que más pide</th><th class="num">Lleva</th>' +
+      '</tr></thead><tbody>' +
+      filas.map(function(f){ return '<tr>' +
+        '<td><b>' + esc(f.q) + '</b></td><td class="num">' + f.n + '</td>' +
+        '<td style="font-size:12.5px;color:#7b7468">' + esc(f.top) + '</td>' +
+        '<td class="num">' + (f.total ? dinero(f.total) : '—') + '</td></tr>'; }).join('') +
+      '</tbody></table>' +
+      (rs.length > conNombre.length
+        ? '<div class="sal-aviso" style="margin:11px 0 0">Hay ' + (rs.length - conNombre.length) +
+          ' salidas sin nombre — casi todas son las que se importaron de Maura, que no traían quién pidió.</div>'
+        : '');
+  }
+
+  // ══════════════════════════ LO QUE HACE ══════════════════════════
+  window.salVista = function(v){ SAL.vista = v; pintarLista(); };
+  window.salRangoQuitar = function(){ SAL.desde = ''; SAL.hasta = ''; pintarLista(); };
+
+  window.salGuardar = function(){
+    var q = (document.getElementById('sal-quien').value||'').trim().toUpperCase();
+    var p = (document.getElementById('sal-producto').value||'').trim().toUpperCase();
+    var c = document.getElementById('sal-cant').value;
+    var pr = document.getElementById('sal-precio').value;
+    var f = document.getElementById('sal-fecha').value || hoyISO();
+    var nt = (document.getElementById('sal-nota').value||'').trim();
+    if(!p){ avisa('¿Qué se llevó? Escríbelo primero.', 'error'); return; }
+    if(!window.firebase || !firebase.database){ avisa('Sin conexión. Intenta en un momento.', 'error'); return; }
+    firebase.database().ref(NODO).push({
+      producto: p.slice(0,40),
+      quien: q.slice(0,30),
+      cantidad: Number(c) || 0,
+      // ⚠️ null, NO 0: «no sé el precio» y «costó cero» no son lo mismo, y si
+      //    se guardara como 0 el total del mes saldría bien pero la cuenta de
+      //    «sin precio» diría que no falta ninguno.
+      precio: (pr === '' || pr == null) ? null : Number(pr),
+      fecha: f,
+      nota: nt.slice(0,80),
+      origen: 'raul',
+      creadoEn: new Date().toISOString()
+    }).then(function(){
+      ['sal-producto','sal-cant','sal-precio','sal-nota'].forEach(function(id){
+        var e = document.getElementById(id); if(e) e.value = '';
+      });
+      // El nombre NO se borra: casi siempre el mismo chavo pide varias cosas.
+      var pe = document.getElementById('sal-producto'); if(pe) pe.focus();
+      avisa('✓ Anotado');
+    }).catch(function(){ avisa('No se pudo guardar. Revisa tu internet.', 'error'); });
+  };
+
+  window.salBorrar = function(id){
+    var r = SAL.datos[id] || {};
+    if(!confirm('¿Borrar esta salida?\n\n' + (r.producto||'') + '  ·  ' + fechaBonita(r.fecha) +
+                '\n\nNo deja rastro.')) return;
+    firebase.database().ref(NODO + '/' + id).remove()
+      .then(function(){ avisa('🗑 Borrado'); })
+      .catch(function(){ avisa('No se pudo borrar.', 'error'); });
+  };
+
+  // ── Importar el histórico de Maura, UNA sola vez ──
+  window.salImportar = function(){
+    var yaHay = Object.keys(SAL.datos).filter(function(k){
+      return (SAL.datos[k]||{}).origen === 'maura'; }).length;
+    if(yaHay){
+      alert('El histórico YA está importado (' + yaHay + ' registros).\n\n' +
+            'No se vuelve a importar para no duplicarlo. Si de verdad hay que ' +
+            'rehacerlo, primero hay que borrar los que ya están.');
+      return;
+    }
+    if(!confirm('Traer ' + SAL_HIST.length + ' salidas del histórico de Maura ' +
+                '(mayo a hoy)?\n\nTraen producto, día y monto. NO traen quién lo pidió — ' +
+                'eso no se registraba antes, y empieza desde ahora.\n\n' +
+                'Se hace UNA sola vez.')) return;
+    var ref = firebase.database().ref(NODO), lote = {}, n = 0;
+    SAL_HIST.forEach(function(x){
+      var k = ref.push().key;
+      lote[k] = { producto:x.p, quien:'', cantidad:0,
+                  precio:(x.m===0?null:x.m), fecha:x.f, nota:x.t,
+                  origen:'maura', creadoEn:new Date().toISOString() };
+      n++;
+    });
+    ref.update(lote)
+      .then(function(){ avisa('⬇️ ' + n + ' salidas importadas'); })
+      .catch(function(){ avisa('No se pudo importar. Revisa tu internet.', 'error'); });
+  };
+
+  // ══════════════════ EL CALENDARIO DE RANGO ══════════════════
+  var CAL = { mes:'', a:'', b:'' };
+  window.salCalAbrir = function(){
+    CAL.a = SAL.desde; CAL.b = SAL.hasta;
+    CAL.mes = (SAL.desde || hoyISO()).slice(0,7);
+    document.getElementById('salcal-fondo').classList.add('abierto');
+    calPintar();
+  };
+  window.salCalCerrar = function(){ document.getElementById('salcal-fondo').classList.remove('abierto'); };
+  window.salCalMover = function(n){
+    var p = CAL.mes.split('-'), d = new Date(Number(p[0]), Number(p[1])-1+n, 1);
+    CAL.mes = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    calPintar();
+  };
+  window.salCalClic = function(iso){
+    // Primer clic pone el inicio; el segundo cierra el rango. Si ya hay dos,
+    // vuelve a empezar — como el calendario de reservas que le gusta a Keno.
+    if(!CAL.a || (CAL.a && CAL.b)){ CAL.a = iso; CAL.b = ''; }
+    else if(iso < CAL.a){ CAL.b = CAL.a; CAL.a = iso; }
+    else { CAL.b = iso; }
+    calPintar();
+  };
+  window.salCalAplicar = function(){
+    SAL.desde = CAL.a || ''; SAL.hasta = CAL.b || CAL.a || '';
+    salCalCerrar(); pintarLista();
+  };
+  var SEM = ['D','L','M','M','J','V','S'];
+  var MESL = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto',
+              'septiembre','octubre','noviembre','diciembre'];
+  function calPintar(){
+    var p = CAL.mes.split('-'), año = Number(p[0]), mes = Number(p[1])-1;
+    document.getElementById('salcal-mes').textContent = MESL[mes] + ' ' + año;
+    var primero = new Date(año, mes, 1).getDay();
+    var cuantos = new Date(año, mes+1, 0).getDate();
+    var h = SEM.map(function(s){ return '<div class="enc">'+s+'</div>'; }).join('');
+    for(var i=0;i<primero;i++) h += '<button disabled></button>';
+    for(var d=1; d<=cuantos; d++){
+      var iso = año + '-' + String(mes+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+      var cls = '';
+      if(iso === CAL.a || iso === CAL.b) cls = 'punta';
+      else if(CAL.a && CAL.b && iso > CAL.a && iso < CAL.b) cls = 'rango';
+      h += '<button class="'+cls+'" onclick="salCalClic(\''+iso+'\')">'+d+'</button>';
+    }
+    document.getElementById('salcal-dias').innerHTML = h;
+    document.getElementById('salcal-nota').textContent =
+      !CAL.a ? 'Pica el primer día' :
+      !CAL.b ? 'Ahora pica el último día' :
+      fechaBonita(CAL.a) + '  a  ' + fechaBonita(CAL.b);
+  }
+
+  // ── Engancharse cuando ya haya sesión, aunque nadie abra el panel ──
+  (function esperar(n){
+    try {
+      if(window.firebase && firebase.database && firebase.auth && firebase.auth().currentUser){
+        conectar(); return;
+      }
+    } catch(e){}
+    if(n > 0) setTimeout(function(){ esperar(n-1); }, 1500);
+  })(60);
+})();
+</script>
 
 </body>
 </html>
