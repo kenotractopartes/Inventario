@@ -13338,7 +13338,13 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
         '<div style="flex:1"></div>' +
         '<button class="sal-btn gris chico" onclick="salImportar()">⬇️ Importar histórico</button>' +
       '</div>' +
-      comparaMeses() +
+      // ⚠️ ESTE MES CONTRA EL PASADO: ESCONDIDO, NO BORRADO (2 sep 2026).
+      //    Keno lo pidió, lo vio funcionando y dijo «por ahora no es
+      //    necesario». La función comparaMeses() sigue entera abajo; para
+      //    traerlo de vuelta basta quitar el // de esta línea.
+      //    NO se quitó porque estuviera mal: los números cuadraban
+      //    (septiembre $4,750 contra agosto $1,430, +232%). Estorbaba.
+      // comparaMeses() +
       '<div class="sal-total">' +
         '<div><span>Salidas</span><b>' + rs.length + '</b></div>' +
         '<div><span>Suman</span><b>' + dinero(total) + '</b></div>' +
