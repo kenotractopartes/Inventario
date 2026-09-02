@@ -13144,7 +13144,8 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
 (function(){
   var NODO = 'salidas_taller';
   var SAL = { datos:{}, vista:'producto', desde:'', hasta:'', esc:false, listo:false, err:'',
-              editando:'' };   // el id del renglón que se está corrigiendo, o vacío
+              editando:'',     // el id del renglón que se está corrigiendo, o vacío
+              soloProd:'' };   // cuando se pica un producto, para ver SUS renglones
 
   // ── El catálogo, sacado de los 237 egresos reales de taller de Maura ──
   //    Raúl puede agregar los que falten; se guardan solos.
@@ -13305,6 +13306,7 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
       if(!r.producto) return;
       if(SAL.desde && r.fecha < SAL.desde) return;
       if(SAL.hasta && r.fecha > SAL.hasta) return;
+      if(SAL.soloProd && String(r.producto).toUpperCase() !== SAL.soloProd) return;
       out.push({ id:k, producto:String(r.producto).toUpperCase(), quien:String(r.quien||'').toUpperCase(),
                  fecha:r.fecha||'', cant:Number(r.cantidad)||0,
                  precio:(r.precio==null||r.precio==='')?null:Number(r.precio),
@@ -13331,9 +13333,12 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
             ? esc(fechaBonita(SAL.desde) + '  a  ' + fechaBonita(SAL.hasta))
             : 'Todas las fechas') + '</button>' +
         (SAL.desde || SAL.hasta ? '<button class="sal-btn gris chico" onclick="salRangoQuitar()">✕ quitar</button>' : '') +
+        (SAL.soloProd ? '<button class="sal-btn chico" onclick="salTodosProd()">\u2039 ' +
+           esc(SAL.soloProd) + '  \u00b7  ver todos</button>' : '') +
         '<div style="flex:1"></div>' +
         '<button class="sal-btn gris chico" onclick="salImportar()">⬇️ Importar histórico</button>' +
       '</div>' +
+      comparaMeses() +
       '<div class="sal-total">' +
         '<div><span>Salidas</span><b>' + rs.length + '</b></div>' +
         '<div><span>Suman</span><b>' + dinero(total) + '</b></div>' +
@@ -13347,6 +13352,69 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     '</div>';
     caja.innerHTML = h;
   }
+  // ══════════════════════════════════════════════════════════════════════
+  // ESTE MES CONTRA EL PASADO (2 sep 2026)
+  // ──────────────────────────────────────────────────────────────────────
+  // Keno: es lo primero que le va a preguntar su papá. Un número solo no
+  // dice nada; contra el mes anterior sí.
+  //
+  // ⚠️ NO respeta el filtro de fechas, a propósito. Si lo respetara, escoger
+  //    «del 5 al 20 de agosto» daría una comparación de meses recortados que
+  //    no significa nada. Esto siempre son los meses completos.
+  //
+  // ⚠️ Y avisa cuántas salidas van SIN PRECIO. Sin ese aviso, un mes que se
+  //    ve barato podría ser un mes mal capturado, y nadie sabría cuál de las
+  //    dos cosas está viendo.
+  // ══════════════════════════════════════════════════════════════════════
+  function comparaMeses(){
+    var hoy = hoyISO();
+    var esteMes = hoy.slice(0,7);
+    var p = esteMes.split('-'), d = new Date(Number(p[0]), Number(p[1])-2, 1);
+    var mesPasado = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    var a = { t:0, n:0, sin:0 }, b = { t:0, n:0, sin:0 };
+    Object.keys(SAL.datos).forEach(function(k){
+      var r = SAL.datos[k] || {};
+      if(!r.producto || !r.fecha) return;
+      var m = String(r.fecha).slice(0,7), c = null;
+      if(m === esteMes) c = a; else if(m === mesPasado) c = b; else return;
+      c.n++;
+      if(r.precio == null || r.precio === '') c.sin++; else c.t += Number(r.precio) || 0;
+    });
+    if(!a.n && !b.n) return '';
+    var MESL = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto',
+                'septiembre','octubre','noviembre','diciembre'];
+    var nomA = MESL[Number(esteMes.split('-')[1]) - 1];
+    var nomB = MESL[Number(mesPasado.split('-')[1]) - 1];
+    var dif = a.t - b.t;
+    var pct = b.t > 0 ? Math.round(100 * dif / b.t) : null;
+    var flecha = dif > 0 ? '\u25b2' : (dif < 0 ? '\u25bc' : '=');
+    var color = dif > 0 ? '#c0392b' : (dif < 0 ? '#1b5e32' : '#7b7468');
+    return '<div class="sal-caja" style="padding:11px 14px;margin-bottom:12px">' +
+      '<div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-end">' +
+        '<div><div style="font-size:10.5px;color:#7b7468;text-transform:uppercase;letter-spacing:.4px">' +
+          esc(nomA) + ' (va)</div>' +
+          '<div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums">' + dinero(a.t) + '</div>' +
+          '<div style="font-size:11.5px;color:#9a9384">' + a.n + ' salidas' +
+          (a.sin ? ' \u00b7 ' + a.sin + ' sin precio' : '') + '</div></div>' +
+        '<div><div style="font-size:10.5px;color:#7b7468;text-transform:uppercase;letter-spacing:.4px">' +
+          esc(nomB) + '</div>' +
+          '<div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:#7b7468">' + dinero(b.t) + '</div>' +
+          '<div style="font-size:11.5px;color:#9a9384">' + b.n + ' salidas' +
+          (b.sin ? ' \u00b7 ' + b.sin + ' sin precio' : '') + '</div></div>' +
+        (b.t > 0 || a.t > 0 ?
+        '<div><div style="font-size:10.5px;color:#7b7468;text-transform:uppercase;letter-spacing:.4px">Diferencia</div>' +
+          '<div style="font-size:22px;font-weight:800;color:' + color + ';font-variant-numeric:tabular-nums">' +
+          flecha + ' ' + dinero(Math.abs(dif)) + (pct != null ? '  <span style="font-size:14px">(' +
+          (dif>0?'+':'') + pct + '%)</span>' : '') + '</div>' +
+          '<div style="font-size:11.5px;color:#9a9384">' +
+          (dif > 0 ? 'se está yendo más que el mes pasado' :
+           dif < 0 ? 'va menos que el mes pasado' : 'igual que el mes pasado') + '</div></div>' : '') +
+      '</div>' +
+      ((a.sin || b.sin) ? '<div style="font-size:11.5px;color:#8a6a12;margin-top:9px">' +
+        '\u26a0\ufe0f Hay salidas sin precio. El mes puede verse m\u00e1s barato de lo que fue.</div>' : '') +
+    '</div>';
+  }
+
   function tab(v, t){
     return '<button class="sal-tab' + (SAL.vista===v?' on':'') + '" onclick="salVista(\'' + v + '\')">' + t + '</button>';
   }
@@ -13382,8 +13450,15 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
           if(f.desdeUlt >= f.cada) chip = '<span class="sal-chip pronto">ya toca</span>';
           else if(f.desdeUlt <= 1) chip = '<span class="sal-chip hoy">hoy</span>';
         }
-        return '<tr>' +
-          '<td><b>' + esc(f.p) + '</b></td>' +
+        // ⚠️ AQUÍ NO HAY BOTONES DE CORREGIR NI BORRAR, Y NO ES UN OLVIDO:
+        //    cada renglón de esta vista son VARIAS salidas juntas, no una.
+        //    Borrar «THINNER» no querría decir nada. Keno se topó con esto:
+        //    «todavía no me deja editar o borrar». Se resolvió haciendo que
+        //    picar el producto lleve a SUS renglones, que es donde sí se
+        //    puede tocar uno por uno.
+        return '<tr style="cursor:pointer" title="Ver las salidas de ' + esc(f.p) + '" ' +
+          'onclick="salVerProducto(\'' + esc(f.p).replace(/'/g, "\\'") + '\')">' +
+          '<td><b>' + esc(f.p) + '</b> <span class="sal-chip">ver \u203a</span></td>' +
           '<td class="num">' + f.n + '</td>' +
           '<td>' + (f.cada != null ? ('~' + f.cada + ' días') : '<span class="sal-chip viejo">una sola vez</span>') + '</td>' +
           '<td>' + esc(fechaBonita(f.ult)) +
@@ -13447,6 +13522,8 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
 
   // ══════════════════════════ LO QUE HACE ══════════════════════════
   window.salVista = function(v){ SAL.vista = v; pintarLista(); };
+  window.salVerProducto = function(p){ SAL.soloProd = p; SAL.vista = 'fecha'; pintarLista(); };
+  window.salTodosProd = function(){ SAL.soloProd = ''; SAL.vista = 'producto'; pintarLista(); };
   window.salRangoQuitar = function(){ SAL.desde = ''; SAL.hasta = ''; pintarLista(); };
 
   window.salGuardar = function(){
