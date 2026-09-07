@@ -9958,6 +9958,11 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
   var bitacora = (function(){ try{ return JSON.parse(localStorage.getItem(BITA_KEY))||[]; }catch(e){ return []; } })();
   var notasAbiertas = {};
   var editando = false, pendienteRender = false, filtro = '', filtroAnio = '', filtroMes = '', celdaEnfocada = null;
+  // ⚠️ filtroAnio es el año de la FECHA DE REGISTRO. fMarca/fAnioCam/fConsec/
+  //    fBaja son el filtro nuevo, el del camión. Se llaman distinto a propósito:
+  //    en la pantalla hay un «Año» que es cuándo entró y otro que es de qué año
+  //    es el tractocamión, y confundirlos daría listas vacías sin explicación.
+  var fMarca = '', fAnioCam = '', fConsec = null, fBaja = null;
   var syncEstado = 'sync', syncTxt = 'Conectando…';
 
   // ---------- utilidades ----------
@@ -10223,6 +10228,14 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
       return (textoPlano(o.fecha)+' '+textoPlano(o.factura)+' '+o.proveedor+' '+o.marca+' '+o.anio+' '+textoPlano(o.serie)+' '+o.consecutivo+' '+textoPlano(o.infoExtra)).toLowerCase().indexOf(q)>=0; }); }
     if(filtroAnio){ arr=arr.filter(function(o){ var n=parseFechaNum(o.fecha); return n>0 && Math.floor(n/10000)===(+filtroAnio); }); }
     if(filtroMes){ arr=arr.filter(function(o){ var n=parseFechaNum(o.fecha); return n>0 && (Math.floor(n/100)%100)===(+filtroMes); }); }
+    if(fMarca){ arr=arr.filter(function(o){ return marcaBase(o.marca) === fMarca; }); }
+    if(fAnioCam){ arr=arr.filter(function(o){ return anioCamionDe(o) === fAnioCam; }); }
+    // ⚠️ null = todos · '' = sin definir · texto = ese consecutivo exacto.
+    //    Son TRES estados, no dos: «sin definir» es una respuesta legítima
+    //    (hay un chasis así) y con dos estados no habría manera de pedirlo.
+    if(fConsec !== null){ arr=arr.filter(function(o){
+      return String(textoPlano(o.consecutivo)||'').trim().toUpperCase() === String(fConsec).toUpperCase(); }); }
+    if(fBaja !== null){ arr=arr.filter(function(o){ return bajaDe(o) === fBaja; }); }
     arr.sort(function(a,b){
       var fa=parseFechaNum(a.fecha), fb=parseFechaNum(b.fecha);
       if(fa!==fb) return fb-fa;
@@ -10233,6 +10246,58 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
     });
     return arr;
   }
+  // ══════════════════════════════════════════════════════════════════════
+  // LA MARCA PARA FILTRAR  (7 sep 2026)
+  // ──────────────────────────────────────────────────────────────────────
+  // No se puede tomar el campo tal cual: ahí viene pegada al modelo
+  // («FREIGHTLINER COLUMBIA», «INTERNATIONAL PROSTAR») y salen 17 opciones
+  // para 43 chasis. Una lista así no sirve para filtrar.
+  //
+  // ⚠️ DOS TRAMPAS QUE ESTÁN EN LOS DATOS DE VERDAD, no imaginadas:
+  //    · Hay 2 chasis capturados «FREIHGTLINER» (con dedazo). Sin tolerancia
+  //      saldrían como una marca aparte y el filtro nacería mintiendo.
+  //    · «ROAD KING QUINTA RUEDA» con la primera palabra queda en «ROAD».
+  //      Las marcas de dos palabras se revisan ANTES.
+  //    Con las dos, 17 opciones bajan a 6 y ninguna da cero.
+  // ══════════════════════════════════════════════════════════════════════
+  var MARCAS_2 = ['ROAD KING','WESTERN STAR'];
+  var MARCAS_1 = ['FREIGHTLINER','INTERNATIONAL','KENWORTH','VOLVO','DINA',
+                  'GOLDEN','MACK','PETERBILT','SCANIA','HINO'];
+  function _dedazos(a,b){
+    if(Math.abs(a.length-b.length) > 2) return 99;
+    var m=a.length, n=b.length, d=[], i, j;
+    for(i=0;i<=m;i++) d[i]=[i];
+    for(j=0;j<=n;j++) d[0][j]=j;
+    for(i=1;i<=m;i++) for(j=1;j<=n;j++)
+      d[i][j] = Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+(a.charAt(i-1)===b.charAt(j-1)?0:1));
+    return d[m][n];
+  }
+  function marcaBase(txt){
+    var t = String(textoPlano(txt)||'').toUpperCase().replace(/\//g,' ').replace(/\s+/g,' ').trim();
+    if(!t) return '';
+    for(var i=0;i<MARCAS_2.length;i++) if(t.indexOf(MARCAS_2[i]) === 0) return MARCAS_2[i];
+    var p = t.split(' ')[0];
+    for(var k=0;k<MARCAS_1.length;k++){
+      if(p === MARCAS_1[k]) return MARCAS_1[k];
+      // El perdón de dedazos SOLO en palabras largas: en cortas, dos letras de
+      // diferencia son media palabra y absorbería marcas que no son.
+      if(p.length >= 6 && _dedazos(p, MARCAS_1[k]) <= 2) return MARCAS_1[k];
+    }
+    return p;
+  }
+  function anioCamionDe(o){ return String(textoPlano(o.anio)||'').trim(); }
+  function bajaDe(o){ return String(textoPlano(o.baja)||'').trim().toUpperCase(); }
+  // Las listas se arman con lo que HAY, nunca con un catálogo fijo: si mañana
+  // entra un DINA aparece solo, y si se vende el último VOLVO desaparece.
+  // Nunca sale una opción que dé cero resultados.
+  function cuentaPor(fn){
+    var s = {};
+    Object.keys(chasis).forEach(function(id){
+      var v = fn(chasis[id]||{}); if(v) s[v] = (s[v]||0)+1;
+    });
+    return s;
+  }
+
   function distinct(campo){ var s={}; Object.keys(chasis).forEach(function(id){ var v=(chasis[id][campo]||'').toString().trim(); if(v) s[v]=1; }); return Object.keys(s).sort(); }
   function aniosDisponibles(){ var s={}; Object.keys(chasis).forEach(function(id){ var n=parseFechaNum(chasis[id].fecha); if(n>0) s[Math.floor(n/10000)]=1; }); return Object.keys(s).map(Number).sort(function(a,b){return b-a;}); }
 
@@ -10312,6 +10377,67 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
   }
 
   // ---------- render ----------
+  // ══════════════════════════════════════════════════════════════════════
+  // EL PANEL DE FILTROS  (7 sep 2026) — el mismo que ya existe en el
+  // inventario de Raúl, pedido por Keno para el Estatus de Maura.
+  //
+  // ⚠️ NO se copió el código del inventario: allá filtra PIEZAS y aquí son
+  //    los renglones del Estatus, que son otros campos. Se copió la IDEA y
+  //    las dos reglas que allá costaron trabajo (el dedazo y las marcas de
+  //    dos palabras); el resto está escrito contra estos datos.
+  //
+  // ⚠️ Los botones de Baja traen su conteo, y a propósito no suman el total:
+  //    hay chasis sin baja capturada. Si dijeran solo «Sí» y «No», esos
+  //    desaparecerían al filtrar sin que nadie supiera que existen.
+  // ══════════════════════════════════════════════════════════════════════
+  function panelFiltros(){
+    var total = Object.keys(chasis).length;
+    var opciones = function(cuentas, sel, etiquetaTodos){
+      var ks = Object.keys(cuentas).sort();
+      return '<option value=""'+(sel===''?' selected':'')+'>'+esc(etiquetaTodos)+' ('+total+')</option>'+
+        ks.map(function(k){ return '<option value="'+esc(k)+'"'+(sel===k?' selected':'')+'>'+
+          esc(k)+' ('+cuentas[k]+')</option>'; }).join('');
+    };
+    var cMarca = cuentaPor(function(o){ return marcaBase(o.marca); });
+    var cAnio  = cuentaPor(function(o){ return anioCamionDe(o); });
+    var cCons  = cuentaPor(function(o){ return String(textoPlano(o.consecutivo)||'').trim().toUpperCase(); });
+    var cBaja  = cuentaPor(function(o){ return bajaDe(o); });
+
+    var consOpts = '<option value="__TODOS__"'+(fConsec===null?' selected':'')+'>— Todos los consecutivos — ('+total+')</option>'+
+      Object.keys(cCons).sort().map(function(k){
+        return '<option value="'+esc(k)+'"'+(fConsec===k?' selected':'')+'>'+esc(k)+' ('+cCons[k]+')</option>'; }).join('');
+
+    var estSel = 'width:100%;padding:11px;font-size:15px;border:2px solid #b8a86a;border-radius:8px;margin-top:4px;background:#fff;';
+    var btnBaja = function(txt, val, colorOn, n){
+      var on = (fBaja === val);
+      return '<button type="button" class="emx-fbaja" data-baja="'+(val===null?'':val)+'" '+
+        'style="flex:1;padding:10px;border-radius:6px;border:2px solid '+(on?colorOn:'#ccc')+';'+
+        'background:'+(on?colorOn:'#fff')+';color:'+(on?'#fff':'#1a1a1a')+';font-weight:700;cursor:pointer;font-size:14px;">'+
+        txt+' ('+n+')</button>';
+    };
+    return '<div style="background:#f3f0e8;border:2px solid #b8a86a;border-radius:10px;padding:12px;margin-bottom:14px;">'+
+      '<div style="font-size:12px;font-weight:800;color:#7a6a2a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🔎 Filtrar chasis</div>'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">'+
+        '<div style="flex:1;min-width:190px;">'+
+          '<label style="font-size:12px;color:#555;font-weight:700;">Marca</label>'+
+          '<select id="emx-f-marca" style="'+estSel+'">'+opciones(cMarca, fMarca, '— Todas las marcas —')+'</select>'+
+        '</div>'+
+        '<div style="flex:1;min-width:150px;">'+
+          '<label style="font-size:12px;color:#555;font-weight:700;">Año del camión</label>'+
+          '<select id="emx-f-anio" style="'+estSel+'">'+opciones(cAnio, fAnioCam, '— Todos los años —')+'</select>'+
+        '</div>'+
+      '</div>'+
+      '<label style="font-size:12px;color:#555;font-weight:700;">Consecutivo (estatus de papelería)</label>'+
+      '<select id="emx-f-consec" style="'+estSel+'margin-bottom:12px;">'+consOpts+'</select>'+
+      '<label style="font-size:12px;color:#555;font-weight:700;">Baja federal</label>'+
+      '<div style="display:flex;gap:8px;margin-top:4px;">'+
+        btnBaja('Todos', null, '#888', total)+
+        btnBaja('Sí tiene ✔', 'SI', '#2e7d46', cBaja['SI']||0)+
+        btnBaja('No tiene ✗', 'NO', '#b03a2e', cBaja['NO']||0)+
+      '</div>'+
+    '</div>';
+  }
+
   function mount(){
     var root=document.getElementById('estatus-root'); if(!root) return;
     var total=Object.keys(chasis).length;
@@ -10334,7 +10460,11 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
         '<button class="emx-btn imp" id="emx-print-btn">🖨️ Imprimir</button>'+
       '</div></div>';
     var toolbar = ES_EDITOR
-      ? '<button class="emx-btn pri" id="emx-add">➕ Agregar chasis</button>'+ mesBtn + otrosEditor + rojoUI + searchBox + limpiar
+      // ⚠️ rojoUI (los botones 🔴 ⬛ de «Marca texto») está ESCONDIDO, no
+      //    borrado — Keno lo pidió fuera el 7 sep. La variable y sus manejadores
+      //    siguen enteros: para traerlos de vuelta es volver a poner «+ rojoUI»
+      //    aquí y ya. El texto que alguien haya pintado NO se perdió.
+      ? '<button class="emx-btn pri" id="emx-add">➕ Agregar chasis</button>'+ mesBtn + otrosEditor + searchBox + limpiar
       : mesBtn + otrosLectura + searchBox + limpiar;
     var aviso = ES_EDITOR ? '' : '<div class="emx-aviso">👁 Solo lectura — esta tabla la edita administración (Maura). Aquí la ves en vivo y puedes imprimirla.</div>';
     var bitaPanel = ES_EDITOR ? '<div class="emx-bita" id="emx-bita"><div id="emx-bita-lista"></div></div>' : '';
@@ -10347,7 +10477,7 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
         '<span class="emx-sync" id="emx-sync"><span class="emx-dot"></span>Conectando…</span>'+
         '<div class="emx-sub">Una sola tabla viva y compartida. Lo que Maura edita, ventas lo ve al instante. <b id="emx-total">'+total+'</b> chasis · orden por fecha (más reciente arriba).</div>'+
       '</div>'+ aviso +
-      '<div class="emx-toolbar">'+toolbar+'</div>'+ bitaPanel +
+      '<div class="emx-toolbar">'+toolbar+'</div>'+ panelFiltros() + bitaPanel +
       '<input type="date" id="emx-fp" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px">'+ menuEl +
       '<div class="emx-wrap"><table class="emx-tabla"><thead><tr>'+
         '<th>Fecha</th><th>No. Factura</th><th>Proveedor / Intermediario</th><th>Marca</th><th>Año</th><th>Serie</th><th>Consecutivo</th>'+
@@ -10364,8 +10494,11 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
     var arr=listaOrdenada(), total=Object.keys(chasis).length, cols=ES_EDITOR?11:10;
     tbody.innerHTML = arr.length ? arr.map(fila).join('')
       : '<tr><td colspan="'+cols+'" class="emx-empty">'+(total?'Ningún chasis coincide con la búsqueda.':('Todavía no hay chasis.'+(ES_EDITOR?' Usa “➕ Agregar chasis” o “📥 Importar Excel”.':'')))+'</td></tr>';
-    var hayFiltro=!!(filtro||filtroAnio||filtroMes);
-    var etiF=(filtroAnio?(' · '+filtroAnio):'')+(filtroMes?(' · '+MESES[(+filtroMes)-1]):'');
+    var hayFiltro=!!(filtro||filtroAnio||filtroMes||fMarca||fAnioCam||fConsec!==null||fBaja!==null);
+    var etiF=(filtroAnio?(' · '+filtroAnio):'')+(filtroMes?(' · '+MESES[(+filtroMes)-1]):'')
+      +(fMarca?(' · '+fMarca):'')+(fAnioCam?(' · camión '+fAnioCam):'')
+      +(fConsec!==null?(' · '+(fConsec===''?'sin consecutivo':fConsec)):'')
+      +(fBaja!==null?(' · baja '+fBaja):'');
     var cnt=document.getElementById('emx-count'); if(cnt) cnt.textContent=arr.length+' chasis mostrados'+(hayFiltro?' (filtrados de '+total+')':'')+etiF;
     var tot=document.getElementById('emx-total'); if(tot) tot.textContent=total;
     var lim=document.getElementById('emx-limpiar'); if(lim) lim.style.display=hayFiltro?'inline-flex':'none';
@@ -10382,8 +10515,20 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
     if(otrosBtn&&otrosMenu){ otrosBtn.onclick=function(ev){ ev.stopPropagation(); otrosMenu.classList.toggle('abierto'); }; }
     var selA=document.getElementById('emx-anio'); if(selA) selA.onchange=function(){ filtroAnio=selA.value; pintarFilas(); };
     var selM=document.getElementById('emx-mes'); if(selM) selM.onchange=function(){ filtroMes=selM.value; pintarFilas(); };
+    var fm=document.getElementById('emx-f-marca');
+    if(fm) fm.onchange=function(){ fMarca=fm.value; pintarFilas(); };
+    var fa=document.getElementById('emx-f-anio');
+    if(fa) fa.onchange=function(){ fAnioCam=fa.value; pintarFilas(); };
+    var fc=document.getElementById('emx-f-consec');
+    if(fc) fc.onchange=function(){ fConsec = (fc.value==='__TODOS__') ? null : fc.value; pintarFilas(); };
+    // ⚠️ Los botones de Baja se redibujan al cambiar (para que se pinte el
+    //    activo), así que hay que volver a montar la barra, no solo las filas.
+    Array.prototype.forEach.call(document.querySelectorAll('.emx-fbaja'), function(b){
+      b.onclick=function(){ var v=b.getAttribute('data-baja'); fBaja = v ? v : null; mount(); };
+    });
     var limBtn=document.getElementById('emx-limpiar-btn');
-    if(limBtn) limBtn.onclick=function(){ filtro=''; filtroAnio=''; filtroMes=''; var qq=document.getElementById('emx-q'); if(qq)qq.value=''; var sa=document.getElementById('emx-anio'); if(sa)sa.value=''; var sm=document.getElementById('emx-mes'); if(sm)sm.value=''; pintarFilas(); };
+    if(limBtn) limBtn.onclick=function(){ filtro=''; filtroAnio=''; filtroMes='';
+      fMarca=''; fAnioCam=''; fConsec=null; fBaja=null; setTimeout(mount,0); var qq=document.getElementById('emx-q'); if(qq)qq.value=''; var sa=document.getElementById('emx-anio'); if(sa)sa.value=''; var sm=document.getElementById('emx-mes'); if(sm)sm.value=''; pintarFilas(); };
     var menu=document.getElementById('emx-menu');
     if(menu){ menu.onmousedown=function(ev){ var it=ev.target.closest('.emx-menu-item'); if(!it)return; ev.preventDefault(); setCampo(menu.dataset.id,menu.dataset.campo,it.dataset.val); cerrarMenu(); pintarFilas(); }; }
     if(!ES_EDITOR) return;
