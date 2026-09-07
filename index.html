@@ -9861,7 +9861,19 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
     messagingSenderId: "237695179240",
     appId: "1:237695179240:web:57f16b77af33aa00cdec5d"
   };
-  var LLAVE = 'tpm-estatus-2026-m4r8q2';
+  // ══════════════════════════════════════════════════════════════════════
+  // LA LLAVE YA NO VIVE AQUÍ: LA PONE EL HOST  (7 sep 2026 · FASE 1)
+  // ──────────────────────────────────────────────────────────────────────
+  // Estaba cableada en el bloque, y como el bloque es EL MISMO en las dos
+  // páginas, la llave de escritura se veía con clic derecho en las dos —
+  // incluida la de Raúl, que ni siquiera escribe. Ahora solo la pone quien
+  // de verdad la necesita, y la página de Raúl queda limpia de una vez.
+  //
+  // ⚠️ Cambiar la llave por otra NO arregla nada: la página la necesita para
+  //    escribir y la página es pública. Una llave dentro de código público
+  //    nunca es secreta. El arreglo de verdad es la SESIÓN, aquí abajo.
+  // ══════════════════════════════════════════════════════════════════════
+  var LLAVE = window.ESTATUS_LLAVE || '';
   var NODO = 'estatus_mercancia';
   var CACHE_KEY = 'estatus_chasis_cache_v1';
   var BITA_KEY = 'estatus_bitacora_v1';
@@ -9952,6 +9964,7 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
       if(!window.firebase || !firebase.database){ setSync('offline','Sin librería de nube'); return; }
       var app = null;
       try { app = firebase.app('estatusApp'); } catch(e){ app = firebase.initializeApp(FB_CONFIG,'estatusApp'); }
+      adoptarSesion(app);
       estatusRef = app.database().ref(NODO);
       estatusRef.on('value', function(snap){
         var v = snap.val() || {};
@@ -9964,19 +9977,88 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
       try{ app.database().ref('.info/connected').on('value', function(s){ setSync(s.val()?'ok':'offline', s.val()?'Sincronizado':'Sin conexión — datos locales'); }); }catch(e){}
     }catch(e){ console.warn('estatus init:', e); setSync('offline','Sin nube — solo local'); }
   }
+  // ══════════════════════════════════════════════════════════════════════
+  // LA SESIÓN, PRESTADA DEL PIZARRÓN  (7 sep 2026 · FASE 1)
+  // ──────────────────────────────────────────────────────────────────────
+  // Para que la escritura deje de depender de una llave pública tiene que ir
+  // con sesión. Y la buena noticia es que Maura YA TIENE UNA en este mismo
+  // proyecto: entra al Pizarrón y se le queda guardada (Persistence.LOCAL).
+  // Se le pide prestada en vez de pedirle otro login. Ella no pone nada nuevo.
+  //
+  // ⚠️ SON DOS APPS SEPARADAS A PROPÓSITO ('estatusApp' y 'pizarronApp').
+  //    Ya pasó una vez que el pizarrón le pisó la conexión al Estatus, y por
+  //    eso se separaron. NO se vuelven a juntar: se COPIA el usuario de una
+  //    a la otra, que es otra cosa.
+  //
+  // ⚠️ SE REINTENTA. El orden en que arrancan los módulos no está garantizado:
+  //    si el Estatus arranca antes que el Pizarrón, a la primera no encuentra
+  //    nada. Sin los reintentos fallaría según el humor de la carga, que es la
+  //    peor clase de falla.
+  //
+  // ⚠️ FASE 1: la llave SIGUE yendo y la regla SIGUE aceptándola. Si esto no
+  //    jalara, Maura guarda igual y ni se entera. Solo cuando se compruebe con
+  //    el candado 🔐 que guarda CON sesión se cierra la regla (Fase 2).
+  // ══════════════════════════════════════════════════════════════════════
+  var conSesion = false;
+  function refrescarSync(){ setSync(syncEstado, syncTxt); }
+  function adoptarSesion(app){
+    if(!ES_EDITOR) return;                       // Raúl solo lee: no necesita nada
+    if(!app || typeof app.auth !== 'function') return;
+    var intentos = 0;
+    (function probar(){
+      intentos++;
+      var pz = null;
+      try { pz = firebase.app('pizarronApp'); } catch(e){ pz = null; }
+      if(pz && typeof pz.auth === 'function'){
+        if(app.auth().currentUser){ conSesion = true; refrescarSync(); return; }
+        var tomar = function(u){
+          if(!u || app.auth().currentUser) return;
+          app.auth().updateCurrentUser(u)
+            .then(function(){ conSesion = true; refrescarSync(); })
+            .catch(function(e){ console.warn('estatus sesion:', e); });
+        };
+        tomar(pz.auth().currentUser);
+        // Y si Maura entra al Pizarrón DESPUÉS, se adopta en ese momento.
+        try { pz.auth().onAuthStateChanged(tomar); } catch(e){}
+        return;
+      }
+      if(intentos < 15) setTimeout(probar, 2000);   // 30 s de margen
+    })();
+  }
+
   function guardarNube(){
     guardarCache();
     if(!ES_EDITOR || !estatusRef) return;
     setSync('sync','Guardando…');
-    estatusRef.set({ chasis: chasis, _origen: device, _ts: Date.now(), _key: LLAVE })
+    var carga = { chasis: chasis, _origen: device, _ts: Date.now() };
+    if(LLAVE) carga._key = LLAVE;      // en Fase 2 se quita y solo queda la sesión
+    estatusRef.set(carga)
       .then(function(){ setSync('ok','Guardado'); })
-      .catch(function(e){ console.warn(e); setSync('offline','Sin permiso o sin conexión'); });
+      .catch(function(e){
+        console.warn(e);
+        // ⚠️ «Sin permiso o sin conexión» juntaba dos problemas distintos con
+        //    dos soluciones distintas. Si es permiso, se dice qué hacer.
+        var m = String((e && (e.code || e.message)) || '');
+        if(m.toLowerCase().indexOf('permission') !== -1)
+          setSync('offline', conSesion ? 'Sin permiso para guardar — avísale a Eugenio'
+                                       : 'Entra al Pizarrón para poder guardar');
+        else setSync('offline','Sin conexión — no se guardó');
+      });
   }
   function setSync(estado,txt){
     syncEstado=estado; syncTxt=txt;
     var el=document.getElementById('emx-sync'); if(!el) return;
     var c={ok:'#2e7d46',offline:'#b03a2e',sync:'#c9a24b'}[estado]||'#999';
-    el.innerHTML='<span class="emx-dot" style="background:'+c+'"></span>'+esc(txt);
+    // ⚠️ EL CANDADO ES LA PRUEBA DE LA FASE 1. Sin algo visible, la única forma
+    //    de saber si la sesión sirvió sería cerrar la regla y ver si Maura se
+    //    queda trabada — o sea, averiguarlo con ella adentro.
+    var sello = ES_EDITOR
+      ? '<span style="margin-left:7px;font-size:11px;opacity:.9" title="' +
+        (conSesion ? 'Guardando con tu sesión — así queda seguro'
+                   : 'Guardando con la llave vieja. Entra al Pizarrón para que use tu sesión.') +
+        '">' + (conSesion ? '\ud83d\udd10' : '\ud83d\udd13') + '</span>'
+      : '';
+    el.innerHTML='<span class="emx-dot" style="background:'+c+'"></span>'+esc(txt)+sello;
   }
 
   // ---------- edición ----------
