@@ -2259,7 +2259,24 @@ function verHuerfanosChasis(){
   openModal('modal-pieza');
 }
 function initEstatusPuente(){
-  try{ firebase.database().ref('estatus_mercancia/chasis').on('value', s=>{ _estatusChasisData=s.val()||{}; espejoChasisEstatus(_estatusChasisData); actualizarBannerFaltantes(); actualizarBannerHuerfanos(); }); }
+  // ⚠️ SE REDIBUJA UNA SOLA VEZ, la primera que llegan los datos. Las fichas
+  //    se dibujan antes de que Firebase conteste, así que sin esto la nota de
+  //    Maura no saldría hasta que Keno navegara a otro lado — se vería como
+  //    «no tiene nota» cuando sí la tiene, que es peor que no mostrarla.
+  //
+  //    Y se hace UNA vez, no en cada cambio, por [[redibujar-borra-lo-que-escriben]]:
+  //    si Maura corrige una nota mientras alguien captura, un redibujado le
+  //    borraría lo que está escribiendo. El precio es que una nota nueva se ve
+  //    hasta que se cambia de pantalla. Es el lado seguro del trato.
+  var _estatusYaPinto = false;
+  try{ firebase.database().ref('estatus_mercancia/chasis').on('value', s=>{
+        _estatusChasisData=s.val()||{};
+        espejoChasisEstatus(_estatusChasisData); actualizarBannerFaltantes(); actualizarBannerHuerfanos();
+        if(!_estatusYaPinto && Object.keys(_estatusChasisData).length){
+          _estatusYaPinto = true;
+          try { if(typeof renderCamiones === 'function') renderCamiones(); } catch(e){}
+        }
+      }); }
   catch(e){ console.warn('puente estatus->inventario:', e); }
 }
 
@@ -5437,6 +5454,33 @@ function detalleDePiezas(piezas) {
         : escapeHtml(ex.baja))]);
       if (ex.fichaExtra) filas.push(['Extra', escapeHtml(ex.fichaExtra)]);
       if (p.notas) filas.push(['Notas', `<em style="color:#888;">${escapeHtml(p.notas)}</em>`]);
+      // ══════════════════════════════════════════════════════════════════
+      // LO QUE MAURA ANOTA EN SU TABLA, AQUÍ EN LA FICHA  (7 sep 2026)
+      // ──────────────────────────────────────────────────────────────────
+      // Keno: «Maura puso "checar con MARIO al momento de la venta dijo
+      // DMV" y eso no sale en el inventario». Tenía razón: su nota vivía
+      // SOLO en la pestaña de Estatus, y el que va a vender el chasis abre
+      // la ficha, no esa tabla. La advertencia llegaba tarde o nunca.
+      //
+      // ⚠️ SE LEE EN VIVO DE LA TABLA DE MAURA, NO SE COPIA. Ella manda en
+      //    ese dato; copiarlo crearía una segunda versión que se separa en
+      //    cuanto lo cambie — el problema de siempre. `_estatusDeVin()` ya
+      //    existía para el aviso 🔄 y hasta aguanta que Maura abrevie la
+      //    serie, así que se usa ése y no uno nuevo.
+      //
+      // ⚠️ VA EN AMBARINO Y HASTA ABAJO a propósito: casi siempre es un
+      //    aviso para el momento de vender, y ahí es donde se lee.
+      // ══════════════════════════════════════════════════════════════════
+      if (p.familia === 'chasis' && typeof _estatusDeVin === 'function') {
+        try {
+          const eM = _estatusDeVin(ex.fichaVin);
+          const notaM = eM ? String(_txtPlano(eM.infoExtra) || '').trim() : '';
+          if (notaM) filas.push(['📝 Maura anota',
+            `<span style="background:#FFF6DF;color:#6B5410;border-left:3px solid #C8902F;`
+            + `padding:3px 10px;border-radius:3px;display:inline-block;">`
+            + `${escapeHtml(notaM)}</span>`]);
+        } catch(e){ console.warn('nota de Maura en la ficha:', e); }
+      }
 
       // Título: "Motor: ISX sin EGR" o solo "Cabina" si el modelo es genérico
       const modeloEnTitulo = (p.modelo && p.modelo !== famSing) ? `: ${escapeHtml(p.modelo)}` : '';
