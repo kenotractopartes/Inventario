@@ -10403,9 +10403,49 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
     var cCons  = cuentaPor(function(o){ return String(textoPlano(o.consecutivo)||'').trim().toUpperCase(); });
     var cBaja  = cuentaPor(function(o){ return bajaDe(o); });
 
+    // ══════════════════════════════════════════════════════════════════
+    // LOS DOS ATAJOS QUE PIDIÓ MAURA  (7 sep 2026)
+    // ──────────────────────────────────────────────────────────────────
+    // Ella hacía siempre lo mismo: picar COMPLETO y luego picar «Sí tiene»
+    // o «No tiene». Dos pasos para una sola pregunta que se hace todo el
+    // día. Estos atajos ponen las dos cosas de un jalón.
+    //
+    // ⚠️ NO son un consecutivo nuevo: NO se tocó la lista CONSECUTIVOS con
+    //    la que Maura CAPTURA cada renglón. Si se agregaran ahí, «COMPLETO
+    //    CON BAJA FEDERAL» se volvería un dato real en los chasis y
+    //    ensuciaría la columna para siempre. Esto vive solo en el filtro.
+    //
+    // ⚠️ Solo salen si hay algo que enseñar. Un atajo que da cero es peor
+    //    que no tenerlo: se pica, no pasa nada, y se pierde la confianza.
+    // ══════════════════════════════════════════════════════════════════
+    var nComplSi = 0, nComplNo = 0;
+    Object.keys(chasis).forEach(function(id){
+      var o = chasis[id] || {};
+      if(String(textoPlano(o.consecutivo)||'').trim().toUpperCase() !== 'COMPLETO') return;
+      var b = bajaDe(o);
+      if(b === 'SI') nComplSi++; else if(b === 'NO') nComplNo++;
+    });
+    // El atajo se ve escogido cuando el estado REAL coincide con él, aunque
+    // ella haya llegado ahí picando los dos controles por separado. Así el
+    // desplegable siempre dice la verdad de lo que está filtrado.
+    var comboSi = (fConsec === 'COMPLETO' && fBaja === 'SI');
+    var comboNo = (fConsec === 'COMPLETO' && fBaja === 'NO');
+    var atajos = '';
+    if(nComplSi || nComplNo){
+      atajos = '<optgroup label="Atajos">'+
+        (nComplSi ? '<option value="__COMPLETO_SI__"'+(comboSi?' selected':'')+'>'+
+          'COMPLETO · CON baja federal \u2714 ('+nComplSi+')</option>' : '')+
+        (nComplNo ? '<option value="__COMPLETO_NO__"'+(comboNo?' selected':'')+'>'+
+          'COMPLETO · SIN baja federal \u2718 ('+nComplNo+')</option>' : '')+
+      '</optgroup>';
+    }
     var consOpts = '<option value="__TODOS__"'+(fConsec===null?' selected':'')+'>— Todos los consecutivos — ('+total+')</option>'+
+      atajos +
+      '<optgroup label="Consecutivo">'+
       Object.keys(cCons).sort().map(function(k){
-        return '<option value="'+esc(k)+'"'+(fConsec===k?' selected':'')+'>'+esc(k)+' ('+cCons[k]+')</option>'; }).join('');
+        var sel = (fConsec===k && !comboSi && !comboNo);
+        return '<option value="'+esc(k)+'"'+(sel?' selected':'')+'>'+esc(k)+' ('+cCons[k]+')</option>'; }).join('')+
+      '</optgroup>';
 
     var estSel = 'width:100%;padding:11px;font-size:15px;border:2px solid #b8a86a;border-radius:8px;margin-top:4px;background:#fff;';
     var btnBaja = function(txt, val, colorOn, n){
@@ -10520,7 +10560,21 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
     var fa=document.getElementById('emx-f-anio');
     if(fa) fa.onchange=function(){ fAnioCam=fa.value; pintarFilas(); };
     var fc=document.getElementById('emx-f-consec');
-    if(fc) fc.onchange=function(){ fConsec = (fc.value==='__TODOS__') ? null : fc.value; pintarFilas(); };
+    // ⚠️ SIEMPRE se vuelve a montar, no solo pintarFilas: los botones de Baja
+    //    y el propio desplegable tienen que quedar diciendo la verdad de lo
+    //    que está filtrado. Es seguro aunque Maura estuviera escribiendo en
+    //    una celda: al picar el filtro la celda pierde el foco primero, y el
+    //    'blur' YA guardó lo que llevaba escrito.
+    if(fc) fc.onchange=function(){
+      var v = fc.value;
+      if(v === '__COMPLETO_SI__'){ fConsec='COMPLETO'; fBaja='SI'; mount(); return; }
+      if(v === '__COMPLETO_NO__'){ fConsec='COMPLETO'; fBaja='NO'; mount(); return; }
+      // Un consecutivo normal NO toca la baja: son dos preguntas distintas y
+      // Maura las piensa por separado. Si el resultado coincide con un atajo,
+      // el desplegable lo mostrará escogido, que es la verdad.
+      fConsec = (v==='__TODOS__') ? null : v;
+      mount();
+    };
     // ⚠️ Los botones de Baja se redibujan al cambiar (para que se pinte el
     //    activo), así que hay que volver a montar la barra, no solo las filas.
     Array.prototype.forEach.call(document.querySelectorAll('.emx-fbaja'), function(b){
