@@ -11392,6 +11392,10 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
       if(d.clave && d.seguro){ $('rsem-clave').value = d.clave; puso.push('la clave'); }
       if(d.monto){ $('rsem-monto').value = d.monto; puso.push('el monto'); }
       if(d.fecha){ $('rsem-fecha').value = d.fecha; puso.push('la fecha'); }
+      // A qué cuenta llegó: sale de los últimos dígitos que enseña el
+      // comprobante. Si no se distingue, se queda sin escoger a propósito,
+      // porque adivinarla manda la consulta al banco equivocado.
+      if(d.cuenta){ $('rsem-cuenta').value = d.cuenta; puso.push('la cuenta'); }
 
       if(d.clave && d.seguro){
         decirOCR('✓ Leí ' + puso.join(', ') + '. <b>Revísalo contra la captura</b> antes de consultar.' +
