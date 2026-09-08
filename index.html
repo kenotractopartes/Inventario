@@ -10958,6 +10958,15 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px">
+      <div id="rsem-pegar" style="grid-column:1/-1;border:2px dashed #A5D6A7;background:#F4FBF5;border-radius:10px;padding:12px 14px;margin-bottom:2px">
+        <div style="font-size:13px;line-height:1.5">
+          📋 <b>Pega aquí la captura que te mandó el cliente</b> — <b>Ctrl+V</b> (o Cmd+V en Mac),
+          o arrástrala, o <label for="rsem-archivo" style="color:#1565C0;text-decoration:underline;cursor:pointer">búscala en la compu</label>.
+          <input type="file" id="rsem-archivo" accept="image/*" style="display:none">
+          <div style="color:#777;font-size:12px;margin-top:3px">Saco la clave de rastreo sola. Tú nomás la revisas.</div>
+        </div>
+        <div id="rsem-pegar-estado" style="font-size:13px;margin-top:8px"></div>
+      </div>
         <div style="grid-column:1/-1">
           <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Clave de rastreo *</label>
           <input type="text" id="rsem-clave" placeholder="Ej. 7875APR1202606265464296145" autocomplete="off" spellcheck="false"
@@ -11314,6 +11323,115 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
   // que ser SOLO del pago que alguien registró en esta pantalla —nunca
   // "todo lo que entra al banco"—, que es justo lo que hace el vigilante
   // del semáforo: avisa del comprobante que se tecleó, y de nada más.
+
+
+  // ── PEGAR EL COMPROBANTE DEL CLIENTE ──────────────────────────────
+  // El cliente manda la captura por WhatsApp. En vez de teclear 26
+  // caracteres con alguien enfrente, se pega (Ctrl+V) y la IA saca la
+  // clave. Lo que lea SIEMPRE lo revisa la persona: esto llena la
+  // casilla, NO dispara la consulta.
+  //
+  // Si la IA duda de UN carácter, dice que no pudo en vez de adivinar:
+  // una clave con un error es una consulta rechazada, y a los ~2
+  // rechazos Banxico prende el captcha y el semáforo se muere.
+  var URL_OCR = 'https://maura-tracto.netlify.app/.netlify/functions/comprobante';
+
+  function panelAbierto(){
+    var e = document.getElementById('modal-semaforo');
+    return !!(e && e.classList.contains('active'));
+  }
+
+  function decirOCR(txt, color){
+    var z = $('rsem-pegar-estado');
+    if(z) z.innerHTML = '<span style="color:' + (color || '#555') + '">' + txt + '</span>';
+  }
+
+  // Se achica antes de mandarla: una foto de celular pesa 4 MB y tarda
+  // una eternidad en subir con el internet del taller.
+  function achicar(file){
+    return new Promise(function(res, rej){
+      var fr = new FileReader();
+      fr.onerror = function(){ rej(new Error('no se pudo leer la imagen')); };
+      fr.onload = function(){
+        var img = new Image();
+        img.onerror = function(){ rej(new Error('no parece una imagen')); };
+        img.onload = function(){
+          var max = 1600, w = img.width, h = img.height;
+          if(Math.max(w,h) > max){ var f = max/Math.max(w,h); w = Math.round(w*f); h = Math.round(h*f); }
+          try{
+            var c = document.createElement('canvas'); c.width = w; c.height = h;
+            c.getContext('2d').drawImage(img, 0, 0, w, h);
+            res({ datos: c.toDataURL('image/jpeg', 0.85).split(',')[1], tipo: 'image/jpeg' });
+          }catch(e){
+            // Si el navegador no deja usar el canvas, se manda tal cual.
+            res({ datos: String(fr.result).split(',')[1], tipo: file.type || 'image/png' });
+          }
+        };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  var _leyendo = false;
+  async function leerComprobante(file){
+    if(_leyendo) return;
+    if(!file || !/^image\//.test(file.type || '')){
+      decirOCR('Eso no es una imagen. Pega la captura del comprobante.', '#B45309'); return;
+    }
+    _leyendo = true;
+    decirOCR('⏳ Leyendo el comprobante…', '#1565C0');
+    try{
+      var img = await achicar(file);
+      var res = await fetch(URL_OCR, { method:'POST', headers:{'Content-Type':'application/json'},
+                                       body: JSON.stringify({ imagen: img.datos, tipo: img.tipo }) });
+      var d = await res.json();
+      if(d.error){ decirOCR('⚠️ ' + esc(d.error) + ' Tecléala a mano.', '#B45309'); return; }
+
+      var puso = [];
+      if(d.clave && d.seguro){ $('rsem-clave').value = d.clave; puso.push('la clave'); }
+      if(d.monto){ $('rsem-monto').value = d.monto; puso.push('el monto'); }
+      if(d.fecha){ $('rsem-fecha').value = d.fecha; puso.push('la fecha'); }
+
+      if(d.clave && d.seguro){
+        decirOCR('✓ Leí ' + puso.join(', ') + '. <b>Revísalo contra la captura</b> antes de consultar.' +
+          (d.banco ? ' El comprobante dice <b>' + esc(d.banco) + '</b>: escógelo en la lista.' : ''), '#1B5E20');
+      }else{
+        decirOCR('⚠️ No pude leer la clave con seguridad, así que <b>no la puse</b>: ' +
+          esc(d.nota || 'no se alcanza a ver bien') + ' Tecléala a mano del comprobante.', '#B45309');
+      }
+    }catch(e){
+      console.warn('comprobante:', e);
+      decirOCR('⚠️ No pude leer el comprobante. Teclea la clave a mano.', '#B45309');
+    }finally{
+      _leyendo = false;
+    }
+  }
+
+  // Ctrl+V en cualquier parte, mientras el semáforo esté abierto: así no
+  // hay que atinarle a un recuadro chiquito con el cliente esperando.
+  document.addEventListener('paste', function(ev){
+    if(!panelAbierto()) return;
+    var it = (ev.clipboardData || {}).items || [];
+    for(var i = 0; i < it.length; i++){
+      if(it[i].kind === 'file' && /^image\//.test(it[i].type)){
+        ev.preventDefault(); leerComprobante(it[i].getAsFile()); return;
+      }
+    }
+  });
+
+
+  (function(){
+    var z = document.getElementById('rsem-pegar');
+    if(z){
+      z.addEventListener('dragover', function(e){ e.preventDefault(); z.style.background = '#E8F5E9'; });
+      z.addEventListener('dragleave', function(){ z.style.background = '#F4FBF5'; });
+      z.addEventListener('drop', function(e){ e.preventDefault(); z.style.background = '#F4FBF5';
+        if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) leerComprobante(e.dataTransfer.files[0]); });
+    }
+    var a = document.getElementById('rsem-archivo');
+    if(a) a.addEventListener('change', function(){ if(a.files && a.files[0]) leerComprobante(a.files[0]); });
+  })();
 
   window.rsemLimpiar=function(){
     ['rsem-clave','rsem-monto','rsem-venta'].forEach(function(i){ $(i).value=''; });
