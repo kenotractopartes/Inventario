@@ -11299,54 +11299,21 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
   }
 
 
-  // ── EL AVISO DEL BANCO, EN VIVO ───────────────────────────────────
-  // El robot que lee el buzón (blanca_ia/vigia_banco.py) deja un aviso en
-  // maura_kv/aviso_banco cada vez que cae una transferencia. Aquí se
-  // escucha y sale el mismo letrero grande del semáforo.
+  // ── 🔴 AQUÍ HABÍA UN AVISO DE TODO EL DINERO QUE ENTRA. SE QUITÓ. ──
   //
-  // 🔴 ESTO NO ES UNA VENTA Y NO SUMA A NADA. Es un aviso de que llegó
-  // dinero al banco: puede ser un traspaso entre las cuentas de ellos,
-  // una aportación del papá o el cobro de una deuda vieja.
-  var AVISO_VISTO = 'raul_aviso_banco_visto';
-  var AVISO_FRESCO_MIN = 30;   // más viejo que esto no se enseña al abrir
-
-  function escucharAvisosDelBanco(){
-    var d0 = db(); if(!d0) return false;
-    try{
-      d0.collection('maura_kv').doc('aviso_banco').onSnapshot(function(doc){
-        if(!doc.exists) return;
-        var d;
-        try{ var v=(doc.data()||{}).val; d = typeof v==='string'?JSON.parse(v):v; }catch(e){ return; }
-        if(!d || !d.id || !d.avisos || !d.avisos.length) return;
-
-        var visto=''; try{ visto = localStorage.getItem(AVISO_VISTO) || ''; }catch(e){}
-        if(visto === String(d.id)) return;
-
-        // Al abrir la página no se enseñan avisos viejos.
-        var edad = (Date.now() - new Date(d.ts).getTime())/60000;
-        try{ localStorage.setItem(AVISO_VISTO, String(d.id)); }catch(e){}
-        if(!(edad >= 0 && edad < AVISO_FRESCO_MIN)) return;
-
-        var total = d.avisos.reduce(function(s,a){ return s + (Number(a.monto)||0); }, 0);
-        var quien = d.avisos.length===1 ? (d.avisos[0].quien || 'el banco no dijo quién')
-                                        : (d.avisos.length + ' transferencias');
-        var conc = (d.avisos.length===1 && d.avisos[0].concepto) ? ' · ' + d.avisos[0].concepto : '';
-        beep();
-        letrero('🏦 CAYÓ DINERO AL BANCO ' + pesos(total),
-                esc(quien) + esc(conc) + ' — ojo: un depósito no es una venta', '#1565C0');
-      }, function(err){ console.warn('aviso banco:', err); });
-      return true;
-    }catch(e){ console.warn('aviso banco:', e); return false; }
-  }
-
-  // La conexión a la base de Maura tarda; se espera en vez de rendirse
-  // en silencio, que es como se pierden estas cosas.
-  (function(){
-    var n = 0;
-    var t = setInterval(function(){
-      if(escucharAvisosDelBanco() || ++n > 60) clearInterval(t);
-    }, 1000);
-  })();
+  // El 8 sep 2026 se puso a escuchar maura_kv/aviso_banco, y con eso
+  // CUALQUIERA que tuviera el inventario abierto se enteraba de cada
+  // depósito: incluido el millón que el papá metió de su bolsa el 11 de
+  // agosto, o lo que le transfieren a su cuenta.
+  //
+  // Eugenio lo cachó el mismo día: los vendedores NO tienen por qué ver
+  // los movimientos de dinero de la familia. Esta pantalla la usa todo el
+  // taller; el sistema de Maura no.
+  //
+  // 🔴 NO VOLVER A PONERLO. Si algún día hace falta avisar aquí, tiene
+  // que ser SOLO del pago que alguien registró en esta pantalla —nunca
+  // "todo lo que entra al banco"—, que es justo lo que hace el vigilante
+  // del semáforo: avisa del comprobante que se tecleó, y de nada más.
 
   window.rsemLimpiar=function(){
     ['rsem-clave','rsem-monto','rsem-venta'].forEach(function(i){ $(i).value=''; });
