@@ -14143,6 +14143,12 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     var t = document.getElementById('sal-tel'); if(t) t.classList.remove('abierto');
   };
   window.abrirSalidas = function(){
+    // Preguntarle a Maura al ABRIR, no solo al cargar la página. Si Raúl deja
+    // el inventario abierto todo el día, sin esto nunca se enteraría de lo que
+    // ella capturó en la mañana.
+    if(typeof salBuscarEnMaura === 'function'){
+      salBuscarEnMaura().then(function(){ pintarLista(); });
+    }
     var t = document.getElementById('sal-tel'); if(!t) return;
     t.classList.add('abierto');
     conectar();
@@ -14239,7 +14245,7 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     var total = rs.reduce(function(s,r){ return s + (r.precio||0); }, 0);
     var sinPrecio = rs.filter(function(r){ return r.precio == null; }).length;
 
-    var h = letreroMaura() + cajaPorClasificar() +
+    var h = letreroMaura() + cajaPorClasificar() + cajaDescartadas() +
       '<div class="sal-caja">' +
       '<div class="sal-fila" style="margin-bottom:11px">' +
         '<button class="sal-btn gris chico" onclick="salCalAbrir()">📅 ' +
@@ -14880,6 +14886,8 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     var porId = {}, porHuella = {};
     Object.keys(SAL.datos).forEach(function(k){
       var r = SAL.datos[k] || {};
+      // ⚠️ Se cuentan TAMBIÉN las descartadas. Esa es toda la gracia de la
+      // tumba: si no se contaran, el puente las volvería a ofrecer.
       if(r.mauraId) porId[String(r.mauraId)] = 1;
       if(r.origen === 'maura') porHuella[_huella(r.fecha, r.precio, r.nota)] = 1;
     });
@@ -15007,7 +15015,7 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     var out = [];
     Object.keys(SAL.datos).forEach(function(k){
       var r = SAL.datos[k] || {};
-      if(r.porClasificar && !r.producto) out.push({ id:k, fecha:r.fecha||'', nota:r.nota||'',
+      if(r.porClasificar && !r.producto && !r.descartada) out.push({ id:k, fecha:r.fecha||'', nota:r.nota||'',
                                                     precio:(r.precio==null?null:Number(r.precio)) });
     });
     return out.sort(function(a,b){ return String(b.fecha).localeCompare(a.fecha); });
@@ -15021,13 +15029,60 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
       .catch(function(){ avisa('No se pudo guardar. Revisa tu internet.', 'error'); });
   };
 
+  // 🔴 QUITAR NO ES BORRAR — 9 sep 2026, lo cachó Eugenio.
+  // La primera versión BORRABA el renglón. Y al borrarlo no quedaba rastro de
+  // que hubiera existido, así que el puente lo volvía a encontrar en la base
+  // de Maura y lo volvía a ofrecer. Eugenio quitó ~25 a mano y le salieron
+  // otra vez.
+  // Ahora el renglón se queda como TUMBA: sin producto (para que no cuente en
+  // ningún total) y marcado `descartada`. Su mauraId sigue ahí, que es lo que
+  // hace que el puente ya no lo ofrezca nunca más. Y se puede deshacer.
   window.salNoEsSalida = function(id){
     var r = SAL.datos[id] || {};
-    if(!confirm('Quitar «' + (r.nota||'') + '»?\n\nSe borra de aquí. En el sistema de Maura NO se toca nada.')) return;
-    firebase.database().ref(NODO + '/' + id).remove()
-      .then(function(){ avisa('Quitada'); })
+    if(!confirm('Quitar «' + (r.nota||'') + '»?\n\n' +
+                'Deja de contar aquí y NO te la vamos a volver a ofrecer.\n' +
+                'En el sistema de Maura no se toca nada.')) return;
+    firebase.database().ref(NODO + '/' + id)
+      .update({ producto:'', porClasificar:null, descartada:true })
+      .then(function(){ avisa('Quitada — ya no vuelve'); })
       .catch(function(){ avisa('No se pudo quitar. Revisa tu internet.', 'error'); });
   };
+
+  // Quitar de un golpe todas las que están esperando clasificación. Con el
+  // número enfrente, porque son muchas y picarlas una por una es media hora.
+  window.salQuitarTodasPorClasificar = function(){
+    var ps = salPorClasificar();
+    if(!ps.length) return;
+    if(!confirm('Quitar las ' + ps.length + ' que están esperando?\n\n' +
+                'Dejan de contar y NO se te vuelven a ofrecer.\n' +
+                'Si alguna sí era material del taller, mejor cancela y escógelas una por una.')) return;
+    var lote = {};
+    ps.forEach(function(r){
+      lote[r.id + '/producto'] = '';
+      lote[r.id + '/porClasificar'] = null;
+      lote[r.id + '/descartada'] = true;
+    });
+    firebase.database().ref(NODO).update(lote)
+      .then(function(){ avisa('🗑 ' + ps.length + ' quitadas — ya no vuelven'); })
+      .catch(function(){ avisa('No se pudo. Revisa tu internet.', 'error'); });
+  };
+
+  function salDescartadas(){
+    var out = [];
+    Object.keys(SAL.datos).forEach(function(k){
+      var r = SAL.datos[k] || {};
+      if(r.descartada) out.push({ id:k, fecha:r.fecha||'', nota:r.nota||'' });
+    });
+    return out.sort(function(a,b){ return String(b.fecha).localeCompare(a.fecha); });
+  }
+
+  window.salRevivir = function(id){
+    firebase.database().ref(NODO + '/' + id)
+      .update({ descartada:null, porClasificar:true })
+      .then(function(){ avisa('De vuelta en la lista de por clasificar'); })
+      .catch(function(){ avisa('No se pudo. Revisa tu internet.', 'error'); });
+  };
+  window.salVerDescartadas = function(){ SAL.verDesc = !SAL.verDesc; pintarLista(); };
 
   function cajaPorClasificar(){
     var ps = salPorClasificar();
@@ -15038,7 +15093,13 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
         (ps.length===1?'':'s') + ' digas qué es</h3>' +
       '<div class="ayuda">Vinieron del sistema de Maura pero no se pudo saber el producto solo. ' +
       'Escoge cuál es, o quítala si no era material del taller. ' +
-      '<b>Mientras no tengan producto no cuentan en ningún total</b> — así ningún número sale inventado.</div>' +
+      '<b>Mientras no tengan producto no cuentan en ningún total</b> — así ningún número sale inventado. ' +
+      'Lo que quites NO se te vuelve a ofrecer.</div>' +
+      (ps.length > 3
+        ? '<div style="margin-top:8px"><button class="sal-btn gris chico" ' +
+          'onclick="salQuitarTodasPorClasificar()">🗑 Quitar las ' + ps.length + ' de un jalón</button>' +
+          '<span class="ayuda" style="margin-left:8px">si ninguna era material del taller</span></div>'
+        : '') +
       ps.map(function(r){
         return '<div class="sal-fila" style="margin-top:9px;align-items:flex-end">' +
           '<div class="sal-campo" style="flex:1.6;min-width:200px">' +
@@ -15049,6 +15110,29 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
             '<select id="salpc-' + r.id + '"><option value="">— escoge —</option>' + opts + '</select></div>' +
           '<button class="sal-btn" onclick="salClasificarUno(\'' + r.id + '\')">Guardar</button>' +
           '<button class="sal-btn gris chico" onclick="salNoEsSalida(\'' + r.id + '\')">No es del taller</button>' +
+        '</div>';
+      }).join('') + '</div>';
+  }
+
+  // Las que se quitaron. No se borran nunca — se pueden regresar.
+  function cajaDescartadas(){
+    var ds = salDescartadas();
+    if(!ds.length) return '';
+    if(!SAL.verDesc){
+      return '<div class="sal-caja" style="padding:9px 14px">' +
+        '<span class="ayuda">' + ds.length + (ds.length===1?' salida quitada':' salidas quitadas') +
+        ' (no cuentan y no se vuelven a ofrecer)  </span>' +
+        '<button class="sal-btn gris chico" onclick="salVerDescartadas()">ver</button></div>';
+    }
+    return '<div class="sal-caja" style="padding:12px 14px">' +
+      '<div class="sal-fila" style="align-items:center;margin-bottom:6px">' +
+        '<b style="flex:1">Quitadas (' + ds.length + ')</b>' +
+        '<button class="sal-btn gris chico" onclick="salVerDescartadas()">ocultar</button></div>' +
+      ds.map(function(r){
+        return '<div class="sal-fila" style="align-items:center;padding:3px 0">' +
+          '<span class="ayuda" style="width:110px">' + esc(fechaBonita(r.fecha)) + '</span>' +
+          '<span style="flex:1;font-size:12.5px">' + esc(r.nota) + '</span>' +
+          '<button class="sal-btn gris chico" onclick="salRevivir(\'' + r.id + '\')">regresarla</button>' +
         '</div>';
       }).join('') + '</div>';
   }
