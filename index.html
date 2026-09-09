@@ -14119,6 +14119,14 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
       SAL.datos = s.val() || {};
       SAL.listo = true; SAL.err = '';
       pintarLista();                       // ⚠️ SOLO la lista, nunca el formulario
+      // Preguntarle a Maura qué hay de nuevo. Va DESPUÉS de tener SAL.datos
+      // cargado, porque el descarte de duplicados se hace contra eso: si
+      // corriera antes, creería que todo es nuevo y ofrecería duplicar todo.
+      // Si truena o no hay internet, no pasa nada: el letrero no sale y la
+      // hoja funciona igual que siempre.
+      if(typeof salBuscarEnMaura === 'function'){
+        salBuscarEnMaura().then(function(l){ if(l && l.length) pintarLista(); });
+      }
     }, function(e){
       SAL.err = (e && e.code === 'PERMISSION_DENIED')
         ? 'Esta cuenta no tiene permiso. Esta hoja es solo de Raúl.'
@@ -14228,7 +14236,8 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     var total = rs.reduce(function(s,r){ return s + (r.precio||0); }, 0);
     var sinPrecio = rs.filter(function(r){ return r.precio == null; }).length;
 
-    var h = '<div class="sal-caja">' +
+    var h = letreroMaura() + cajaPorClasificar() +
+      '<div class="sal-caja">' +
       '<div class="sal-fila" style="margin-bottom:11px">' +
         '<button class="sal-btn gris chico" onclick="salCalAbrir()">📅 ' +
           (SAL.desde || SAL.hasta
@@ -14604,6 +14613,427 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
       .then(function(){ avisa('🗑 ' + ids.length + ' salidas del histórico quitadas'); })
       .catch(function(){ avisa('No se pudo quitar. Revisa tu internet.', 'error'); });
   };
+
+  // ════════════════════════════════════════════════════════════════════
+  //  CLASIFICADOR DE SALIDAS DE TALLER  ·  Maura → Raúl
+  //  ──────────────────────────────────────────────────────────────────
+  //  Maura escribe libre: «3 BOLSAS DE REMACHES, 2 BROCHAS».
+  //  Raúl necesita UN producto de su catálogo de 41.
+  //
+  //  🔴 LA REGLA: entre equivocarse y decir «no sé», dice «no sé».
+  //  Un producto mal puesto ensucia la cuenta de «quién pide más» y nadie
+  //  se entera nunca. Un «por clasificar» se ve en pantalla y Raúl lo
+  //  arregla en un clic — y de paso nos enseña para la próxima.
+  //
+  //  CÓMO DECIDE (medido contra los 209 ya clasificados a mano):
+  //   1. Parte el renglón en artículos por comas / «Y» / «+».
+  //   2. Clasifica CADA artículo por orden de reglas: la primera que pega.
+  //   3. Si todos los artículos dan el MISMO producto → ese.
+  //      Si dan productos distintos → null. No se escoge por él.
+  //
+  //  POR QUÉ NO SE ESCOGE UNO DE VARIOS: porque la clasificación a mano
+  //  del histórico fue inconsistente y NO hay regla que sacar de ahí —
+  //  «TORNILLOS, HUASAS, BROCAS» se quedó con el primero, «GUANTES,
+  //  BROCHAS» con el segundo, «PINTURA, RESANADOR, THINNER» con el
+  //  tercero. Inventar «gana el primero» sería fabricar una certeza que
+  //  los datos no tienen.
+  //
+  //  ⚠️ NO INVENTAR PRODUCTOS: cada nombre de aquí TIENE que existir en el
+  //  catálogo de Raúl. En la primera versión metí «DIESEL», que no existe;
+  //  en el histórico el diesel va como GASOLINA. Hay una prueba que lo
+  //  verifica sola.
+  // ════════════════════════════════════════════════════════════════════
+
+  // EL ORDEN MANDA: la primera regla que pega, gana. Arriba van las que le
+  // roban la palabra a otra. Casos reales que obligan cada una:
+  //   «2 COSTAL DE TRAPO INDUSTRIAL» → COSTAL,  no TRAPO INDUSTRIAL
+  //   «BOLSAS DE TRAPOS»             → BOLSA,   no TRAPO INDUSTRIAL
+  //   «1 CEPILLO DE ALAMBRE»         → ALAMBRE, no CARDA / CEPILLO
+  //   «2 HULE PARA MASILLA»          → HULE,    no PASTA / MASILLA
+  //   «CONECTOR CABLE»               → CABLE,   no CONEXION / NEUMATICO
+  var SAL_REGLAS = [
+    ['ALAMBRE',                /CEPILLO DE ALAMBRE|ALAMBRE/],
+    ['COSTAL',                 /COSTAL/],
+    ['BOLSAS PARA BASURA',     /BOLSAS?\s+(PARA|P\/|DE)\s+BASURA|BOLSA NEGRA/],
+    ['BOLSA',                  /\bBOLSAS?\b/],
+    ['HULE',                   /\bHULES?\b|\bGOMA\b/],
+    ['MANGUERA',               /MANGUERA/],
+    ['DISCO DE CORTE',         /\bDISCOS?\b|LAMINADO/],
+    ['CABLE / ELECTRICO',      /\bCABLES?\b|TERMINAL|FUSIBLE|CINTILLA|CLAVIJA|APAGADOR|\bFOCOS?\b/],
+    ['CLAVOS / TORNILLERIA',   /REMACHE|TORNILL|TORNIILO|TUERCA|HUASA|CLAVO|RONDANA|\bPIJAS?\b|BIRLO|ARANDELA|GRAPA|PUNTILLA/],
+    ['SOLDADURA',              /SOLDADURA|SOLDAR|BOQUILLA|SOPLETE|ELECTRODO|MICROALAMBRE/],
+    ['BROCA',                  /\bBROCAS?\b|MACHUELO/],
+
+    ['THINNER',                /THINNER|TINNER|TINER|THINER|PORRON/],
+    ['GASOLINA',               /GASOLINA|MAGNA|DIESEL|DISEL|COMBUSTIBLE/],
+    ['OXIGENO / GAS',          /OXIGENO|ACETILEN|ARGON|\bGAS\b/],
+    ['ACIDO MURIATICO',        /MURIATIC|\bACIDO\b/],
+    ['AFLOJATODO',             /AFLOJA|WD.?40|PENETRANTE/],
+    ['ASERRIN',                /ASERRIN|ASERIN|ACERRIN/],
+    ['ACEITE / GRASA',         /ACEITE|GRASA|LUBRICANTE|VALVULINA/],
+    ['RESINA / FIBRA',         /RESINA|CATALIZADOR|FIBRA DE VIDRIO/],
+    ['PASTA / MASILLA',        /PASTA|MASILLA|PLASTE|FONDO BLANCO|RESANADOR|KIT DE RELLENO/],
+    ['PLUMON / MARCADOR',      /\bPLUMON\w*|\bMARCADOR\w*/],
+    ['SPRAY / PINTURA',        /SPRAY|PINTURA|AEROSOL|ESMALTE|\bESM\b|SUMMA|BERM/],
+    ['LIJA',                   /\bLIJAS?\b/],
+    ['CARDA / CEPILLO',        /\bCARDA\b|CEPILLO/],
+    ['BROCHA',                 /BROCHA/],
+    ['CINTA',                  /\bCINTAS?\b|MASKING|TEIP/],
+    ['EMPLAYE / PLURIBURBUJA', /EMPLAY|PLURIBURBUJA|POLIBURBUJA|BURBUJA/],
+    ['TARIMA',                 /TARIMA/],
+    ['CONEXION / NEUMATICO',   /NEUMATIC|CONEXION|CONECTOR|ESPIGA|ABRAZADERA|NIPLE|COPLE|REDUCCION|\bRACH\b|\bCODO\b/],
+    ['LIGAS',                  /\bLIGAS?\b/],
+    ['EMPAQUE',                /EMPAQUE|SILICON|SELLADOR|\bCARTON\b/],
+    ['BISAGRA / HERRAJE',      /BISAGRA|HERRAJE|\bCHAPA\b/],
+    ['CANDADO / LLAVE',        /CANDADO|DUPLICADO DE LLAVE/],
+    ['CARBONES',               /CARBON/],
+    ['GIS',                    /\bGIS\b/],
+    ['GUANTES',                /GUANTE/],
+    ['EQUIPO DE SEGURIDAD',    /MASCARILLA|CARETA|GOGGLE|\bCASCO\b|\bFAJA\b|TAPON.*OIDO|CHALECO|\bBOTAS\b/],
+    ['PAPEL HIGIENICO',        /PAPEL HIGIENIC|HIGIENIC|SANITARIO|\bHIG\b/],
+    ['ESTOPA',                 /\bESTOPAS?\b/],
+    ['TRAPO INDUSTRIAL',       /\bTRAPOS?\b|FRANELA/],
+    ['ESCOBA / FIBRA',         /ESCOBA|RECOGEDOR|TRAPEADOR|JERGA|MECHUDO/],
+    ['PERIODICO',              /PERIODICO/],
+    ['PRODUCTOS DE LIMPIEZA',  /LIMPIEZA|JABON|CLORO|PINOL|FABULOSO|DETERGENTE|ARMORALL|ESPONJA|BRILLOSA|SHAMPOO|AROMATIZANTE|TOALLA|DESTAPACA/],
+
+    // El más general va HASTA ABAJO: casi todo se puede llamar «herramienta».
+    ['HERRAMIENTA',            /HERRAMIENTA|\bDADOS?\b|DATO TURX|\bLLAVES?\b|DESARMADOR|MARTILLO|\bPINZAS?\b|SERRUCHO|TIJERA|SEGUETA|ESPATULA|ESPTAULA|CINCEL|MATRACA|\bEXTENSION\b|MANERAL|CALIBRADOR|FLEXOMETRO|\bNIVEL\b|\bPRENSA\b|\bARCO\b|PISTOLA DE IMPACTO|TRUPER/]
+  ];
+
+  // ENVASE vs CONTENIDO. «2 BOLSA TRAPO INDUSTRIAL» quedó a mano como TRAPO,
+  // pero «BOLSAS DE TRAPOS» quedó como BOLSA — dos textos casi iguales con dos
+  // respuestas distintas. Es volado: cuando hay envase Y contenido, que escoja
+  // Raúl. «BOLSAS» a secas (las de basura) sí es BOLSA y se queda.
+  var SAL_ENVASE = /\bBOLSAS?\b|\bCOSTALES?\b|\bPAQUETES?\b|\bPAQ\b|\bCAJAS?\b/;
+
+  // «X PARA Y»: si las reglas pegan de los DOS lados no se sabe qué compraron.
+  // El histórico está partido 2-2 («pinza para candado» quedó CANDADO, pero
+  // «pinzas p/máquina de soldar» quedó HERRAMIENTA), así que no hay regla:
+  // va a «por clasificar».
+  var SAL_CONECTOR = /\s(?:PARA|P\/|PARA INSTALAR)\s|\sP\//;
+
+  function _limpiaTexto(t) {
+    return String(t || '')
+      .toUpperCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      // 🔴 La coma, el «;» y el «+» SEPARAN ARTÍCULOS — si se borran aquí,
+      // «3 BOLSAS DE REMACHES, 2 BROCHAS» se vuelve un solo texto y el
+      // clasificador contesta con seguridad una respuesta inventada.
+      .replace(/[^A-Z0-9\/". ,;+]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function _reglaDe(t) {
+    for (var i = 0; i < SAL_REGLAS.length; i++) {
+      if (SAL_REGLAS[i][1].test(t)) return SAL_REGLAS[i][0];
+    }
+    return null;
+  }
+
+  // Un artículo suelto. Devuelve el producto, null si no lo reconoce,
+  // o 'AMBIGUO' si es un «X para Y» con reglas de los dos lados.
+  function _clasificaArticulo(t) {
+    var partes = t.split(SAL_CONECTOR);
+    if (partes.length > 1) {
+      var izq = _reglaDe(partes[0]);
+      var der = _reglaDe(partes.slice(1).join(' '));
+      if (izq && der && izq !== der) return 'AMBIGUO';
+      return izq || der;
+    }
+    // ¿Es un envase CON contenido? El contenido pega con otra regla aparte.
+    if (SAL_ENVASE.test(t)) {
+      var dentro = _reglaDe(t.replace(SAL_ENVASE, ' ').replace(/\s+DE\s+/g, ' '));
+      if (dentro && dentro !== 'BOLSA' && dentro !== 'COSTAL') return 'AMBIGUO';
+    }
+    return _reglaDe(t);
+  }
+
+  function salClasificar(texto) {
+    var t = _limpiaTexto(texto);
+    if (!t) return null;
+
+    // Partir en artículos: «REMACHES 1/8, BROCAS» son dos compras distintas.
+    var articulos = t.split(/\s*,\s*|\s+Y\s+|\s*\+\s*|\s*;\s*/).filter(function (a) { return a.trim(); });
+    var vistos = [];
+    for (var i = 0; i < articulos.length; i++) {
+      var p = _clasificaArticulo(articulos[i]);
+      if (p === 'AMBIGUO') return null;              // «X para Y» → que escoja Raúl
+      if (p && vistos.indexOf(p) < 0) vistos.push(p);
+    }
+    if (vistos.length === 1) return vistos[0];       // todo apunta al mismo
+    return null;                                     // nada, o cosas distintas
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  //  NO ES SALIDA DE TALLER
+  //  ──────────────────────────────────────────────────────────────────
+  //  Entre los egresos «GASTOS DE TALLER» de Maura hay cosas que NO son
+  //  consumibles que alguien pidió: son TRABAJOS CONTRATADOS y servicios.
+  //  Decisión de Eugenio (9 sep 2026): esos NO cruzan al sistema de Raúl.
+  //
+  //      DESMONTAR 40 LLANTAS ....... $4,000, 5 veces
+  //      RETIRAR AGUA DE FOSA ....... $2,000, 6 veces
+  //      RECOLECCION DE BASURA ...... $600 cada semana
+  //      PULIR CIGÜEÑAL / ÁRBOL DE LEVAS
+  //
+  //  Si entraran, la cuenta de «quién pide más» y «cada cuándo se compra»
+  //  quedaría llena de cosas que nadie pide. Se quedan del lado de Maura,
+  //  donde sí son gasto y sí cuentan.
+  //
+  //  ⚠️ Este filtro se probó contra los 209 productos que Raúl YA tiene:
+  //  no saca ninguno. Si alguna vez saca uno, el filtro está mal, no el dato.
+  var SAL_NO_ES_SALIDA = [
+    /DESMONT\w*\s+\d*\s*LLANTA/,        // desmontar 40 llantas — es mano de obra
+    /\bFOSA\b/,                          // retirar agua de fosa / limpiar fosa
+    /RECOLEC\w*\s+DE\s+BASURA|EXCEDENTE\s+DE\s+BASURA|BASURA\s+CUOTA/,
+    /\bPULIR\b|RECTIFIC\w*|\bENCAMISAR\b|\bMAQUINEAR\b/,
+    /\bRENTA\b/,                         // renta de rompedora, etc.
+    /VULCANIZADORA/
+  ];
+  function salEsServicio(texto){
+    var t = _limpiaTexto(texto);
+    for (var i = 0; i < SAL_NO_ES_SALIDA.length; i++) {
+      if (SAL_NO_ES_SALIDA[i].test(t)) return true;
+    }
+    return false;
+  }
+
+
+  // ══════════════════════════════════════════════════════════════════
+  //  EL PUENTE CON MAURA  ·  sep 2026, lo pidió Eugenio
+  //  ────────────────────────────────────────────────────────────────
+  //  Maura ya captura estas compras en SU sistema (ella entrega el dinero).
+  //  Escribirlas otra vez aquí era teclear dos veces lo mismo. Ahora se
+  //  traen solas, con su día y su monto, y se les pone el producto leyendo
+  //  lo que ella escribió.
+  //
+  //  QUÉ SE TRAE: solo las etiquetas J (GASTOS DE TALLER) y P (HERRAMIENTA).
+  //  Lo decidió Eugenio. El histórico viejo mezclaba 7 etiquetas y traía
+  //  cosas que no son del taller.
+  //
+  //  QUÉ NO SE TRAE: los servicios contratados — desmontar llantas, retirar
+  //  agua de la fosa, recolección de basura, pulir cigüeñales. No son
+  //  material que alguien pidió; si entraran, la cuenta de «quién pide más»
+  //  y «cada cuándo se compra» quedaría llena de cosas que nadie pide.
+  //  Son 26 registros y $47,184 que se quedan del lado de Maura, donde sí
+  //  cuentan como gasto.
+  //
+  //  LO QUE NO TRAE Y NUNCA VA A TRAER: quién lo pidió. Maura no lo apunta.
+  //  Ese renglón llega vacío a propósito y Raúl lo llena.
+  //
+  //  ⚠️ NADA SE ESCRIBE DEL LADO DE MAURA. Solo se lee. Su sistema, sus
+  //  etiquetas y sus registros no se tocan.
+  // ══════════════════════════════════════════════════════════════════
+
+  var MAURA_ETIQUETAS = ['J','P'];
+  var _nuevasMaura = null;     // lo que se encontró la última vez que se buscó
+  var _errMaura = '';          // por qué no se pudo preguntar, si es que no se pudo
+  var _buscandoMaura = false;
+
+  // El texto del que sale el producto: primero el Concepto que ella escribe,
+  // y si viene vacío, el nombre de la etiqueta sin su clave.
+  function _txtEgreso(x){
+    var n = String(x.nota || '').trim();
+    if(n) return n;
+    return String(x.etiquetaV || '').replace(/^[A-Z0-9]+\s*[—-]\s*/, '').trim();
+  }
+
+  // La huella para no duplicar los que se importaron ANTES de que existiera
+  // mauraId. Se compara día + monto al centavo + las primeras 24 letras del
+  // texto. NO se compara solo el monto: dos compras distintas del mismo día
+  // pueden costar lo mismo.
+  function _huella(fecha, monto, texto){
+    var t = String(texto||'').toUpperCase().normalize('NFD')
+              .replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9]/g,'').slice(0,24);
+    return String(fecha||'') + '|' + (Number(monto)||0).toFixed(2) + '|' + t;
+  }
+
+  function _yaEstan(){
+    var porId = {}, porHuella = {};
+    Object.keys(SAL.datos).forEach(function(k){
+      var r = SAL.datos[k] || {};
+      if(r.mauraId) porId[String(r.mauraId)] = 1;
+      if(r.origen === 'maura') porHuella[_huella(r.fecha, r.precio, r.nota)] = 1;
+    });
+    return { porId: porId, porHuella: porHuella };
+  }
+
+  // Convierte UN egreso de Maura en uno o varios renglones de salida.
+  // Los egresos con «tablita» (varios productos adentro) traen el concepto
+  // VACÍO — el producto vive en cada renglón de la tabla. Por eso se abren:
+  // si no, entrarían como un solo «PIEZAS VARIAS» sin producto.
+  function _aSalidas(x){
+    var fecha = String(x.fecha || '').slice(0,10);
+    var id    = String(x.id || x._id || '');
+    var tabla = Array.isArray(x.productos) ? x.productos : [];
+    var out   = [];
+    if(tabla.length){
+      tabla.forEach(function(r, i){
+        var desc = String(r.descripcion || r.desc || r.producto || '').trim();
+        if(!desc) return;
+        if(salEsServicio(desc)) return;
+        out.push({ mauraId: id + '#' + i, producto: salClasificar(desc) || '',
+                   cantidad: Number(r.cantidad) || 0,
+                   precio: (r.precio == null || r.precio === '') ? null : Number(r.precio),
+                   fecha: fecha, nota: desc });
+      });
+      return out;
+    }
+    var t = _txtEgreso(x);
+    if(salEsServicio(t)) return out;
+    out.push({ mauraId: id, producto: salClasificar(t) || '', cantidad: 0,
+               precio: (Number(x.monto) || 0) === 0 ? null : Number(x.monto),
+               fecha: fecha, nota: t });
+    return out;
+  }
+
+  // Lee los egresos de Maura y devuelve SOLO los que no están ya aquí.
+  // Es de solo lectura: no escribe nada, ni de este lado ni del de ella.
+  function salBuscarEnMaura(){
+    if(_buscandoMaura) return Promise.resolve(_nuevasMaura || []);
+    var base = null;
+    try{
+      var app; try{ app = firebase.app('maura'); }
+      catch(e){ app = firebase.initializeApp(MAURA_CFG, 'maura'); }
+      base = app.firestore();
+    }catch(e){ return Promise.resolve([]); }
+    if(!base) return Promise.resolve([]);
+    _buscandoMaura = true;
+    // ⚠️ La bandera se baja SIEMPRE, pase lo que pase. Si `.get()` truena en
+    // seco (no en la promesa) sin este try la bandera se queda arriba para
+    // siempre y el puente se vuelve mudo el resto de la sesión, sin decir por
+    // qué. Es la misma falla de `fbAplicandoRemoto` que dejó al inventario
+    // sin subir a la nube.
+    var pet;
+    try { pet = base.collection('maura_egresos').get(); }
+    catch(e){ _buscandoMaura = false; _errMaura = 'No se pudo preguntar a Maura.'; return Promise.resolve([]); }
+    return pet.then(function(snap){
+      _errMaura = '';
+      var ya = _yaEstan(), lista = [];
+      snap.forEach(function(doc){
+        var x = doc.data() || {};
+        var k = String(x.etiquetaK || '').toUpperCase().trim();
+        if(MAURA_ETIQUETAS.indexOf(k) < 0) return;
+        _aSalidas(x).forEach(function(s){
+          if(ya.porId[s.mauraId]) return;                              // ya está, por id
+          if(ya.porHuella[_huella(s.fecha, s.precio, s.nota)]) return; // ya está, del importe viejo
+          lista.push(s);
+        });
+      });
+      lista.sort(function(a,b){ return String(a.fecha).localeCompare(b.fecha); });
+      _nuevasMaura = lista; _buscandoMaura = false;
+      return lista;
+    }).catch(function(e){
+      console.warn('puente maura:', e && e.message);
+      _buscandoMaura = false; _nuevasMaura = [];
+      // 🔴 SE AVISA. Sin esto, «no hay salidas nuevas» y «no pude preguntar»
+      // se ven exactamente igual: no sale el letrero. Y esa es la falla que
+      // más caro nos ha salido — la que no truena, solo deja de trabajar.
+      _errMaura = 'No se pudo preguntar al sistema de Maura. Revisa tu internet.';
+      return [];
+    });
+  }
+
+  // Trae las que encontró. Se puede picar las veces que sea: lo que ya
+  // está no se vuelve a meter, porque cada renglón guarda su mauraId.
+  window.salTraerDeMaura = function(){
+    var lista = _nuevasMaura || [];
+    if(!lista.length){ avisa('No hay salidas nuevas de Maura'); return; }
+    var conProd = lista.filter(function(s){ return s.producto; }).length;
+    var sinProd = lista.length - conProd;
+    if(!confirm('Traer ' + lista.length + ' salidas del sistema de Maura?\n\n' +
+                conProd + ' ya traen su producto puesto.\n' +
+                (sinProd ? sinProd + ' quedan como «por clasificar» para que tú les pongas cuál es.\n' : '') +
+                '\nNINGUNA trae quién la pidió — Maura no lo apunta. Eso lo pones tú.')) return;
+    var ref = firebase.database().ref(NODO), lote = {}, n = 0;
+    lista.forEach(function(s){
+      var k = ref.push().key;
+      lote[k] = { producto: s.producto || '', quien: '', cantidad: s.cantidad || 0,
+                  precio: s.precio, fecha: s.fecha, nota: s.nota,
+                  origen: 'maura', mauraId: s.mauraId,
+                  porClasificar: s.producto ? null : true,
+                  creadoEn: new Date().toISOString() };
+      n++;
+    });
+    ref.update(lote).then(function(){
+      _nuevasMaura = [];
+      avisa('⬇️ ' + n + ' salidas traídas de Maura');
+    }).catch(function(){ avisa('No se pudo traer. Revisa tu internet.', 'error'); });
+  };
+
+  // ── Las que llegaron sin producto ──
+  // No entran a las cuentas hasta que Raúl diga qué son. Un renglón sin
+  // producto contando en «quién pide más» sería un número inventado.
+  function salPorClasificar(){
+    var out = [];
+    Object.keys(SAL.datos).forEach(function(k){
+      var r = SAL.datos[k] || {};
+      if(r.porClasificar && !r.producto) out.push({ id:k, fecha:r.fecha||'', nota:r.nota||'',
+                                                    precio:(r.precio==null?null:Number(r.precio)) });
+    });
+    return out.sort(function(a,b){ return String(b.fecha).localeCompare(a.fecha); });
+  }
+
+  window.salClasificarUno = function(id){
+    var sel = document.getElementById('salpc-' + id);
+    if(!sel || !sel.value) return;
+    firebase.database().ref(NODO + '/' + id).update({ producto: sel.value, porClasificar: null })
+      .then(function(){ avisa('✓ ' + sel.value); })
+      .catch(function(){ avisa('No se pudo guardar. Revisa tu internet.', 'error'); });
+  };
+
+  window.salNoEsSalida = function(id){
+    var r = SAL.datos[id] || {};
+    if(!confirm('Quitar «' + (r.nota||'') + '»?\n\nSe borra de aquí. En el sistema de Maura NO se toca nada.')) return;
+    firebase.database().ref(NODO + '/' + id).remove()
+      .then(function(){ avisa('Quitada'); })
+      .catch(function(){ avisa('No se pudo quitar. Revisa tu internet.', 'error'); });
+  };
+
+  function cajaPorClasificar(){
+    var ps = salPorClasificar();
+    if(!ps.length) return '';
+    var opts = productos().map(function(p){ return '<option value="'+esc(p)+'">'+esc(p)+'</option>'; }).join('');
+    return '<div class="sal-caja" style="border-left:5px solid #E8A33D">' +
+      '<h3 style="margin-top:0">🏷️ ' + ps.length + (ps.length===1?' salida espera':' salidas esperan') + ' que le' +
+        (ps.length===1?'':'s') + ' digas qué es</h3>' +
+      '<div class="ayuda">Vinieron del sistema de Maura pero no se pudo saber el producto solo. ' +
+      'Escoge cuál es, o quítala si no era material del taller. ' +
+      '<b>Mientras no tengan producto no cuentan en ningún total</b> — así ningún número sale inventado.</div>' +
+      ps.map(function(r){
+        return '<div class="sal-fila" style="margin-top:9px;align-items:flex-end">' +
+          '<div class="sal-campo" style="flex:1.6;min-width:200px">' +
+            '<label>' + esc(fechaBonita(r.fecha)) + (r.precio!=null ? '  ·  ' + dinero(r.precio) : '') + '</label>' +
+            '<div style="font-size:13px;font-weight:600;padding:6px 0">' + esc(r.nota) + '</div></div>' +
+          '<div class="sal-campo" style="flex:1;min-width:170px">' +
+            '<label>Qué es</label>' +
+            '<select id="salpc-' + r.id + '"><option value="">— escoge —</option>' + opts + '</select></div>' +
+          '<button class="sal-btn" onclick="salClasificarUno(\'' + r.id + '\')">Guardar</button>' +
+          '<button class="sal-btn gris chico" onclick="salNoEsSalida(\'' + r.id + '\')">No es del taller</button>' +
+        '</div>';
+      }).join('') + '</div>';
+  }
+
+  function letreroMaura(){
+    if(_errMaura){
+      return '<div class="sal-caja" style="border-left:5px solid #C62828;background:#FDF3F3">' +
+        '<b style="font-size:14px">⚠️ ' + esc(_errMaura) + '</b>' +
+        '<div class="ayuda" style="margin:3px 0 0">Puede haber compras de Maura que todavía no están aquí. ' +
+        'Vuelve a entrar cuando haya internet.</div></div>';
+    }
+    var n = (_nuevasMaura || []).length;
+    if(!n) return '';
+    return '<div class="sal-caja" style="border-left:5px solid #2E7D32;background:#F4FAF4">' +
+      '<div class="sal-fila" style="align-items:center">' +
+        '<div style="flex:1;min-width:220px">' +
+          '<b style="font-size:14.5px">Maura tiene ' + n + (n===1?' salida':' salidas') + ' de taller que no están aquí</b>' +
+          '<div class="ayuda" style="margin:3px 0 0">Traen el día y el monto. Quién lo pidió lo pones tú.</div>' +
+        '</div>' +
+        '<button class="sal-btn" onclick="salTraerDeMaura()">⬇️ Traerlas</button>' +
+      '</div></div>';
+  }
 
   window.salImportar = function(){
     var yaHay = Object.keys(SAL.datos).filter(function(k){
