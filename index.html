@@ -14125,7 +14125,10 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
       // Si truena o no hay internet, no pasa nada: el letrero no sale y la
       // hoja funciona igual que siempre.
       if(typeof salBuscarEnMaura === 'function'){
-        salBuscarEnMaura().then(function(l){ if(l && l.length) pintarLista(); });
+        // ⚠️ Se repinta SIEMPRE, encontrara o no. Antes solo repintaba si
+        // había algo, así que un error se guardaba en _errMaura y nadie lo
+        // dibujaba nunca: la pantalla quedaba idéntica a «no hay nada».
+        salBuscarEnMaura().then(function(){ pintarLista(); });
       }
     }, function(e){
       SAL.err = (e && e.code === 'PERMISSION_DENIED')
@@ -14832,6 +14835,29 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
   var _errMaura = '';          // por qué no se pudo preguntar, si es que no se pudo
   var _buscandoMaura = false;
 
+  // 🔴 CÓMO VIENE UN REGISTRO DE MAURA. NO son campos sueltos: cada documento
+  // es { id:"...", json:"<todo el registro como texto>" }. Lo arma su propio
+  // sistema al subir (index.html de Maura, donde hace
+  // `data:{ id:idS, json: JSON.stringify(...) }`).
+  //
+  // Aquí me equivoqué la primera vez: leí doc.data().etiquetaK, que SIEMPRE
+  // viene vacío, así que el filtro tiraba los 1,358 registros y no salía ni
+  // el letrero ni un error — se veía exactamente igual que «no hay nada
+  // nuevo». Mis pruebas pasaron porque el archivo con el que probé ya venía
+  // descifrado. La prueba tiene que devolver lo que devuelve la nube de
+  // verdad, no una versión cómoda.
+  //
+  // Se aceptan las dos formas por si algún día cambia: si trae `json` se
+  // abre, y si no, se usa el documento tal cual.
+  function _abrirDoc(doc){
+    var d = null;
+    try { d = doc.data() || {}; } catch(e){ return null; }
+    if(typeof d.json === 'string'){
+      try { return JSON.parse(d.json); } catch(e){ return null; }
+    }
+    return d.etiquetaK ? d : null;
+  }
+
   // El texto del que sale el producto: primero el Concepto que ella escribe,
   // y si viene vacío, el nombre de la etiqueta sin su clave.
   function _txtEgreso(x){
@@ -14893,13 +14919,23 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
   // Es de solo lectura: no escribe nada, ni de este lado ni del de ella.
   function salBuscarEnMaura(){
     if(_buscandoMaura) return Promise.resolve(_nuevasMaura || []);
-    var base = null;
+    var base = null, app = null;
     try{
-      var app; try{ app = firebase.app('maura'); }
+      try{ app = firebase.app('maura'); }
       catch(e){ app = firebase.initializeApp(MAURA_CFG, 'maura'); }
       base = app.firestore();
-    }catch(e){ return Promise.resolve([]); }
-    if(!base) return Promise.resolve([]);
+    }catch(e){ _errMaura = 'No se pudo abrir la base de Maura.'; return Promise.resolve([]); }
+    if(!base){ _errMaura = 'No se pudo abrir la base de Maura.'; return Promise.resolve([]); }
+    // 🔴 La base de Maura es OTRO proyecto y pide SU PROPIA sesión — la misma
+    // del recuadro «Ventas de Maura». Sin ella, Firestore contesta
+    // «permiso denegado» y sin este aviso se vería igual que «no hay nada
+    // nuevo»: en blanco, sin explicación.
+    var hay = false;
+    try { hay = !!(app.auth && app.auth().currentUser); } catch(e){ hay = false; }
+    if(!hay){
+      _errMaura = 'FALTA_SESION';
+      return Promise.resolve([]);
+    }
     _buscandoMaura = true;
     // ⚠️ La bandera se baja SIEMPRE, pase lo que pase. Si `.get()` truena en
     // seco (no en la promesa) sin este try la bandera se queda arriba para
@@ -14913,7 +14949,8 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
       _errMaura = '';
       var ya = _yaEstan(), lista = [];
       snap.forEach(function(doc){
-        var x = doc.data() || {};
+        var x = _abrirDoc(doc);
+        if(!x) return;
         var k = String(x.etiquetaK || '').toUpperCase().trim();
         if(MAURA_ETIQUETAS.indexOf(k) < 0) return;
         _aSalidas(x).forEach(function(s){
@@ -15017,6 +15054,13 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
   }
 
   function letreroMaura(){
+    if(_errMaura === 'FALTA_SESION'){
+      return '<div class="sal-caja" style="border-left:5px solid #E8A33D;background:#FFFBF2">' +
+        '<b style="font-size:14px">Falta entrar a la cuenta de Maura</b>' +
+        '<div class="ayuda" style="margin:3px 0 0">Sus compras de taller viven en otra base y esa pide su propia ' +
+        'contraseña. Ábrela una vez en <b>Ventas de Maura</b> y vuelve aquí: la sesión se queda guardada.</div>' +
+        '</div>';
+    }
     if(_errMaura){
       return '<div class="sal-caja" style="border-left:5px solid #C62828;background:#FDF3F3">' +
         '<b style="font-size:14px">⚠️ ' + esc(_errMaura) + '</b>' +
