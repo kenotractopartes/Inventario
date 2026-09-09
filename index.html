@@ -14570,6 +14570,21 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     if(!confirm('¿Borrar esta salida?\n\n' + que + '\n\nEsto NO se puede deshacer.')) return;
     if(!confirm('Segunda confirmación 🔒\n\nSe va a borrar:\n\n' + que +
                 '\n\n¿Seguro?')) return;
+    // 🔴 Si vino del sistema de Maura NO se borra: se deja como tumba.
+    // Borrarla de verdad la haría regresar en la siguiente consulta, porque
+    // el puente reconoce lo que ya está por su mauraId — y si no queda
+    // renglón, no queda mauraId. Es el mismo hoyo que ya nos mordió con el
+    // botón «No es del taller».
+    if(SAL.datos[id] && SAL.datos[id].mauraId){
+      firebase.database().ref(NODO + '/' + id)
+        .update({ producto:'', quien:'', porClasificar:null, descartada:true })
+        .then(function(){
+          if(SAL.editando === id) salCancelarEdicion();
+          avisa('Quitada — ya no vuelve');
+        })
+        .catch(function(){ avisa('No se pudo quitar. Revisa tu internet.', 'error'); });
+      return;
+    }
     firebase.database().ref(NODO + '/' + id).remove()
       .then(function(){
         if(SAL.editando === id) salCancelarEdicion();
