@@ -10949,13 +10949,14 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
 #modal-semaforo .rsem-field {display:block;font:600 12px Arial,sans-serif;color:#52605b;margin-bottom:6px}
 #modal-semaforo input,#modal-semaforo select {box-sizing:border-box;width:100%;font:15px Arial,sans-serif;padding:11px;border:1px solid #c9d4cf;border-radius:8px;background:white;color:#20352b}
 #modal-semaforo button {cursor:pointer}
-#modal-semaforo button:disabled {cursor:wait}
+#modal-semaforo button:disabled {cursor:default}
+#modal-semaforo button[aria-busy="true"] {cursor:progress}
 #modal-semaforo .rsem-card {background:#f3f6f4;border:1px solid #e2e9e4;border-radius:10px;padding:12px}
 #modal-semaforo .rsem-card strong {display:block;margin-top:5px;font-size:21px}
 #modal-semaforo #rsem-preview-link[hidden] {display:none}
 @media(max-width:520px){#modal-semaforo .rsem-grid{grid-template-columns:1fr} #modal-semaforo .rsem-wide{grid-column:1}}
 </style>
-<div class="modal-bg" id="modal-semaforo" data-pagos-version="2026-09-10.1">
+<div class="modal-bg" id="modal-semaforo" data-pagos-version="2026-09-10.2">
   <div class="modal" style="max-width:700px;font-family:Arial,sans-serif">
     <div class="modal-header">
       <div class="modal-title">🚦 ¿Ya cayó el pago?</div>
@@ -11017,7 +11018,7 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
   'use strict';
   var BASE='https://maura-tracto.netlify.app/.netlify/functions/';
   var MAURA_CFG={apiKey:'AIzaSyAzr0B8M-8PeJwK0XAaHDapyLPzsvmTThY',authDomain:'ai-maura-06-26.firebaseapp.com',projectId:'ai-maura-06-26',storageBucket:'ai-maura-06-26.firebasestorage.app'};
-  var _db=null, _version=0, _leyendo=false, _consulta=null, _watch=null, _controllers=new Set(), _preview=null, _fallos=0, _captcha=false;
+  var _db=null, _version=0, _leyendo=false, _consulta=null, _watch=null, _controllers=new Set(), _preview=null, _fallos=0, _captcha=false, _manuales={};
   var $=function(id){return document.getElementById('rsem-'+id);};
   function esc(v){var d=document.createElement('span');d.textContent=v==null?'':String(v);return d.innerHTML;}
   function dinero(v){return Number(v).toLocaleString('es-MX',{style:'currency',currency:'MXN'});}
@@ -11029,12 +11030,14 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
   function ui(){
     var v=valores(), f=falta(v), listo=!f.length&&!_leyendo&&!_consulta&&!_captcha;
     $('btn').disabled=!listo;$('btn').style.opacity=listo?'1':'.55';
+    $('btn').setAttribute('aria-busy',String(_leyendo||!!_consulta));
     $('btn').textContent=_leyendo?'Leyendo captura…':_consulta?'Consultando…':'🚦 Confirmar este pago';
     $('resumen-monto').textContent=centavos(v.monto)>0?dinero(v.monto):'Por leer';
     $('resumen-fecha').textContent=fechaValida(v.fecha)?v.fecha.split('-').reverse().join('/'):'Por leer';
     $('resumen-clave').textContent=v.clave||'Por leer';
     $('aviso-otro').style.display=v.emisor==='__otro'?'block':'none';
     if(!_leyendo)$('ayuda').textContent=!f.length?'Datos completos. Revisa la captura y confirma.':f.length===1&&f[0]==='el banco de origen'?'Solo falta escoger de qué banco salió. La foto no lo identifica con seguridad.':'Falta '+f.join(', ')+'. Puedes pegar una captura más clara o abrir «Revisar datos».';
+    else $('ayuda').textContent='Estoy leyendo la foto. Puedes escoger los bancos mientras termina.';
     $('intentos').textContent=_captcha?'Banxico pidió código. Revisa en su página oficial.':_fallos?_fallos+' consulta(s) sin CEP. Revisa los datos antes de repetir.':'';
   }
   function pintar(color,titulo,cuerpo){
@@ -11045,7 +11048,7 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
   function pararWatch(){if(_watch&&_watch.timer)clearTimeout(_watch.timer);_watch=null;$('vigilante').innerHTML='';}
   function cancelar(){_version++;_controllers.forEach(function(c){c.abort();});_controllers.clear();pararWatch();_leyendo=false;_consulta=null;$('resultado').innerHTML='';var l=document.getElementById('rsem-letrero');if(l)l.remove();}
   function limpiar(){
-    cancelar();['clave','monto','venta','emisor','cuenta','fecha','archivo'].forEach(function(k){$(k).value='';});_fallos=0;_captcha=false;
+    cancelar();_manuales={};['clave','monto','venta','emisor','cuenta','fecha','archivo'].forEach(function(k){$(k).value='';});_fallos=0;_captcha=false;
     if(_preview){URL.revokeObjectURL(_preview);_preview=null;}$('preview').removeAttribute('src');$('preview-link').removeAttribute('href');$('preview-link').hidden=true;
     $('datos').open=false;aviso('');ui();
   }
@@ -11139,13 +11142,15 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
     _preview=URL.createObjectURL(file);$('preview').src=_preview;$('preview-link').href=_preview;$('preview-link').hidden=false;
     try{
       var img=await imagen(file);if(!vigente(n))return;var d=await pedir('comprobante',img);if(!vigente(n))return;if(d.error)throw new Error(d.error);
-      if(d.seguro===true&&/^[A-Z0-9]{6,40}$/.test(d.clave||''))$('clave').value=d.clave;
-      if(centavos(d.monto)>0)$('monto').value=d.monto;
-      if(fechaValida(d.fecha||''))$('fecha').value=d.fecha;
-      if(['banorte','banregio','consorcio'].includes(d.cuenta))$('cuenta').value=d.cuenta;
+      if(!_manuales.clave&&d.seguro===true&&/^[A-Z0-9]{6,40}$/.test(d.clave||''))$('clave').value=d.clave;
+      if(!_manuales.monto&&centavos(d.monto)>0)$('monto').value=d.monto;
+      if(!_manuales.fecha&&fechaValida(d.fecha||''))$('fecha').value=d.fecha;
+      if(!_manuales.cuenta&&['banorte','banregio','consorcio'].includes(d.cuenta))$('cuenta').value=d.cuenta;
       var banco=String(d.bancoEmisor||'');
-      if(banco&&Array.from($('emisor').options).some(function(o){return o.value===banco;}))$('emisor').value=banco;
+      if(!_manuales.emisor&&banco&&Array.from($('emisor').options).some(function(o){return o.value===banco;}))$('emisor').value=banco;
       var mensajes=[];
+      if(_manuales.emisor&&banco&&$('emisor').value!==banco)mensajes.push('El banco leído no coincide con el que escogiste. Revísalo contra la captura.');
+      if(_manuales.cuenta&&d.cuenta&&$('cuenta').value!==d.cuenta)mensajes.push('La cuenta leída no coincide con la que escogiste. Revísala antes de confirmar.');
       if(d.cuentaDesconocida){$('cuenta').value='';mensajes.push('La cuenta receptora no coincide con una cuenta registrada.');}
       if(!d.seguro)mensajes.push('No pude leer la clave con seguridad. Pega una foto más clara.');
       if(d.evidenciaBanco&&banco)mensajes.push('Banco leído: '+d.evidenciaBanco+'.');
@@ -11158,7 +11163,12 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
   $('archivo').addEventListener('change',function(){var f=this.files&&this.files[0];if(f)leer(f);});
   $('pegar').addEventListener('dragover',function(e){e.preventDefault();});
   $('pegar').addEventListener('drop',function(e){e.preventDefault();if(e.dataTransfer.files[0])leer(e.dataTransfer.files[0]);});
-  ['clave','monto','venta','fecha','emisor','cuenta'].forEach(function(id){$(id).addEventListener('input',function(){cancelar();_fallos=0;aviso('Datos ajustados. Revisa antes de confirmar.');ui();});});
+  ['clave','monto','venta','fecha','emisor','cuenta'].forEach(function(id){$(id).addEventListener('input',function(){
+    // La selección manual pertenece a esta misma foto: no abortar su OCR.
+    // Cambiar datos después de la lectura sí invalida una consulta anterior.
+    if(_leyendo){_manuales[id]=true;ui();return;}
+    cancelar();_fallos=0;aviso('Datos ajustados. Revisa antes de confirmar.');ui();
+  });});
   window.semAbrirRaul=function(){openModal('modal-semaforo');ui();};
   ui();
 })();
