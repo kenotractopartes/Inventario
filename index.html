@@ -10944,537 +10944,225 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
      (maura_kv, un documento por pago), así que si aquí ya se usó un
      comprobante, allá también sale usado, y al revés.
      ═══════════════════════════════════════════════════════════════ -->
-<div class="modal-bg" id="modal-semaforo">
-  <div class="modal" style="max-width:660px">
+<style>
+#modal-semaforo .rsem-grid {display:grid;grid-template-columns:1fr 1fr;gap:14px}
+#modal-semaforo .rsem-field {display:block;font:600 12px Arial,sans-serif;color:#52605b;margin-bottom:6px}
+#modal-semaforo input,#modal-semaforo select {box-sizing:border-box;width:100%;font:15px Arial,sans-serif;padding:11px;border:1px solid #c9d4cf;border-radius:8px;background:white;color:#20352b}
+#modal-semaforo button {cursor:pointer}
+#modal-semaforo button:disabled {cursor:wait}
+#modal-semaforo .rsem-card {background:#f3f6f4;border:1px solid #e2e9e4;border-radius:10px;padding:12px}
+#modal-semaforo .rsem-card strong {display:block;margin-top:5px;font-size:21px}
+#modal-semaforo #rsem-preview-link[hidden] {display:none}
+@media(max-width:520px){#modal-semaforo .rsem-grid{grid-template-columns:1fr} #modal-semaforo .rsem-wide{grid-column:1}}
+</style>
+<div class="modal-bg" id="modal-semaforo" data-pagos-version="2026-09-10.1">
+  <div class="modal" style="max-width:700px;font-family:Arial,sans-serif">
     <div class="modal-header">
       <div class="modal-title">🚦 ¿Ya cayó el pago?</div>
-      <button class="modal-close" onclick="closeModal('modal-semaforo')">×</button>
+      <button class="modal-close" aria-label="Cerrar consulta" onclick="closeModal('modal-semaforo')">×</button>
     </div>
-    <div style="padding:16px 18px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px">
-      <div id="rsem-pegar" style="grid-column:1/-1;border:2px dashed #A5D6A7;background:#F4FBF5;border-radius:10px;padding:12px 14px;margin-bottom:2px">
-        <div style="font-size:13px;line-height:1.5">
-          📋 <b>Pega aquí la captura que te mandó el cliente</b> — <b>Ctrl+V</b> (o Cmd+V en Mac),
-          o arrástrala, o <label for="rsem-archivo" style="color:#1565C0;text-decoration:underline;cursor:pointer">búscala en la compu</label>.
-          <input type="file" id="rsem-archivo" accept="image/*" style="display:none">
-          <div style="color:#777;font-size:12px;margin-top:3px">Saco la clave de rastreo sola. Tú nomás la revisas.</div>
-        </div>
-        <div id="rsem-pegar-estado" style="font-size:13px;margin-top:8px"></div>
+    <div style="padding:18px;color:#20352b">
+      <div id="rsem-pegar" style="border:2px dashed #8fbaa0;background:#f1f8f3;border-radius:12px;padding:20px">
+        <label for="rsem-archivo" style="cursor:pointer;font-size:17px"><b>📋 Pega la captura del cliente</b><br><span style="font-size:13px;font-weight:400">Ctrl+V / Cmd+V · Arrástrala aquí · <u>Elegir foto</u></span></label>
+        <input id="rsem-archivo" type="file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+        <p style="font-size:13px;margin:10px 0 0">Leo el monto, la fecha, la clave y los bancos que se alcancen a identificar.</p>
+        <div id="rsem-pegar-estado" role="status" aria-live="polite" style="font-size:13px;margin-top:10px"></div>
       </div>
-        <div style="grid-column:1/-1">
-          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Clave de rastreo *</label>
-          <input type="text" id="rsem-clave" placeholder="Ej. 7875APR1202606265464296145" autocomplete="off" spellcheck="false"
-                 style="width:100%;padding:9px;font-family:ui-monospace,Menlo,monospace;text-transform:uppercase;border:1px solid #ccc;border-radius:6px">
-        </div>
-        <div>
-          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Monto transferido *</label>
-          <input type="text" id="rsem-monto" placeholder="0.00" inputmode="decimal" autocomplete="off"
-                 style="width:100%;padding:9px;border:1px solid #ccc;border-radius:6px">
-          <div style="font-size:11px;color:#B45309;font-weight:600;margin-top:3px">⚠️ El del comprobante, NO el de la venta.</div>
-        </div>
-        <div>
-          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Total de la venta <span style="font-weight:400;text-transform:none;color:#999">(opcional)</span></label>
-          <input type="text" id="rsem-venta" placeholder="0.00" inputmode="decimal" autocomplete="off"
-                 style="width:100%;padding:9px;border:1px solid #ccc;border-radius:6px">
-          <div style="font-size:11px;color:#777;margin-top:3px">Para avisarte si solo cayó un abono.</div>
-        </div>
-        <div>
-          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">¿De qué banco viene? *</label>
-          <select id="rsem-emisor" style="width:100%;padding:9px;border:1px solid #ccc;border-radius:6px">
-            <option value="">— escoge —</option>
-            <option value="40012">BBVA (el más común · 37%)</option>
-            <option value="40072">Banorte (15%)</option>
-            <option value="40014">Santander (13%)</option>
-            <option value="40002">Banamex / Citibanamex (9%)</option>
-            <option value="40030">Banco del Bajío (5%)</option>
-            <option value="90722">Mercado Pago (4%)</option>
-            <option value="40021">HSBC (4%)</option>
-            <option value="40058">Banregio (4%)</option>
-            <option value="40062">Afirme (3%)</option>
-            <option value="40137">BanCoppel (2%)</option>
-            <option value="40044">Scotiabank (1%)</option>
-            <option value="90728">Spin by Oxxo</option>
-            <option value="40127">Banco Azteca</option>
-            <option value="40130">Compartamos</option>
-            <option value="40036">Inbursa</option>
-            <option value="__otro">⚠️ No está en la lista…</option>
+      <a id="rsem-preview-link" target="_blank" rel="noopener" hidden style="display:flex;gap:12px;align-items:center;color:#216c48;margin:12px 0;text-decoration:none">
+        <img id="rsem-preview" alt="Comprobante que estás consultando" style="width:58px;height:64px;object-fit:contain;border:1px solid #c9d4cf;border-radius:6px">
+        <span style="font-size:13px">Ver la captura completa ↗</span>
+      </a>
+      <div class="rsem-grid" style="margin-top:14px">
+        <div class="rsem-card"><span class="rsem-field">MONTO DEL COMPROBANTE</span><strong id="rsem-resumen-monto">Por leer</strong></div>
+        <div class="rsem-card"><span class="rsem-field">FECHA DEL PAGO</span><strong id="rsem-resumen-fecha">Por leer</strong></div>
+        <div><label class="rsem-field" for="rsem-emisor">SALIO DE</label>
+          <select id="rsem-emisor">
+            <option value="">Escoger banco de origen</option>
+            <option value="40012">BBVA</option><option value="40072">Banorte</option><option value="40014">Santander</option><option value="40002">Banamex / Citibanamex</option>
+            <option value="40030">Banco del Bajío</option><option value="90722">Mercado Pago</option><option value="40021">HSBC</option><option value="40058">Banregio</option>
+            <option value="40062">Afirme</option><option value="40137">BanCoppel</option><option value="40044">Scotiabank</option><option value="90728">Spin by Oxxo</option>
+            <option value="40127">Banco Azteca</option><option value="40130">Compartamos</option><option value="40036">Inbursa</option><option value="__otro">Otro banco</option>
           </select>
         </div>
-        <div>
-          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">¿A qué cuenta llegó? *</label>
-          <select id="rsem-cuenta" style="width:100%;padding:9px;border:1px solid #ccc;border-radius:6px">
-            <option value="">— escoge —</option>
-            <option value="banregio">Banregio</option>
-            <option value="banorte">Banorte</option>
-            <!-- 10 sep 2026 — la cuenta del CONSORCIO. No es del negocio: el cliente
-            deposita ahí y ustedes le pagan 2% de comisión (etiqueta V6 en el
-            sistema de Maura). Antes el semáforo estaba ciego aquí, y un pago
-            de $50,000 salió ROJO con toda la razón porque se preguntaba por
-            la cuenta equivocada. Comprobar aquí demuestra que el CLIENTE PAGÓ,
-            no que el dinero ya esté con ustedes. -->
-            <option value="consorcio">Consorcio &mdash; no es cuenta del negocio</option></select>
-        </div>
-        <div style="grid-column:1/-1">
-          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Fecha de la transferencia *</label>
-          <input type="date" id="rsem-fecha" style="padding:9px;border:1px solid #ccc;border-radius:6px">
-          <span style="font-size:11px;color:#B45309;font-weight:600;margin-left:8px">⚠️ La del comprobante, NO la de hoy.</span>
+        <div><label class="rsem-field" for="rsem-cuenta">CUENTA RECEPTORA</label>
+          <select id="rsem-cuenta"><option value="">Por identificar</option><option value="banregio">Banregio · negocio</option><option value="banorte">Banorte · negocio</option><option value="consorcio">Consorcio · cobros de ventas</option></select>
         </div>
       </div>
-
-      <div id="rsem-aviso-otro" style="display:none;background:#FFF3E0;border-left:5px solid #E65100;padding:10px 14px;border-radius:8px;margin-top:12px;font-size:13px;line-height:1.5">
-        <b>Ese banco no está en la lista.</b> No lo adivines: si se manda el banco equivocado, Banxico rechaza la
-        consulta y <b>a los dos rechazos pide código de seguridad</b>. Confirma este pago entrando al banco y
-        dile a Eugenio qué banco dice el comprobante.
+      <p id="rsem-ayuda" style="font-size:14px;line-height:1.5" aria-live="polite"></p>
+      <details id="rsem-datos" style="border-top:1px solid #e2e9e4;padding-top:12px">
+        <summary style="cursor:pointer;color:#52605b;font-size:13px">Revisar datos · corregir si hace falta</summary>
+        <div style="padding:12px 0" class="rsem-grid">
+          <div style="grid-column:1/-1"><label class="rsem-field" for="rsem-clave">Clave de rastreo</label><input id="rsem-clave" autocomplete="off" spellcheck="false" placeholder="Se lee de la captura"></div>
+          <div><label class="rsem-field" for="rsem-monto">Monto transferido</label><input id="rsem-monto" inputmode="decimal" placeholder="0.00"></div>
+          <div><label class="rsem-field" for="rsem-fecha">Fecha del comprobante</label><input id="rsem-fecha" type="date"></div>
+          <div style="grid-column:1/-1"><label class="rsem-field" for="rsem-venta">Total de la venta (opcional)</label><input id="rsem-venta" inputmode="decimal" placeholder="Solo si quieres comparar el abono contra el total"></div>
+        </div>
+      </details>
+      <div style="font-size:12px;color:#65756d;margin:12px 0;overflow-wrap:anywhere">Clave leída: <span id="rsem-resumen-clave">Por leer</span></div>
+      <div id="rsem-aviso-otro" style="display:none;font-size:13px;padding:12px;background:#fff7e6;border-radius:8px">Ese banco no está en la lista. Confirma el movimiento directamente en el banco; no selecciones otro por aproximación.</div>
+      <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+        <button id="rsem-btn" type="button" onclick="rsemConsultar()" style="background:#216c48;color:white;border:0;padding:14px 20px;border-radius:9px;font-size:15px;font-weight:700">🚦 Confirmar este pago</button>
+        <button type="button" onclick="rsemLimpiar()" style="background:#eef2ef;color:#364b40;border:0;padding:14px;border-radius:9px;font-size:14px">Otra captura</button>
       </div>
-
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px">
-        <button id="rsem-btn" onclick="rsemConsultar()"
-                style="background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;border:none;padding:12px 22px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
-          🚦 Preguntarle al Banco de México
-        </button>
-        <button onclick="rsemLimpiar()" style="background:#eceff1;color:#37474f;border:none;padding:12px 16px;border-radius:8px;font-size:13px;cursor:pointer">Limpiar</button>
-        <span id="rsem-intentos" style="font-size:12px;color:#B45309;font-weight:700"></span>
-      </div>
-
-      <div id="rsem-vigilante" style="margin-top:12px"></div>
-      <div id="rsem-resultado" style="margin-top:12px"></div>
+      <div id="rsem-intentos" style="font-size:12px;color:#916a20;margin-top:10px"></div>
+      <div id="rsem-vigilante" style="margin-top:12px;font-size:13px"></div>
+      <div id="rsem-resultado" role="status" aria-live="polite" style="margin-top:12px"></div>
     </div>
   </div>
 </div>
 
 <script>
-// ═══════════════ 🚦 SEMÁFORO DE PAGOS — la lógica ═══════════════
-// Mismo comportamiento que en el sistema de Maura. Todo en este bloque a
-// propósito: en este HTML las funciones solo existen dentro de su bloque.
+// Consulta de un comprobante: cada captura conserva sus propias solicitudes.
 (function(){
-  var URL_CEP  = 'https://maura-tracto.netlify.app/.netlify/functions/cep';
-  var PREFIJO  = 'semaforo_';
-  var ESPERAS  = [2, 6, 10, 15];   // minutos. MEDIDO: a la 4a consulta sin
-                                    // resultado Banxico pide código. Por eso
-                                    // son 4 intentos con final, no un ciclo.
-  var MAURA_CFG = { apiKey:"AIzaSyAzr0B8M-8PeJwK0XAaHDapyLPzsvmTThY",
-                    authDomain:"ai-maura-06-26.firebaseapp.com",
-                    projectId:"ai-maura-06-26",
-                    storageBucket:"ai-maura-06-26.firebasestorage.app" };
-  var _db=null, _enVuelo=false, _fallidos=0, _trabado=false, _vig=null;
-
-  function $(id){ return document.getElementById(id); }
-  function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
-  function limpiaClave(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
-  function pesos(n){ var x=Number(String(n).replace(/[^0-9.\-]/g,''));
-    return isFinite(x)?'$'+x.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}):String(n); }
-  function hoyLocal(){ var d=new Date();
-    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-
-  // La base de Maura ya vive en esta página (el módulo de sus ventas la abre
-  // como un segundo app llamado 'maura'). Aquí se reusa si existe.
-  function db(){
-    if(_db) return _db;
+  'use strict';
+  var BASE='https://maura-tracto.netlify.app/.netlify/functions/';
+  var MAURA_CFG={apiKey:'AIzaSyAzr0B8M-8PeJwK0XAaHDapyLPzsvmTThY',authDomain:'ai-maura-06-26.firebaseapp.com',projectId:'ai-maura-06-26',storageBucket:'ai-maura-06-26.firebasestorage.app'};
+  var _db=null, _version=0, _leyendo=false, _consulta=null, _watch=null, _controllers=new Set(), _preview=null, _fallos=0, _captcha=false;
+  var $=function(id){return document.getElementById('rsem-'+id);};
+  function esc(v){var d=document.createElement('span');d.textContent=v==null?'':String(v);return d.innerHTML;}
+  function dinero(v){return Number(v).toLocaleString('es-MX',{style:'currency',currency:'MXN'});}
+  function fechaValida(s){if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;var d=new Date(s+'T12:00:00Z');return !isNaN(d)&&d.toISOString().slice(0,10)===s;}
+  function centavos(s){s=String(s==null?'':s).trim();if(!/^\d+(?:\.\d{1,2})?$/.test(s))return null;var a=s.split('.'),n=Number(a[0])*100+Number((a[1]||'').padEnd(2,'0'));return Number.isSafeInteger(n)?n:null;}
+  function valores(){return {clave:$('clave').value.trim().toUpperCase(),monto:$('monto').value.trim(),venta:$('venta').value.trim(),emisor:$('emisor').value,cuenta:$('cuenta').value,fecha:$('fecha').value};}
+  function falta(v){var a=[];if(!/^[A-Z0-9]{6,40}$/.test(v.clave))a.push('una clave de rastreo legible');if(!(centavos(v.monto)>0))a.push('el monto exacto');if(!fechaValida(v.fecha))a.push('la fecha');if(!v.emisor||v.emisor==='__otro')a.push('el banco de origen');if(!v.cuenta)a.push('la cuenta receptora');return a;}
+  function vigente(n){return n===_version;}
+  function ui(){
+    var v=valores(), f=falta(v), listo=!f.length&&!_leyendo&&!_consulta&&!_captcha;
+    $('btn').disabled=!listo;$('btn').style.opacity=listo?'1':'.55';
+    $('btn').textContent=_leyendo?'Leyendo captura…':_consulta?'Consultando…':'🚦 Confirmar este pago';
+    $('resumen-monto').textContent=centavos(v.monto)>0?dinero(v.monto):'Por leer';
+    $('resumen-fecha').textContent=fechaValida(v.fecha)?v.fecha.split('-').reverse().join('/'):'Por leer';
+    $('resumen-clave').textContent=v.clave||'Por leer';
+    $('aviso-otro').style.display=v.emisor==='__otro'?'block':'none';
+    if(!_leyendo)$('ayuda').textContent=!f.length?'Datos completos. Revisa la captura y confirma.':f.length===1&&f[0]==='el banco de origen'?'Solo falta escoger de qué banco salió. La foto no lo identifica con seguridad.':'Falta '+f.join(', ')+'. Puedes pegar una captura más clara o abrir «Revisar datos».';
+    $('intentos').textContent=_captcha?'Banxico pidió código. Revisa en su página oficial.':_fallos?_fallos+' consulta(s) sin CEP. Revisa los datos antes de repetir.':'';
+  }
+  function pintar(color,titulo,cuerpo){
+    var c={verde:['#e9f7ef','#216c48'],ambar:['#fff7e6','#9a620e'],gris:['#f0f3f5','#465764'],rojo:['#fcebea','#a63732']}[color];
+    $('resultado').innerHTML='<section style="background:'+c[0]+';border-left:5px solid '+c[1]+';padding:16px;border-radius:10px"><strong style="font-size:20px;color:'+c[1]+'">'+esc(titulo)+'</strong><div style="margin-top:8px;line-height:1.55">'+cuerpo+'</div></section>';
+  }
+  function aviso(txt){$('pegar-estado').textContent=txt;}
+  function pararWatch(){if(_watch&&_watch.timer)clearTimeout(_watch.timer);_watch=null;$('vigilante').innerHTML='';}
+  function cancelar(){_version++;_controllers.forEach(function(c){c.abort();});_controllers.clear();pararWatch();_leyendo=false;_consulta=null;$('resultado').innerHTML='';var l=document.getElementById('rsem-letrero');if(l)l.remove();}
+  function limpiar(){
+    cancelar();['clave','monto','venta','emisor','cuenta','fecha','archivo'].forEach(function(k){$(k).value='';});_fallos=0;_captcha=false;
+    if(_preview){URL.revokeObjectURL(_preview);_preview=null;}$('preview').removeAttribute('src');$('preview-link').removeAttribute('href');$('preview-link').hidden=true;
+    $('datos').open=false;aviso('');ui();
+  }
+  window.rsemLimpiar=limpiar;
+  window.rsemDestrabar=function(){if(!_captcha){_fallos=0;ui();}};
+  window.rsemDejarDeVigilar=pararWatch;
+  function limite(p,ms){var timer;return Promise.race([p,new Promise(function(_,reject){timer=setTimeout(function(){reject(new Error('Sin respuesta a tiempo'));},ms);})]).finally(function(){clearTimeout(timer);});}
+  async function pedir(ruta,body){
+    var c=new AbortController();_controllers.add(c);var t=setTimeout(function(){c.abort();},ruta==='comprobante'?60000:45000);
+    try{var r=await fetch(BASE+ruta,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:c.signal});var d=await r.json();if(!r.ok&&!(ruta==='cep'&&d.estado==='datos'))throw new Error(d.error||d.mensaje||'No hubo respuesta válida');return d;}
+    finally{clearTimeout(t);_controllers.delete(c);}
+  }
+  function db(){if(!_db){var app;try{app=firebase.app('maura');}catch(e){app=firebase.initializeApp(MAURA_CFG,'maura');}_db=app.firestore();}return _db;}
+  function leerDoc(doc){if(!doc.exists)return null;var v=(doc.data()||{}).val;var p=typeof v==='string'?JSON.parse(v):v;if(!p||typeof p!=='object')throw new Error('Registro incompleto');return p;}
+  function fechaLocal(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  function registroIgual(p,v){return p.clave===v.clave&&centavos(p.monto)===centavos(v.monto)&&p.cuenta===v.cuenta;}
+  function registroPrevio(p,v){
+    if(!registroIgual(p,v)){pintar('ambar','Hay un registro con esa clave','Sus datos no coinciden con esta consulta. Revísalo con Maura antes de usar el pago.');return true;}
+    pintar('ambar',p.conFactura?'Este pago ya está marcado como facturado':'Este pago ya está registrado',
+      'Monto: <b>'+dinero(p.monto)+'</b> · '+esc(p.pagador||'')+'.<br>'+ (p.conFactura?'Confirma con Maura a qué venta se aplicó.':'Ya aparece en los pagos pendientes de Maura. Consultarlo otra vez no crea otro cobro.')+'<br><b>Este aviso no autoriza usarlo para otra venta.</b>');return true;
+  }
+  async function registrar(p,v,n){
+    var datos={clave:p.claveRastreo,monto:p.monto,pagador:p.pagador,pagadorRfc:p.pagadorRfc||'',bancoEmisor:p.bancoEmisor,cuenta:p.cuenta,concepto:p.concepto||'',fechaOperacion:p.fechaOperacion,hora:p.hora||'',confirmadoEn:fechaLocal(),conFactura:false,capturadoEn:'inventario'};
+    var d=db(), ref=d.collection('maura_kv').doc('semaforo_'+p.claveRastreo);
+    return limite(d.runTransaction(async function(tx){
+      var doc=await tx.get(ref), anterior=leerDoc(doc);
+      if(!vigente(n))throw new Error('Captura cambiada');
+      if(anterior)return {anterior:anterior};
+      tx.set(ref,{val:JSON.stringify(datos)});return {nuevo:true};
+    }),20000);
+  }
+  function tabla(p){return '<b>'+esc(p.pagador)+'</b><br><strong style="font-size:22px">'+dinero(p.monto)+'</strong><br>'+esc(p.bancoEmisor)+' → '+esc(p.bancoDestino)+'<br>'+esc(p.fechaOperacion)+' '+esc(p.hora||'')+'<br>'+esc(p.concepto||'')+'<div style="font-size:12px;margin-top:10px">Datos contrastados con el CEP recibido desde Banxico.</div>';}
+  async function confirmado(r,v,n,notificar){
+    var p=r.pago;
+    if(!p||p.claveRastreo!==v.clave||centavos(p.monto)!==centavos(v.monto)||p.cuenta!==v.cuenta){pintar('gris','No pude confirmar este comprobante','La respuesta no coincide con la consulta. Confirma directamente con el banco.');return;}
+    var registro;
+    try{registro=await registrar(p,v,n);}catch(e){if(vigente(n))pintar('ambar','El CEP coincide; falta confirmar el registro',tabla(p)+'<br>No pude confirmar que quedara apuntado para Maura. Vuelve a consultar este mismo comprobante; no lo uses para otra venta.');return;}
+    if(!vigente(n))return;
+    if(registro.anterior){registroPrevio(registro.anterior,v);return;}
+    var faltaPago=v.venta?centavos(v.venta)-centavos(p.monto):0;
+    var titulo=faltaPago>0?'Pago parcial confirmado':r.propia===false?'Pago confirmado a Consorcio':'Pago confirmado';
+    var extra=r.propia===false?'<br><b>Recibido en Consorcio, cuenta usada para sus ventas.</b> No confirma un traspaso posterior a Banorte o Banregio del negocio.':'';
+    extra+=faltaPago>0?'<br>Faltan <b>'+dinero(faltaPago/100)+'</b> para cubrir la venta.':v.venta?'<br>El monto cubre el total indicado.':'<br>Se confirmó este monto. El total de la venta no se comparó.';
+    pintar(faltaPago>0?'ambar':'verde',titulo,tabla(p)+extra+'<br><br>Registrado para Maura. No vuelvas a aplicarlo a otra venta.');
+    if(notificar){var a=document.createElement('div');a.id='rsem-letrero';a.style.cssText='position:fixed;top:15px;right:15px;z-index:99999;background:#216c48;color:white;padding:16px;border-radius:12px;max-width:320px';a.textContent=titulo+': '+dinero(p.monto);a.onclick=function(){a.remove();};document.body.appendChild(a);}
+  }
+  async function consultar(v,n,automatico){
+    if(!vigente(n)||_consulta||_leyendo)return;
+    var token={};_consulta=token;ui();
     try{
-      var app;
-      try{ app = firebase.app('maura'); }
-      catch(e){ app = firebase.initializeApp(MAURA_CFG, 'maura'); }
-      _db = app.firestore();
-    }catch(e){ console.warn('semaforo db:', e); return null; }
-    return _db;
-  }
-
-  function pintar(color, titulo, cuerpo){
-    var c = ({verde:['#E8F5E9','#2E7D32','#1B5E20'], rojo:['#FFEBEE','#C62828','#B71C1C'],
-              gris:['#ECEFF1','#607D8B','#37474F'], ambar:['#FFF8E1','#F9A825','#E65100']})[color];
-    $('rsem-resultado').innerHTML =
-      '<div style="background:'+c[0]+';border-left:7px solid '+c[1]+';padding:16px 18px;border-radius:9px">'+
-      '<div style="font-size:19px;font-weight:800;color:'+c[2]+';margin-bottom:7px">'+titulo+'</div>'+
-      '<div style="font-size:14px;line-height:1.6;color:#37474F">'+cuerpo+'</div></div>';
-  }
-
-  function letrero(texto, sub, color){
-    var v=$('rsem-letrero');
-    if(!v){ v=document.createElement('div'); v.id='rsem-letrero'; document.body.appendChild(v); }
-    v.style.cssText='position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;background:'+color+
-      ';color:#fff;padding:18px 30px;border-radius:14px;max-width:92vw;box-shadow:0 10px 34px rgba(0,0,0,.34);'+
-      'font-family:Arial,sans-serif;text-align:center;cursor:pointer';
-    v.onclick=function(){ v.remove(); };
-    v.innerHTML='<div style="font-size:23px;font-weight:800;line-height:1.25">'+texto+'</div>'+
-      '<div style="font-size:15px;margin-top:6px;opacity:.95">'+sub+'</div>'+
-      '<div style="font-size:11px;margin-top:9px;opacity:.8">(clic para cerrar)</div>';
-  }
-
-  function beep(){
-    try{
-      var a=new (window.AudioContext||window.webkitAudioContext)();
-      [0,0.22,0.44].forEach(function(t){
-        var o=a.createOscillator(), g=a.createGain(); o.connect(g); g.connect(a.destination);
-        o.frequency.value=880; o.type='sine';
-        g.gain.setValueAtTime(0.001,a.currentTime+t);
-        g.gain.exponentialRampToValueAtTime(0.3,a.currentTime+t+0.02);
-        g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+t+0.18);
-        o.start(a.currentTime+t); o.stop(a.currentTime+t+0.2);
-      });
-    }catch(e){ console.warn('beep:',e); }
-  }
-
-  function marcarRechazo(){
-    _fallidos++;
-    var s=$('rsem-intentos');
-    if(_fallidos>=2){
-      _trabado=true;
-      if($('rsem-btn')){ $('rsem-btn').disabled=true; $('rsem-btn').style.opacity='.5'; }
-      if(s) s.innerHTML='🔴 Van 2 rechazos. <a href="#" onclick="rsemDestrabar();return false;" style="color:#B71C1C;font-weight:700">Ya revisé banco, monto y fecha</a>';
-    } else if(s){ s.textContent='⚠️ 1 rechazo — revisa bien el banco antes de volver a picarle.'; }
-  }
-  function limpiarRechazos(){ _fallidos=0; _trabado=false;
-    if($('rsem-btn')){ $('rsem-btn').disabled=false; $('rsem-btn').style.opacity='1'; }
-    if($('rsem-intentos')) $('rsem-intentos').textContent=''; }
-  window.rsemDestrabar=limpiarRechazos;
-
-  // Tres respuestas, ninguna ambigua: ya se usó / libre / NO PUDE SABER.
-  async function yaSeUso(clave){
-    var d=db(); if(!d) return {supe:false};
-    try{
-      var doc=await d.collection('maura_kv').doc(PREFIJO+clave).get();
-      var p=null;
-      if(doc.exists){ try{ var v=(doc.data()||{}).val; p = typeof v==='string'?JSON.parse(v):v; }catch(e){} }
-      return {supe:true, usado:doc.exists, datos:p};
-    }catch(e){ console.warn('semaforo candado:',e); return {supe:false}; }
-  }
-  async function apuntar(p){
-    var d=db(); if(!d) throw new Error('sin base');
-    await d.collection('maura_kv').doc(PREFIJO+p.clave).set({val:JSON.stringify(p)},{merge:false});
-  }
-
-  async function preguntar(v){
-    var res = await fetch(URL_CEP, { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ claveRastreo:v.clave, monto:v.monto, fecha:v.fecha, emisor:v.emisor, cuenta:v.cuenta }) });
-    return await res.json();
-  }
-
-  function tablaPago(p){
-    return '<div style="font-size:17px;font-weight:700;margin-bottom:6px">'+esc(p.pagador)+'</div>'+
-      '<table style="font-size:14px;line-height:1.9">'+
-      '<tr><td style="color:#666;padding-right:14px">Cayó</td><td><b>'+pesos(p.monto)+'</b></td></tr>'+
-      '<tr><td style="color:#666">Concepto</td><td>'+(esc(p.concepto)||'<i>sin concepto</i>')+'</td></tr>'+
-      '<tr><td style="color:#666">Salió de</td><td>'+esc(p.bancoEmisor)+'</td></tr>'+
-      '<tr><td style="color:#666">Llegó a</td><td>'+esc(p.bancoDestino)+'</td></tr>'+
-      '<tr><td style="color:#666">Cuándo</td><td>'+esc(p.fechaOperacion)+' a las '+esc(p.hora)+'</td></tr>'+
-      '</table><div style="margin-top:9px;font-size:12px">✓ Sellado por el Banco de México</div>';
-  }
-
-  // El tercer dato dice de QUIÉN es la cuenta donde cayó. Sin él, un pago a
-  // la cuenta del consorcio se pintaría idéntico a uno que sí entró al negocio.
-  async function guardarYPintar(p, venta, avisoTercero){
-    var cayo=Number(String(p.monto).replace(/[^0-9.]/g,'')), falta=(venta>0)?(venta-cayo):0;
-    if(falta>0.005){
-      pintar('ambar','🟡 Cayó un ABONO — todavía falta dinero', tablaPago(p)+
-        '<div style="margin-top:12px;padding:10px 14px;background:#fff;border-radius:6px;font-size:15px">'+
-        'La venta es de <b>'+pesos(venta)+'</b> y cayeron <b>'+pesos(cayo)+'</b>.<br>'+
-        '<b style="color:#C62828">Faltan '+pesos(falta)+'. NO se entrega por el total.</b></div>');
-    }else{
-      pintar('verde','🟢 SÍ CAYÓ ESTE PAGO'+(venta>0?' — cubre la venta':''), tablaPago(p)+
-        (venta>0?'':'<div style="margin-top:9px;font-size:13px;color:#1B5E20">Ojo: confirma que cayeron <b>'+
-         pesos(p.monto)+'</b>. Si la venta es de más, todavía falta dinero.</div>'));
-    }
-    // 🔴 Cayó en cuenta de un tercero (el consorcio). Sin esto la pantalla se
-    // ve IGUAL que cuando cae en una cuenta del negocio, y no es lo mismo:
-    // aquí el verde significa «el cliente SÍ pagó», no «ya tengo el dinero».
-    if(avisoTercero){
-      $('rsem-resultado').insertAdjacentHTML('beforeend',
-        '<div style="margin-top:12px;background:#FFF8E1;border-left:5px solid #F9A825;'+
-        'padding:11px 14px;border-radius:7px;font-size:14px;line-height:1.5">'+
-        '<b>Ojo: no cayó en una cuenta de ustedes.</b><br>'+esc(avisoTercero)+'</div>');
-    }
-    try{
-      await apuntar({ clave:p.claveRastreo, monto:p.monto, pagador:p.pagador, pagadorRfc:p.pagadorRfc,
-        bancoEmisor:p.bancoEmisor, cuenta:p.cuenta, concepto:p.concepto, fechaOperacion:p.fechaOperacion,
-        hora:p.hora, confirmadoEn:hoyLocal(), conFactura:false, capturadoEn:'inventario' });
-    }catch(e){
-      console.warn('semaforo apuntar:',e);
-      $('rsem-resultado').insertAdjacentHTML('beforeend',
-        '<div style="margin-top:12px;background:#FFF8E1;border-left:5px solid #F9A825;padding:10px 14px;border-radius:6px;font-size:13px">'+
-        '⚠️ El pago SÍ está confirmado, pero no se pudo apuntar (¿internet?). Anótalo aparte: por ahora este comprobante se podría volver a usar.</div>');
-    }
-  }
-
-  window.rsemConsultar = async function(){
-    if(_enVuelo) return;
-    if(_trabado){ pintar('gris','⚪ Parado a propósito',
-      'Van 2 consultas rechazadas. Si le picamos otra vez, el Banco de México nos pide código y el semáforo se queda inservible. Revisa banco, monto y fecha.'); return; }
-
-    var v = { clave: limpiaClave($('rsem-clave').value),
-              monto: Number(String($('rsem-monto').value||'').replace(/[^0-9.]/g,'')),
-              venta: Number(String($('rsem-venta').value||'').replace(/[^0-9.]/g,'')),
-              emisor: $('rsem-emisor').value, cuenta: $('rsem-cuenta').value, fecha: $('rsem-fecha').value };
-
-    if(v.emisor==='__otro'){ pintar('ambar','⚠️ Ese banco no está en la lista',
-      'Confirma este pago entrando al banco y dile a Eugenio qué banco dice el comprobante.'); return; }
-    if(!/^[A-Z0-9]{6,40}$/.test(v.clave)){ pintar('ambar','Revisa la clave de rastreo','Son entre 6 y 40 letras y números, sin espacios ni guiones.'); return; }
-    if(!(v.monto>0)){ pintar('ambar','Falta el monto','El del comprobante, al centavo.'); return; }
-    if(!v.emisor){ pintar('ambar','Falta el banco','El comprobante dice de dónde viene.'); return; }
-    if(!v.cuenta){ pintar('ambar','Falta la cuenta','¿Banregio o Banorte?'); return; }
-    if(!v.fecha){ pintar('ambar','Falta la fecha','La del comprobante, no la de hoy.'); return; }
-
-    _enVuelo=true;
-    var b=$('rsem-btn'); b.disabled=true; b.textContent='⏳ Preguntando…';
-    try{
-      pintar('gris','⏳ Revisando…','Primero veo si ese comprobante ya se había usado.');
-      var candado = await yaSeUso(v.clave);
-      if(!candado.supe){
-        pintar('gris','⚪ No pude revisar si ese comprobante ya se usó',
-          'No hubo respuesta de la base, así que <b>no sé si este mismo comprobante ya se cobró antes</b>.<br><br><b>No se entrega la pieza.</b>');
-        return;
-      }
-      if(candado.usado){
-        var d=candado.datos||{};
-        pintar('rojo','🔴 Ese comprobante YA se usó',
-          'Se confirmó el <b>'+esc(d.confirmadoEn||'?')+'</b> por <b>'+pesos(d.monto)+'</b> de <b>'+esc(d.pagador||'?')+'</b>.'+
-          '<br><br>Un mismo pago no se cobra dos veces. <b>No se entrega la pieza.</b>');
-        return;
-      }
-
-      pintar('gris','⏳ Consultando al Banco de México…','Tarda unos segundos.');
-      var r;
-      try{ r = await preguntar(v); }
-      catch(e){
-        console.warn('semaforo consultar:',e);
-        pintar('gris','⚪ No pude consultar','No hubo respuesta (¿se cayó el internet?).<br><br><b>No se entrega la pieza.</b> Confirma entrando al banco.');
-        return;
-      }
-
-      if(r.estado==='confirmado'){ limpiarRechazos(); await guardarYPintar(r.pago, v.venta, r.propia===false ? (r.avisoTercero||'Llegó a la cuenta del consorcio.') : null); return; }
+      pintar('gris','Revisando este comprobante…','Consultando su registro y los datos del pago.');
+      var anterior=leerDoc(await limite(db().collection('maura_kv').doc('semaforo_'+v.clave).get({source:'server'}),20000));
+      if(!vigente(n))return;if(anterior){pararWatch();registroPrevio(anterior,v);return;}
+      var r=await pedir('cep',{claveRastreo:v.clave,monto:v.monto,fecha:v.fecha,emisor:v.emisor,cuenta:v.cuenta});
+      if(!vigente(n))return;
+      if(r.estado==='confirmado'){pararWatch();_fallos=0;await confirmado(r,v,n,automatico);return;}
       if(r.estado==='no_encontrado'){
-        marcarRechazo();
-        pintar('rojo','🔴 El Banco de México NO encuentra ese pago',
-          '<b>No se entrega la pieza.</b><br><br>Revisa tres cosas:<ul style="margin:8px 0 0 18px;line-height:1.7">'+
-          '<li><b>El banco de donde viene</b> — es el error más común.</li>'+
-          '<li><b>El monto y la fecha</b> — los del comprobante, al centavo y al día.</li>'+
-          '<li><b>¿Apenas la hizo?</b> El comprobante nace ~5 minutos después.</li></ul>'+
-          '<div style="margin-top:12px;padding:12px 14px;background:#fff;border-radius:8px">'+
-          '<button onclick="rsemVigilar()" style="background:#1565C0;color:#fff;border:none;padding:11px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">🔔 Sigue checando y avísame</button>'+
-          '<div style="font-size:12px;color:#777;margin-top:6px">Revisa solo a los 2, 6, 10 y 15 minutos. Puedes seguir trabajando.</div></div>'+
-          '<div style="margin-top:10px;padding:8px 12px;background:#fff;border-radius:6px;font-size:13px">'+
-          '💡 Pregúntale: <i>«¿te salió algún mensaje de límite en tu app?»</i> — desde enero el banco rechaza solo lo que pasa el límite.</div>');
+        _fallos++;
+        pintar('ambar','Todavía no se pudo confirmar con estos datos','No apareció un CEP para esta consulta. Puede faltar un dato correcto o que el banco termine de reportar el pago. <b>Esto no demuestra que el cliente no pagó.</b><br>Confirma en el banco antes de entregar.'+
+          (!_watch&&_fallos<2?'<br><button type="button" onclick="rsemVigilar()" style="margin-top:12px;padding:10px;border-radius:8px;border:0;background:#175b91;color:white">Volver a revisar una vez en 2 minutos</button>':''));
         return;
       }
-      if(r.estado==='captcha'){ _trabado=true; pintar('gris','⚪ El Banco de México pidió código de seguridad', esc(r.mensaje)+'<br><br><b>No se entrega la pieza</b> con esto.'); return; }
-      if(r.estado==='otro_monto'){ limpiarRechazos(); pintar('ambar','🟡 Ese pago existe, pero por otro monto', esc(r.mensaje)+'<br><br><b>No se entrega por el total.</b>'); return; }
-      if(r.estado==='otra_cuenta'){ pintar('rojo','🔴 Ese pago NO es para Tracto Partes', esc(r.mensaje)+'<br><br><b>No se entrega la pieza.</b>'); return; }
-      if(r.estado==='interno'){ pintar('gris','⚪ Ese pago no lo puede ver el Banco de México', esc(r.mensaje)+'<br><br><b>No se entrega</b> hasta confirmarlo en el banco.'); return; }
-      if(r.estado==='datos'){ pintar('ambar','Revisa los datos', esc(r.mensaje)); return; }
-      pintar('gris','⚪ No pude confirmar', esc(r.mensaje||'Respuesta inesperada.')+'<br><br><b>No se entrega la pieza.</b>');
-    } finally {
-      // La bandera SIEMPRE aquí: si truena en medio, el botón se queda
-      // trabado en "preguntando" y ya no se puede volver a consultar.
-      _enVuelo=false;
-      if(!_trabado){ b.disabled=false; b.style.opacity='1'; }
-      b.textContent='🚦 Preguntarle al Banco de México';
-    }
-  };
-
-  function pintarVig(){
-    var s=$('rsem-vigilante'); if(!s||!_vig) return;
-    var quedan=ESPERAS.length-_vig.paso;
-    s.innerHTML='<div style="background:#E3F2FD;border-left:6px solid #1565C0;padding:11px 15px;border-radius:9px;font-size:13px">'+
-      '<b>🔔 Checando sola</b> la clave '+esc(_vig.clave.slice(0,10))+'…<br>Van '+_vig.paso+' de '+ESPERAS.length+' revisiones. '+
-      (quedan?'La siguiente en <b>'+ESPERAS[_vig.paso]+' min</b> desde que empezó.':'')+
-      ' <a href="#" onclick="rsemDejarDeVigilar();return false;" style="color:#B71C1C;font-weight:700">parar</a></div>';
+      pararWatch();
+      if(r.estado==='captcha')_captcha=true;
+      var titulos={captcha:'Banxico pidió código de seguridad',otro_monto:'La respuesta trae otro monto',otra_cuenta:'La respuesta no coincide con la cuenta elegida',interno:'Confirma este movimiento en el banco',datos:'Falta revisar un dato'};
+      pintar(r.estado==='datos'?'ambar':'gris',titulos[r.estado]||'No pude confirmar el pago',esc(r.mensaje||'La consulta no dio una respuesta verificable.')+'<br>Este resultado no confirma si el dinero llegó.');
+    }catch(e){if(vigente(n)){pararWatch();pintar('gris','No pude completar la consulta',esc(e.message||'No hubo respuesta')+'.<br>No es una confirmación ni un rechazo del pago. Puedes volver a consultar este mismo comprobante.');}}
+    finally{if(_consulta===token){_consulta=null;ui();}}
   }
+  window.rsemConsultar=function(){
+    if(_leyendo||_consulta||_captcha)return;var v=valores();
+    if(falta(v).length){$('datos').open=true;ui();return;}
+    if(v.venta&&!(centavos(v.venta)>0)){pintar('ambar','Revisa el total opcional','Debe ser un monto positivo, con hasta dos decimales. Puedes dejarlo vacío.');return;}
+    pararWatch();return consultar(v,_version,false);
+  };
   window.rsemVigilar=function(){
-    if(_vig) return;
-    var clave=limpiaClave($('rsem-clave').value); if(!clave) return;
-    _vig={ clave:clave, monto:Number(String($('rsem-monto').value||'').replace(/[^0-9.]/g,'')),
-           venta:Number(String($('rsem-venta').value||'').replace(/[^0-9.]/g,'')),
-           emisor:$('rsem-emisor').value, cuenta:$('rsem-cuenta').value, fecha:$('rsem-fecha').value, paso:0, timer:null };
-    beep(); pintarVig(); siguiente();
+    if(_watch||_leyendo||_consulta||_captcha||_fallos>=2)return;var v=valores();if(falta(v).length)return;
+    var w={version:_version};_watch=w;
+    $('vigilante').innerHTML='Revisaré este mismo comprobante una vez en 2 minutos, mientras el inventario siga abierto. <button type="button" onclick="rsemDejarDeVigilar()">Cancelar revisión</button>';
+    w.timer=setTimeout(function(){if(_watch!==w||!vigente(w.version))return;_watch=null;$('vigilante').innerHTML='';consultar(v,w.version,true);},120000);
   };
-  window.rsemDejarDeVigilar=function(){
-    if(_vig&&_vig.timer) clearTimeout(_vig.timer);
-    _vig=null; var s=$('rsem-vigilante'); if(s) s.innerHTML='';
-  };
-  function siguiente(){
-    if(!_vig) return;
-    if(_vig.paso>=ESPERAS.length){
-      var s=$('rsem-vigilante');
-      if(s) s.innerHTML='<div style="background:#ECEFF1;border-left:6px solid #607D8B;padding:11px 15px;border-radius:9px;font-size:13px">'+
-        '⚪ <b>Ya no sigo checando.</b> Revisé '+ESPERAS.length+' veces en 15 minutos y no apareció. Si le sigo picando, '+
-        'el Banco de México nos pide código. <b>No se entrega la pieza</b> — confírmalo en el banco.</div>';
-      letrero('⚪ No apareció','Revisé 15 minutos. No se entrega: confírmalo en el banco.','#546E7A');
-      _vig=null; return;
-    }
-    var min=ESPERAS[_vig.paso]-(_vig.paso?ESPERAS[_vig.paso-1]:0);
-    _vig.timer=setTimeout(revisar, min*60*1000);
-  }
-  async function revisar(){
-    if(!_vig) return;
-    var v=_vig; v.paso++; pintarVig();
-    var r;
-    try{ r = await preguntar(v); }
-    catch(e){ console.warn('vigilante:',e); siguiente(); return; }
-    if(r.estado!=='confirmado'){ siguiente(); return; }
-    var p=r.pago, cayo=Number(String(p.monto).replace(/[^0-9.]/g,'')), falta=(v.venta>0)?(v.venta-cayo):0;
-    _vig=null; var s=$('rsem-vigilante'); if(s) s.innerHTML='';
-    beep();
-    if(falta>0.005) letrero('🟡 Cayó un ABONO de '+pesos(p.monto), esc(p.pagador)+' — faltan '+pesos(falta)+'. NO se entrega por el total.','#EF6C00');
-    else letrero('🟢 YA CAYÓ '+pesos(p.monto), esc(p.pagador)+(p.concepto?' · '+esc(p.concepto):''),'#2E7D32');
-    await guardarYPintar(p, v.venta, r.propia===false ? (r.avisoTercero||'Llegó a la cuenta del consorcio.') : null);
-  }
-
-
-  // ── 🔴 AQUÍ HABÍA UN AVISO DE TODO EL DINERO QUE ENTRA. SE QUITÓ. ──
-  //
-  // El 8 sep 2026 se puso a escuchar maura_kv/aviso_banco, y con eso
-  // CUALQUIERA que tuviera el inventario abierto se enteraba de cada
-  // depósito: incluido el millón que el papá metió de su bolsa el 11 de
-  // agosto, o lo que le transfieren a su cuenta.
-  //
-  // Eugenio lo cachó el mismo día: los vendedores NO tienen por qué ver
-  // los movimientos de dinero de la familia. Esta pantalla la usa todo el
-  // taller; el sistema de Maura no.
-  //
-  // 🔴 NO VOLVER A PONERLO. Si algún día hace falta avisar aquí, tiene
-  // que ser SOLO del pago que alguien registró en esta pantalla —nunca
-  // "todo lo que entra al banco"—, que es justo lo que hace el vigilante
-  // del semáforo: avisa del comprobante que se tecleó, y de nada más.
-
-
-  // ── PEGAR EL COMPROBANTE DEL CLIENTE ──────────────────────────────
-  // El cliente manda la captura por WhatsApp. En vez de teclear 26
-  // caracteres con alguien enfrente, se pega (Ctrl+V) y la IA saca la
-  // clave. Lo que lea SIEMPRE lo revisa la persona: esto llena la
-  // casilla, NO dispara la consulta.
-  //
-  // Si la IA duda de UN carácter, dice que no pudo en vez de adivinar:
-  // una clave con un error es una consulta rechazada, y a los ~2
-  // rechazos Banxico prende el captcha y el semáforo se muere.
-  var URL_OCR = 'https://maura-tracto.netlify.app/.netlify/functions/comprobante';
-
-  function panelAbierto(){
-    var e = document.getElementById('modal-semaforo');
-    return !!(e && e.classList.contains('active'));
-  }
-
-  function decirOCR(txt, color){
-    var z = $('rsem-pegar-estado');
-    if(z) z.innerHTML = '<span style="color:' + (color || '#555') + '">' + txt + '</span>';
-  }
-
-  // Se achica antes de mandarla: una foto de celular pesa 4 MB y tarda
-  // una eternidad en subir con el internet del taller.
-  function achicar(file){
-    return new Promise(function(res, rej){
-      var fr = new FileReader();
-      fr.onerror = function(){ rej(new Error('no se pudo leer la imagen')); };
-      fr.onload = function(){
-        var img = new Image();
-        img.onerror = function(){ rej(new Error('no parece una imagen')); };
-        img.onload = function(){
-          var max = 1600, w = img.width, h = img.height;
-          if(Math.max(w,h) > max){ var f = max/Math.max(w,h); w = Math.round(w*f); h = Math.round(h*f); }
-          try{
-            var c = document.createElement('canvas'); c.width = w; c.height = h;
-            c.getContext('2d').drawImage(img, 0, 0, w, h);
-            res({ datos: c.toDataURL('image/jpeg', 0.85).split(',')[1], tipo: 'image/jpeg' });
-          }catch(e){
-            // Si el navegador no deja usar el canvas, se manda tal cual.
-            res({ datos: String(fr.result).split(',')[1], tipo: file.type || 'image/png' });
-          }
-        };
-        img.src = fr.result;
-      };
-      fr.readAsDataURL(file);
-    });
-  }
-
-  var _leyendo = false;
-  async function leerComprobante(file){
-    if(_leyendo) return;
-    if(!file || !/^image\//.test(file.type || '')){
-      decirOCR('Eso no es una imagen. Pega la captura del comprobante.', '#B45309'); return;
-    }
-    _leyendo = true;
-    decirOCR('⏳ Leyendo el comprobante…', '#1565C0');
+  function imagen(file){return new Promise(function(resolve,reject){
+    var fr=new FileReader();fr.onerror=function(){reject(new Error('No pude abrir la imagen'));};
+    fr.onload=function(){var im=new Image();im.onerror=function(){reject(new Error('No pude leer esa imagen'));};im.onload=function(){try{
+      var f=Math.min(1,2000/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*f);c.height=Math.round(im.height*f);c.getContext('2d').drawImage(im,0,0,c.width,c.height);resolve({imagen:c.toDataURL('image/jpeg',.92).split(',')[1],tipo:'image/jpeg'});
+    }catch(e){reject(e);}};im.src=fr.result;};fr.readAsDataURL(file);
+  });}
+  async function leer(file){
+    if(!file||!/^image\/(png|jpeg|webp|gif)$/.test(file.type)||file.size>15*1024*1024){limpiar();aviso('Pega una foto JPG, PNG o WebP de hasta 15 MB.');return;}
+    limpiar();var n=_version;_leyendo=true;ui();aviso('Leyendo la captura…');
+    _preview=URL.createObjectURL(file);$('preview').src=_preview;$('preview-link').href=_preview;$('preview-link').hidden=false;
     try{
-      var img = await achicar(file);
-      var res = await fetch(URL_OCR, { method:'POST', headers:{'Content-Type':'application/json'},
-                                       body: JSON.stringify({ imagen: img.datos, tipo: img.tipo }) });
-      var d = await res.json();
-      if(d.error){ decirOCR('⚠️ ' + esc(d.error) + ' Tecléala a mano.', '#B45309'); return; }
-
-      var puso = [];
-      if(d.clave && d.seguro){ $('rsem-clave').value = d.clave; puso.push('la clave'); }
-      if(d.monto){ $('rsem-monto').value = d.monto; puso.push('el monto'); }
-      if(d.fecha){ $('rsem-fecha').value = d.fecha; puso.push('la fecha'); }
-      // A qué cuenta llegó: sale de los últimos dígitos que enseña el
-      // comprobante. Si no se distingue, se queda sin escoger a propósito,
-      // porque adivinarla manda la consulta al banco equivocado.
-      if(d.cuenta){ $('rsem-cuenta').value = d.cuenta; puso.push('la cuenta'); }
-      // 🔴 La cuenta destino no es ninguna de las conocidas. Antes esto lo
-      // tapaba un respaldo que adivinaba por el nombre del banco y ponía la
-      // Banregio del negocio: pasó con un pago de $50,000 que iba al
-      // consorcio. Ahora se dice y la casilla se queda vacía.
-      if(d.cuentaDesconocida){
-        $('rsem-cuenta').value = '';
-        puso.push('⚠️ la cuenta NO se reconoció (termina en ' + d.cuentaDesconocida + ')');
-      }
-
-      if(d.clave && d.seguro){
-        decirOCR('✓ Leí ' + puso.join(', ') + '. <b>Revísalo contra la captura</b> antes de consultar.' +
-          (d.banco ? ' El comprobante dice <b>' + esc(d.banco) + '</b>: escógelo en la lista.' : ''), '#1B5E20');
-      }else{
-        decirOCR('⚠️ No pude leer la clave con seguridad, así que <b>no la puse</b>: ' +
-          esc(d.nota || 'no se alcanza a ver bien') + ' Tecléala a mano del comprobante.', '#B45309');
-      }
-    }catch(e){
-      console.warn('comprobante:', e);
-      decirOCR('⚠️ No pude leer el comprobante. Teclea la clave a mano.', '#B45309');
-    }finally{
-      _leyendo = false;
-    }
+      var img=await imagen(file);if(!vigente(n))return;var d=await pedir('comprobante',img);if(!vigente(n))return;if(d.error)throw new Error(d.error);
+      if(d.seguro===true&&/^[A-Z0-9]{6,40}$/.test(d.clave||''))$('clave').value=d.clave;
+      if(centavos(d.monto)>0)$('monto').value=d.monto;
+      if(fechaValida(d.fecha||''))$('fecha').value=d.fecha;
+      if(['banorte','banregio','consorcio'].includes(d.cuenta))$('cuenta').value=d.cuenta;
+      var banco=String(d.bancoEmisor||'');
+      if(banco&&Array.from($('emisor').options).some(function(o){return o.value===banco;}))$('emisor').value=banco;
+      var mensajes=[];
+      if(d.cuentaDesconocida){$('cuenta').value='';mensajes.push('La cuenta receptora no coincide con una cuenta registrada.');}
+      if(!d.seguro)mensajes.push('No pude leer la clave con seguridad. Pega una foto más clara.');
+      if(d.evidenciaBanco&&banco)mensajes.push('Banco leído: '+d.evidenciaBanco+'.');
+      aviso(mensajes.join(' ')||'Datos leídos. Compáralos con la imagen antes de confirmar.');
+      var f=falta(valores());$('datos').open=f.some(function(x){return !['el banco de origen','la cuenta receptora'].includes(x);});
+    }catch(e){if(vigente(n))aviso('No pude leer esta captura. '+(e.message||'Intenta de nuevo con una foto más clara.'));}
+    finally{if(vigente(n)){_leyendo=false;ui();}}
   }
-
-  // Ctrl+V en cualquier parte, mientras el semáforo esté abierto: así no
-  // hay que atinarle a un recuadro chiquito con el cliente esperando.
-  document.addEventListener('paste', function(ev){
-    if(!panelAbierto()) return;
-    var it = (ev.clipboardData || {}).items || [];
-    for(var i = 0; i < it.length; i++){
-      if(it[i].kind === 'file' && /^image\//.test(it[i].type)){
-        ev.preventDefault(); leerComprobante(it[i].getAsFile()); return;
-      }
-    }
-  });
-
-
-  (function(){
-    var z = document.getElementById('rsem-pegar');
-    if(z){
-      z.addEventListener('dragover', function(e){ e.preventDefault(); z.style.background = '#E8F5E9'; });
-      z.addEventListener('dragleave', function(){ z.style.background = '#F4FBF5'; });
-      z.addEventListener('drop', function(e){ e.preventDefault(); z.style.background = '#F4FBF5';
-        if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) leerComprobante(e.dataTransfer.files[0]); });
-    }
-    var a = document.getElementById('rsem-archivo');
-    if(a) a.addEventListener('change', function(){ if(a.files && a.files[0]) leerComprobante(a.files[0]); });
-  })();
-
-  window.rsemLimpiar=function(){
-    ['rsem-clave','rsem-monto','rsem-venta'].forEach(function(i){ $(i).value=''; });
-    $('rsem-emisor').value=''; $('rsem-cuenta').value=''; $('rsem-fecha').value=hoyLocal();
-    $('rsem-resultado').innerHTML=''; $('rsem-aviso-otro').style.display='none';
-    window.rsemDejarDeVigilar(); limpiarRechazos(); $('rsem-clave').focus();
-  };
-
-  // Lo llama el botón del encabezado (por alTeclear, que espera a que exista).
-  window.semAbrirRaul=function(){
-    if(!$('rsem-fecha').value) $('rsem-fecha').value=hoyLocal();
-    openModal('modal-semaforo');
-    setTimeout(function(){ $('rsem-clave').focus(); }, 80);
-  };
-
-  var e=$('rsem-emisor');
-  if(e) e.addEventListener('change',function(){ $('rsem-aviso-otro').style.display = (e.value==='__otro')?'block':'none'; });
-  var c=$('rsem-clave');
-  if(c) c.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); window.rsemConsultar(); } });
+  document.addEventListener('paste',function(e){var m=document.getElementById('modal-semaforo');if(!m||!m.classList.contains('active'))return;var items=(e.clipboardData||{}).items||[];for(var i=0;i<items.length;i++){if(items[i].kind==='file'&&/^image\//.test(items[i].type)){e.preventDefault();leer(items[i].getAsFile());return;}}});
+  $('archivo').addEventListener('change',function(){var f=this.files&&this.files[0];if(f)leer(f);});
+  $('pegar').addEventListener('dragover',function(e){e.preventDefault();});
+  $('pegar').addEventListener('drop',function(e){e.preventDefault();if(e.dataTransfer.files[0])leer(e.dataTransfer.files[0]);});
+  ['clave','monto','venta','fecha','emisor','cuenta'].forEach(function(id){$(id).addEventListener('input',function(){cancelar();_fallos=0;aviso('Datos ajustados. Revisa antes de confirmar.');ui();});});
+  window.semAbrirRaul=function(){openModal('modal-semaforo');ui();};
+  ui();
 })();
+
 </script>
 <!-- ═══════════════ FIN MÓDULO VENTAS DE MAURA ═══════════════ -->
 
