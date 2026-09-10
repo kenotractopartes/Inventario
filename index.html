@@ -11006,7 +11006,13 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
             <option value="">— escoge —</option>
             <option value="banregio">Banregio</option>
             <option value="banorte">Banorte</option>
-          </select>
+            <!-- 10 sep 2026 — la cuenta del CONSORCIO. No es del negocio: el cliente
+            deposita ahí y ustedes le pagan 2% de comisión (etiqueta V6 en el
+            sistema de Maura). Antes el semáforo estaba ciego aquí, y un pago
+            de $50,000 salió ROJO con toda la razón porque se preguntaba por
+            la cuenta equivocada. Comprobar aquí demuestra que el CLIENTE PAGÓ,
+            no que el dinero ya esté con ustedes. -->
+            <option value="consorcio">Consorcio &mdash; no es cuenta del negocio</option></select>
         </div>
         <div style="grid-column:1/-1">
           <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase">Fecha de la transferencia *</label>
@@ -11154,7 +11160,9 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
       '</table><div style="margin-top:9px;font-size:12px">✓ Sellado por el Banco de México</div>';
   }
 
-  async function guardarYPintar(p, venta){
+  // El tercer dato dice de QUIÉN es la cuenta donde cayó. Sin él, un pago a
+  // la cuenta del consorcio se pintaría idéntico a uno que sí entró al negocio.
+  async function guardarYPintar(p, venta, avisoTercero){
     var cayo=Number(String(p.monto).replace(/[^0-9.]/g,'')), falta=(venta>0)?(venta-cayo):0;
     if(falta>0.005){
       pintar('ambar','🟡 Cayó un ABONO — todavía falta dinero', tablaPago(p)+
@@ -11165,6 +11173,15 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
       pintar('verde','🟢 SÍ CAYÓ ESTE PAGO'+(venta>0?' — cubre la venta':''), tablaPago(p)+
         (venta>0?'':'<div style="margin-top:9px;font-size:13px;color:#1B5E20">Ojo: confirma que cayeron <b>'+
          pesos(p.monto)+'</b>. Si la venta es de más, todavía falta dinero.</div>'));
+    }
+    // 🔴 Cayó en cuenta de un tercero (el consorcio). Sin esto la pantalla se
+    // ve IGUAL que cuando cae en una cuenta del negocio, y no es lo mismo:
+    // aquí el verde significa «el cliente SÍ pagó», no «ya tengo el dinero».
+    if(avisoTercero){
+      $('rsem-resultado').insertAdjacentHTML('beforeend',
+        '<div style="margin-top:12px;background:#FFF8E1;border-left:5px solid #F9A825;'+
+        'padding:11px 14px;border-radius:7px;font-size:14px;line-height:1.5">'+
+        '<b>Ojo: no cayó en una cuenta de ustedes.</b><br>'+esc(avisoTercero)+'</div>');
     }
     try{
       await apuntar({ clave:p.claveRastreo, monto:p.monto, pagador:p.pagador, pagadorRfc:p.pagadorRfc,
@@ -11223,7 +11240,7 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
         return;
       }
 
-      if(r.estado==='confirmado'){ limpiarRechazos(); await guardarYPintar(r.pago, v.venta); return; }
+      if(r.estado==='confirmado'){ limpiarRechazos(); await guardarYPintar(r.pago, v.venta, r.propia===false ? (r.avisoTercero||'Llegó a la cuenta del consorcio.') : null); return; }
       if(r.estado==='no_encontrado'){
         marcarRechazo();
         pintar('rojo','🔴 El Banco de México NO encuentra ese pago',
@@ -11298,7 +11315,7 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
     beep();
     if(falta>0.005) letrero('🟡 Cayó un ABONO de '+pesos(p.monto), esc(p.pagador)+' — faltan '+pesos(falta)+'. NO se entrega por el total.','#EF6C00');
     else letrero('🟢 YA CAYÓ '+pesos(p.monto), esc(p.pagador)+(p.concepto?' · '+esc(p.concepto):''),'#2E7D32');
-    await guardarYPintar(p, v.venta);
+    await guardarYPintar(p, v.venta, r.propia===false ? (r.avisoTercero||'Llegó a la cuenta del consorcio.') : null);
   }
 
 
@@ -11390,6 +11407,14 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
       // comprobante. Si no se distingue, se queda sin escoger a propósito,
       // porque adivinarla manda la consulta al banco equivocado.
       if(d.cuenta){ $('rsem-cuenta').value = d.cuenta; puso.push('la cuenta'); }
+      // 🔴 La cuenta destino no es ninguna de las conocidas. Antes esto lo
+      // tapaba un respaldo que adivinaba por el nombre del banco y ponía la
+      // Banregio del negocio: pasó con un pago de $50,000 que iba al
+      // consorcio. Ahora se dice y la casilla se queda vacía.
+      if(d.cuentaDesconocida){
+        $('rsem-cuenta').value = '';
+        puso.push('⚠️ la cuenta NO se reconoció (termina en ' + d.cuentaDesconocida + ')');
+      }
 
       if(d.clave && d.seguro){
         decirOCR('✓ Leí ' + puso.join(', ') + '. <b>Revísalo contra la captura</b> antes de consultar.' +
