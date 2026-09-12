@@ -95,6 +95,28 @@
   #lupa .x { position:absolute; top:14px; right:16px; background:rgba(255,255,255,.16); border:0; color:#fff;
              font-size:22px; width:40px; height:40px; border-radius:11px; cursor:pointer; }
   .cargando { text-align:center; color:var(--gris); padding:50px 20px; font-size:15px; }
+  .redes-seccion { margin:22px 0 26px; padding-bottom:24px; border-bottom:1px solid var(--linea); }
+  .redes-seccion[hidden] { display:none; }
+  .redes-cabecera { display:flex; align-items:start; justify-content:space-between; gap:12px; }
+  .redes-cabecera .titulo { margin:0 0 7px; }
+  .redes-intro,.redes-estado { color:var(--gris); font-size:13.5px; line-height:1.5; margin:0 0 12px; }
+  .redes-familias { flex-shrink:0; color:var(--azul); background:none; border:0; padding:3px 0; font:inherit; font-size:13px; text-decoration:underline; cursor:pointer; }
+  .redes-buscar { display:block; font-size:13px; font-weight:700; margin:16px 0 6px; }
+  #redes-busqueda { width:100%; border:1px solid var(--azul-borde); border-radius:12px; background:#fff; padding:13px; font:inherit; font-size:16px; color:var(--tinta); }
+  #redes-busqueda:focus-visible,.redes-seccion a:focus-visible,.redes-seccion button:focus-visible { outline:3px solid var(--azul-borde); outline-offset:3px; }
+  .redes-estado { margin:10px 0; }
+  .redes-tarjeta .foto { cursor:default; aspect-ratio:1; }
+  .redes-tarjeta .foto img { object-fit:contain; }
+  .redes-tarjeta .cuerpo { gap:7px; }
+  .redes-tarjeta .t { margin:0; }
+  .redes-tarjeta .m { margin:0; }
+  .redes-tarjeta .wa { margin-top:auto; color:#06240f; }
+  .redes-ayuda { padding:18px; background:#fff; border:1px dashed var(--azul-borde); border-radius:12px; font-size:14px; line-height:1.5; }
+  .redes-ayuda p { margin:0 0 10px; }
+  .redes-ayuda a { color:var(--azul); font-weight:700; }
+  .redes-mas { display:block; margin:18px auto 0; background:#fff; border:1px solid var(--azul-borde); border-radius:10px; padding:11px 22px; font:inherit; font-weight:700; color:var(--azul); cursor:pointer; }
+  .redes-mas[hidden] { display:none; }
+  @media (max-width:380px){ .redes-cabecera { display:block; } .redes-familias { margin-bottom:4px; } }
 </style>
 </head>
 <body>
@@ -106,7 +128,7 @@
            alt="Tractopartes Magaña S.A. de C.V." width="470" height="168">
       <div class="sub">Refacciones para tractocamión · Monterrey, N.L.</div>
     </div>
-    <a class="wa-top" id="wa-general" href="#">💬 WhatsApp</a>
+    <a class="wa-top" id="wa-general" href="/wa/?r=catalogo">💬 WhatsApp</a>
   </div>
 </header>
 
@@ -119,6 +141,21 @@
     Si no ves lo que buscas, pregúntanos — es muy probable que sí lo tengamos.
   </div>
 
+  <section class="redes-seccion" id="lo-viste-redes" aria-labelledby="redes-titulo">
+    <div class="redes-cabecera">
+      <div><h2 class="titulo" id="redes-titulo">Lo viste en redes</h2>
+        <p class="redes-intro">Encuentra la pieza de la publicación y elige con cuál de nuestros dos WhatsApp cotizar. Consulta disponibilidad.</p></div>
+      <button class="redes-familias" id="redes-ir-familias" type="button">Ver familias ↓</button>
+    </div>
+    <label class="redes-buscar" for="redes-busqueda">Busca la pieza de tu video o publicación</label>
+    <input id="redes-busqueda" type="search" placeholder="Ej. cabina Volvo, compresor C13…" maxlength="120" autocomplete="off" aria-controls="redes-lista">
+    <p class="redes-estado" id="redes-estado" role="status" aria-live="polite">Cargando publicaciones…</p>
+    <div class="tarjetas" id="redes-lista"></div>
+    <div class="redes-ayuda" id="redes-ayuda" hidden></div>
+    <button class="redes-mas" id="redes-mas" type="button" hidden>Ver más publicaciones</button>
+    <noscript><p>Para ver las publicaciones activa JavaScript, o <a href="/wa/?r=catalogo">pregúntanos por WhatsApp</a>.</p></noscript>
+  </section>
+
   <div id="app"><div class="cargando">Cargando las piezas…</div></div>
 
   <footer>
@@ -128,6 +165,113 @@
 </div>
 
 <div id="lupa" onclick="cerrarLupa()"><button class="x" onclick="cerrarLupa()">✕</button><img id="lupa-img" alt=""></div>
+
+<script>
+// Publicaciones públicas: independientes del inventario y de sus conexiones.
+// Una publicación no confirma existencias. Los títulos se pintan como texto.
+function textoAcotado(valor, maximo){
+  return Array.from(String(valor == null ? '' : valor).replace(/[\u0000-\u001f\u007f]/g, ' '))
+    .filter(function(c){var k=c.charCodeAt(0);return c.length>1 || k<0xD800 || k>0xDFFF;})
+    .slice(0, maximo).join('').trim();
+}
+function redCatalogo(busqueda){
+  var aliases = {ig:'ig',instagram:'ig',tt:'tt',tiktok:'tt',yt:'yt',youtube:'yt',fb:'fb',facebook:'fb',catalogo:'catalogo'};
+  try { var r = new URLSearchParams(busqueda).get('r') || ''; return Object.prototype.hasOwnProperty.call(aliases, r) ? aliases[r] : 'catalogo'; }
+  catch(e){ return 'catalogo'; }
+}
+function ligaConsulta(msg, red){
+  return '/wa/?r=' + encodeURIComponent(red || redCatalogo(location.search))
+    + '&m=' + encodeURIComponent(textoAcotado(msg, 500));
+}
+function fotoPublica(valor){
+  if(typeof valor !== 'string' || !valor.trim()) return '';
+  try {
+    var u = new URL(valor, location.href);
+    if(u.username || u.password || (u.protocol !== 'https:' && !(u.protocol === 'http:' && u.origin === location.origin))) return '';
+    return u.href;
+  } catch(e){ return ''; }
+}
+function referenciaPublica(valor){ return typeof valor === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,119}$/.test(valor) ? valor : ''; }
+function publicacionesPublicas(datos){
+  if(!datos || !Array.isArray(datos.items)) throw new Error('Publicaciones no disponibles');
+  var vistos = Object.create(null);
+  return datos.items.filter(function(p){
+    var id = p && referenciaPublica(p.id);
+    if(!id || vistos[id] || p.hidden === true || p.web === false || typeof p.nombre !== 'string' || !p.nombre.trim()) return false;
+    vistos[id] = true; return true;
+  }).map(function(p){
+    return {id:p.id,nombre:textoAcotado(p.nombre,500),piece_tag:textoAcotado(p.piece_tag,120),
+      legacy_slug:textoAcotado(p.legacy_slug,60),imagen:fotoPublica(p.imagen),published_at:p.published_at,
+      vendida:p.vendida === true || p.availability === 'vendida'};
+  });
+}
+function ligaPublicacion(p, red){
+  var liga = '/wa/?v=' + encodeURIComponent(p.legacy_slug || p.piece_tag || 'sin-origen')
+    + '&r=' + encodeURIComponent(red || redCatalogo(location.search)) + '&ref=' + encodeURIComponent(p.id);
+  if(p.vendida) liga += '&m=' + encodeURIComponent(textoAcotado('Hola, vi su publicación de ' + p.nombre + ' pero dice que ya se vendió. ¿Tienen otra igual?',500));
+  return liga;
+}
+function textoBusqueda(valor){
+  return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+}
+function filtrarPublicaciones(items, consulta){
+  var palabras = textoBusqueda(consulta).split(' ').filter(Boolean);
+  return items.filter(function(p){ var t = textoBusqueda(p.nombre + ' ' + p.piece_tag); return palabras.every(function(k){return t.indexOf(k) >= 0;}); });
+}
+(function(){
+  'use strict';
+  var items = [], estado = 'cargando', limite = 12;
+  var lista = document.getElementById('redes-lista'), ayuda = document.getElementById('redes-ayuda');
+  var busqueda = document.getElementById('redes-busqueda'), aviso = document.getElementById('redes-estado');
+  var mas = document.getElementById('redes-mas'), seccion = document.getElementById('lo-viste-redes');
+  document.getElementById('wa-general').href = ligaConsulta('Hola, vi su catálogo de piezas y quiero preguntarles por una refacción.');
+  function nodo(tag, clase, texto){ var n=document.createElement(tag); if(clase)n.className=clase; if(texto)n.textContent=texto; return n; }
+  function orientar(){ seccion.hidden = !!location.hash; }
+  function mostrar(){
+    var resultados = filtrarPublicaciones(items, busqueda.value);
+    lista.replaceChildren(); ayuda.replaceChildren(); ayuda.hidden = true;
+    mas.hidden = resultados.length <= limite;
+    if(estado === 'cargando') return;
+    if(estado === 'error' || !resultados.length){
+      aviso.textContent = estado === 'error' ? 'Las publicaciones no están disponibles en este momento.' : (items.length ? 'No encontramos esa pieza entre las publicaciones.' : 'Pronto podrás encontrar aquí nuestras publicaciones.');
+      ayuda.hidden = false;
+      ayuda.appendChild(nodo('p','', 'Puedes buscar por familia abajo o preguntarnos por WhatsApp.'));
+      var consulta = textoAcotado(busqueda.value,120);
+      var a=nodo('a','','Preguntar por WhatsApp');
+      a.href=ligaConsulta(consulta ? 'Hola, vi su catálogo y busco ' + consulta + '. ¿Me pueden ayudar?' : 'Hola, vi su catálogo y quiero preguntar por una refacción.');
+      ayuda.appendChild(a); return;
+    }
+    aviso.textContent = resultados.length + (resultados.length === 1 ? ' publicación' : ' publicaciones') + (busqueda.value.trim() ? ' encontradas' : ' recientes');
+    resultados.slice(0,limite).forEach(function(p){
+      var tarjeta=nodo('article','pz redes-tarjeta'+(p.vendida?' vendida':''));
+      var foto=nodo('div','foto');
+      if(p.imagen){
+        var img=nodo('img'); img.src=p.imagen; img.alt=p.nombre; img.loading='lazy'; img.width=320; img.height=320;
+        img.addEventListener('error',function(){ foto.className='sinfoto';foto.replaceChildren(nodo('span','tx','Foto no disponible')); },{once:true});
+        foto.appendChild(img);
+      } else {foto.className='sinfoto'; foto.appendChild(nodo('span','tx','Consulta las fotos por WhatsApp'));}
+      tarjeta.appendChild(foto);
+      var cuerpo=nodo('div','cuerpo'); cuerpo.appendChild(nodo('h3','t',p.nombre));
+      cuerpo.appendChild(nodo('p',p.vendida?'vendida-et':'m',p.vendida?'Ya se vendió · Pregunta por otra igual':'Consulta disponibilidad'));
+      var a=nodo('a','wa',p.vendida?'Preguntar por otra igual':'Cotizar por WhatsApp'); a.href=ligaPublicacion(p); a.setAttribute('data-ev','publicacion_redes'); a.setAttribute('data-pieza',p.nombre);
+      cuerpo.appendChild(a);tarjeta.appendChild(cuerpo);lista.appendChild(tarjeta);
+    });
+  }
+  busqueda.addEventListener('input',function(){limite=12;mostrar();});
+  mas.addEventListener('click',function(){limite+=12;mostrar();});
+  document.getElementById('redes-ir-familias').addEventListener('click',function(){document.getElementById('app').scrollIntoView({behavior:'auto',block:'start'});});
+  window.addEventListener('hashchange',orientar);orientar();
+  var ctrl=typeof AbortController === 'function' ? new AbortController() : null;
+  var tiempo=setTimeout(function(){if(ctrl)ctrl.abort();if(estado==='cargando'){estado='error';mostrar();}},8000);
+  try {
+    fetch('/redes/index.json',ctrl?{signal:ctrl.signal}:{})
+      .then(function(r){if(!r.ok)throw new Error('No disponible');return r.json();})
+      .then(function(d){items=publicacionesPublicas(d);estado='listo';mostrar();})
+      .catch(function(){estado='error';mostrar();})
+      .then(function(){clearTimeout(tiempo);});
+  } catch(e){clearTimeout(tiempo);estado='error';mostrar();}
+})();
+</script>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -146,7 +290,6 @@
 // SE ACTUALIZA SOLO: una pieza entra al catálogo cuando Raúl le sube
 // fotos, y se sale si se las quita. No hay copia que subir a mano.
 // ══════════════════════════════════════════════════════════════════════
-var TEL = '528121529279';   // 81 2152 9279
 
 // ══════════════════════════════════════════════════════════════════════
 // MEDICIÓN (Google Analytics 4) — lo mismo que tractopartes.com
@@ -212,7 +355,7 @@ var PZ = {}, MEDIA = {}, listo = 0;
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
-function wa(msg){ return 'https://wa.me/' + TEL + '?text=' + encodeURIComponent(msg); }
+function wa(msg){ return ligaConsulta(msg); }
 
 // El modelo es lo que le sirve al cliente para reconocer su pieza.
 function modeloDe(f){
@@ -450,11 +593,6 @@ window.addEventListener('hashchange', function(){ pintar(); window.scrollTo(0, 0
 arrancarMedicion();
 
 // ── Datos ─────────────────────────────────────────────────────────────
-firebase.initializeApp({
-  apiKey: 'AIzaSyDvDNEsWuXbHwHKX8_uTLOhU2vNQNvaCSA',
-  databaseURL: 'https://inventario-julio-26-default-rtdb.firebaseio.com',
-  projectId: 'inventario-julio-26'
-});
 function listoUno(){ if(++listo >= 2) pintar(); }
 function fallo(){
   document.getElementById('app').innerHTML =
@@ -463,10 +601,16 @@ function fallo(){
     + '<a class="wa" href="' + wa('Hola, quiero preguntar por una refacción.')
     + '" target="_blank" rel="noopener">💬 Escribir por WhatsApp</a></div>';
 }
+try { firebase.initializeApp({
+  apiKey: 'AIzaSyDvDNEsWuXbHwHKX8_uTLOhU2vNQNvaCSA',
+  databaseURL: 'https://inventario-julio-26-default-rtdb.firebaseio.com',
+  projectId: 'inventario-julio-26'
+});
 firebase.database().ref('fichas_publicas').on('value',
   function(s){ PZ = s.val() || {}; listoUno(); }, fallo);
 firebase.database().ref('media_modelo').on('value',
   function(s){ MEDIA = s.val() || {}; listoUno(); }, fallo);
+} catch(e) { fallo(); }
 </script>
 </body>
 </html>

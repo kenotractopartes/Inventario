@@ -58,16 +58,21 @@
   // Recorta sin dejar un emoji partido a la mitad: media letra de emoji hace
   // reventar encodeURIComponent y ese visitante no se contaba.
   function recorta(v, n) {
-    var t = String(v == null ? "" : v).slice(0, n);
-    if (/[\uD800-\uDBFF]$/.test(t)) t = t.slice(0, -1);
+    var t = Array.from(String(v == null ? "" : v)).filter(function(c){
+      var k=c.charCodeAt(0); return c.length > 1 || k < 0xD800 || k > 0xDFFF;
+    }).join("").slice(0,n);
+    if (/[\uD800-\uDBFF]$/.test(t)) t = t.slice(0,-1);
     return t;
   }
 
-  var etiqueta = "sin-origen", red = "";
+  var etiqueta = "sin-origen", red = "", referencia = "", mensaje = "";
   try {
     var P = new URLSearchParams(location.search);
     etiqueta = recorta(P.get("v") || P.get("o") || "sin-origen", 60);
     red = recorta(P.get("r") || "", 20);
+    var ref = P.get("ref") || "";
+    referencia = /^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,119}$/.test(ref) ? ref : "";
+    mensaje = recorta(P.get("m") || "", 500).replace(/[\u0000-\u001f\u007f]/g," ").trim();
   } catch (e) {}
 
   // Una clave de fecha (20260807-142829) no sirve para el mensaje; se cuenta
@@ -79,9 +84,9 @@
   var pieza = (esClave || etiqueta === "sin-origen")
     ? "" : etiqueta.replace(/[-_]+/g, " ").trim().toUpperCase();
 
-  var saludo = pieza
+  var saludo = mensaje || (pieza
     ? "Hola, vi el video de " + pieza + " y quiero informacion"
-    : "Hola, vi su publicacion y quiero informacion";
+    : "Hola, vi su publicacion y quiero informacion");
 
   function liga(tel) { return "https://wa.me/" + tel + "?text=" + encodeURIComponent(saludo); }
 
@@ -116,10 +121,42 @@
   contar("visita");
 
   try {
-    window.__wa = { pieza: pieza, liga1: liga(TELS.n1), liga2: liga(TELS.n2), contar: contar };
+    window.__wa = { pieza: pieza, mensaje: mensaje, red: red, liga1: liga(TELS.n1), liga2: liga(TELS.n2), contar: contar };
   } catch (e) {
     window.__wa = { pieza: "", contar: contar };
   }
+
+  // El ref distingue publicaciones incluso si sus nombres producen el mismo
+  // slug. Se consulta después de habilitar los botones: ninguna descarga,
+  // error o dato faltante debe retrasar que la persona abra WhatsApp.
+  window.__wa.cargar = function(aplicar){
+    if(!referencia) return;
+    var ctrl=typeof AbortController === "function" ? new AbortController() : null;
+    var tiempo=ctrl ? setTimeout(function(){ctrl.abort();},6000) : null;
+    try {
+      fetch("/redes/index.json",ctrl?{signal:ctrl.signal}:{})
+        .then(function(r){if(!r.ok)throw new Error("No disponible");return r.json();})
+        .then(function(datos){
+          var indice=datos && datos.by_id;
+          if(!indice || !Object.prototype.hasOwnProperty.call(indice,referencia)) return;
+          var p=indice[referencia];
+          if(!p || p.hidden === true || p.web === false || typeof p.nombre !== "string" || !p.nombre.trim()) return;
+          pieza=recorta(p.nombre,500).replace(/[\u0000-\u001f\u007f]/g," ").trim();
+          if(!pieza) return;
+          saludo=mensaje || ("Hola, vi su publicacion de " + pieza + ". ¿Sigue disponible? Me gustaria saber el precio y ver fotos.");
+          var d=window.__wa;
+          d.pieza=pieza;d.liga1=liga(TELS.n1);d.liga2=liga(TELS.n2);
+          if(typeof p.imagen === "string" && p.imagen.trim()){
+            try {
+              var u=new URL(p.imagen,location.href);
+              if(!u.username && !u.password && (u.protocol === "https:" || (u.protocol === "http:" && u.origin === location.origin))) d.imagen=u.href;
+            } catch(e){}
+          }
+          aplicar();
+        })["catch"](function(){})
+        .then(function(){if(tiempo)clearTimeout(tiempo);});
+    } catch(e){if(tiempo)clearTimeout(tiempo);}
+  };
 })();
 </script>
 
@@ -144,6 +181,12 @@
     background:rgba(255,255,255,.04);padding:11px 16px;}
   .pieza .et{font-size:10px;letter-spacing:.16em;color:var(--suave);font-weight:800;}
   .pieza .nom{margin-top:4px;font-size:14px;font-weight:800;line-height:1.35;}
+  .pieza .nom{overflow-wrap:anywhere;}
+  .pieza-foto{display:block;width:100%;max-height:170px;object-fit:contain;border-radius:9px;margin:0 auto 12px;}
+  .pieza-foto[hidden]{display:none;}
+  .consulta{margin-top:7px;font-size:11.5px;color:var(--suave);line-height:1.4;}
+  .volver-catalogo{color:var(--suave);font-size:12.5px;margin-top:20px;text-underline-offset:3px;}
+  .boton:focus-visible,.volver-catalogo:focus-visible{outline:3px solid #fff;outline-offset:5px;}
 
   .accion{margin:24px 0 0;display:flex;flex-direction:column;align-items:center;gap:12px;width:min(100%,340px);}
   .elige{font-size:12px;letter-spacing:.1em;color:var(--suave);font-weight:800;}
@@ -175,8 +218,10 @@
     <p class="lema">MOTORES &middot; TRANSMISIONES &middot; REFACCIONES</p>
 
     <div class="pieza" id="pieza" hidden>
-      <div class="et">TE INTERESA</div>
+      <img class="pieza-foto" id="piezaFoto" alt="" hidden>
+      <div class="et" id="piezaEtiqueta">TE INTERESA</div>
       <div class="nom" id="piezaNom"></div>
+      <div class="consulta">Consulta disponibilidad con nuestro equipo.</div>
     </div>
 
     <div class="accion">
@@ -195,6 +240,7 @@
       </a>
       <p class="nota" id="nota">Cualquiera de los dos te abre el chat con tu mensaje ya escrito.</p>
     </div>
+    <a class="volver-catalogo" id="volverCatalogo" href="/catalogo.html">Ver más piezas del catálogo</a>
 
     <div class="pie">
       <div>&#128222; Tel&eacute;fono <b>81 1044 2510</b></div>
@@ -212,18 +258,30 @@
     try {
       var d = window.__wa || {};
       var b1 = document.getElementById("liga1"), b2 = document.getElementById("liga2");
-      if (d.liga1) b1.href = d.liga1;
-      if (d.liga2) b2.href = d.liga2;
+      function pintar(){
+        if (d.liga1) b1.href = d.liga1;
+        if (d.liga2) b2.href = d.liga2;
+        if (d.pieza || d.mensaje) {
+          document.getElementById("piezaEtiqueta").textContent = d.pieza ? "TE INTERESA" : "TU CONSULTA";
+          document.getElementById("piezaNom").textContent = d.pieza || d.mensaje;
+          document.getElementById("pieza").hidden = false;
+          document.getElementById("nota").textContent =
+            "Cualquiera de los dos te abre el chat con tu consulta ya escrita.";
+        }
+        if(d.imagen){
+          var foto=document.getElementById("piezaFoto");
+          foto.alt=d.pieza || "";foto.src=d.imagen;foto.hidden=false;
+          foto.addEventListener("error",function(){foto.hidden=true;},{once:true});
+        }
+      }
+      pintar();
       if (d.contar) {
         b1.addEventListener("click", function () { d.contar("5291"); });
         b2.addEventListener("click", function () { d.contar("9279"); });
       }
-      if (d.pieza) {
-        document.getElementById("piezaNom").textContent = d.pieza;
-        document.getElementById("pieza").hidden = false;
-        document.getElementById("nota").textContent =
-          "Cualquiera de los dos te abre el chat preguntando por esta pieza.";
-      }
+      var canales={ig:"ig",instagram:"ig",tt:"tt",tiktok:"tt",yt:"yt",youtube:"yt",fb:"fb",facebook:"fb",catalogo:"catalogo"};
+      if(Object.prototype.hasOwnProperty.call(canales,d.red)) document.getElementById("volverCatalogo").href="/catalogo.html?r="+canales[d.red];
+      if(d.cargar)d.cargar(pintar);
     } catch (e) {}
   })();
   </script>
