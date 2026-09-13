@@ -186,8 +186,13 @@
   .lema{margin:0;color:var(--suave);font-size:13px;line-height:1.7;text-align:right;}
   .lema strong{display:block;color:#eae2ff;font-size:11px;font-weight:750;letter-spacing:.12em;}
   .consulta-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;padding:38px 0 34px;align-items:start;}
-  .kicker{display:flex;align-items:center;gap:8px;font-size:12px;color:#d2c1ed;font-weight:650;}
-  .kicker svg{width:19px;height:19px;}
+  .kicker{display:flex;align-items:center;gap:13px;width:fit-content;max-width:100%;padding:12px 18px 12px 12px;border:1px solid #dc87576b;border-radius:16px;background:linear-gradient(115deg,#49291f,#2a1c29);box-shadow:0 6px 25px #e86a1812;color:#fff4e5;}
+  .envio-icono{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#ffbc70,#ff864b);color:#382014;box-shadow:inset 0 1px #ffe0b780;}
+  .kicker svg{width:28px;height:28px;}
+  .envio-texto{display:flex;flex-direction:column;gap:3px;}
+  .envio-texto span{font-size:10px;letter-spacing:.14em;font-weight:700;text-transform:uppercase;color:#ffc394;}
+  .envio-texto strong{font-size:19px;line-height:1.1;letter-spacing:.01em;font-weight:800;text-transform:uppercase;}
+  .envio-bandera{font-size:27px;line-height:1;margin-left:5px;}
   h1{font-size:39px;line-height:1.12;letter-spacing:-.035em;margin:16px 0 12px;font-weight:780;max-width:400px;}
   .intro{font-size:15px;line-height:1.55;color:var(--suave);max-width:370px;margin:0;}
   .pieza{margin-top:24px;border:1px solid var(--linea);border-radius:18px;overflow:hidden;background:#1a1625;}
@@ -230,7 +235,7 @@
     .lema{display:none;}
     .consulta-grid{display:flex;flex-direction:column;gap:25px;padding:0 0 25px;}
     .producto,.accion{width:100%;}
-    .kicker{font-size:11px;justify-content:center;}
+    .kicker{margin:0 auto;}
     h1{font-size:29px;max-width:none;margin:13px 0 7px;text-align:center;}
     .intro{font-size:13px;max-width:none;text-align:center;}
     .pieza{margin-top:18px;display:flex;align-items:center;border-radius:12px;}
@@ -268,7 +273,7 @@
     </header>
     <main class="consulta-grid">
       <section class="producto" aria-labelledby="titulo">
-        <div class="kicker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 6h11v11H3V6Zm11 4h4l3 4v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg> Envíos a todo México</div>
+        <div class="kicker"><span class="envio-icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 6h11v11H3V6Zm11 4h4l3 4v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span><span class="envio-texto"><span>Envíos a</span><strong>todo México</strong></span><span class="envio-bandera" aria-hidden="true">🇲🇽</span></div>
         <h1 id="titulo">Cotiza la pieza que necesitas.</h1>
         <p class="intro">Precio, fotos y disponibilidad,<br>directamente con nuestro equipo.</p>
         <div class="pieza" id="pieza" hidden>
