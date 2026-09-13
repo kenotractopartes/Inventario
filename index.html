@@ -1313,6 +1313,45 @@
 <div class="toast" id="toast"></div>
 
 <script>
+/* Unión de cambios por ID. Ante cambios incompatibles conserva las dos copias
+   y obliga a revisar; nunca elige silenciosamente una computadora ganadora. */
+(function(root){
+  'use strict';
+  const clone=v=>v===undefined?undefined:JSON.parse(JSON.stringify(v));
+  const eq=(a,b)=>{
+    if(a===b)return true;
+    if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+    const ka=Object.keys(a),kb=Object.keys(b);
+    return ka.length===kb.length&&ka.every(k=>Object.prototype.hasOwnProperty.call(b,k)&&eq(a[k],b[k]));
+  };
+  function merge(base,local,remote,path){
+    path=path||'inventario';
+    if(eq(local,base))return clone(remote);
+    if(eq(remote,base)||eq(local,remote))return clone(local);
+    if(Array.isArray(base)&&Array.isArray(local)&&Array.isArray(remote)){
+      const indexed=a=>a.every(x=>x&&typeof x==='object'&&x.id!==undefined)&&new Set(a.map(x=>String(x.id))).size===a.length;
+      if([base,local,remote].every(indexed)){
+        const maps=[base,local,remote].map(a=>new Map(a.map(x=>[String(x.id),x])));
+        const ids=[...new Set(remote.concat(local).map(x=>String(x.id)))];
+        return ids.map(id=>merge(maps[0].get(id),maps[1].get(id),maps[2].get(id),path+'/'+id)).filter(x=>x!==undefined);
+      }
+    }else if([base,local,remote].every(x=>x&&typeof x==='object'&&!Array.isArray(x))){
+      const result=Object.create(null);
+      for(const k of new Set([...Object.keys(base),...Object.keys(local),...Object.keys(remote)])){
+        const v=merge(base[k],local[k],remote[k],path+'/'+k);
+        if(v!==undefined)result[k]=v;
+      }
+      return result;
+    }
+    throw new Error('Otro equipo cambió el mismo dato ('+path+'). Se conservaron tus cambios para revisión.');
+  }
+  const api={merge,eq,clone};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+  else root.InventarioMerge=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
+
+</script>
+<script>
 // ============================================================
 // CATÁLOGOS BASE (editables desde "Administrar")
 // ============================================================
@@ -2752,12 +2791,18 @@ function initFirebase() {
       const remoto = snap.val();
       fbListo = true;
       if (!remoto) {
-        // Primera vez: la nube está vacía → subimos lo local
-        if (DATA.camiones.length || DATA.piezas.length) empujarAFirebase();
+        setEstadoSync('offline','La nube está vacía — revisar respaldo');
+        avisarFallaGuardado('No llegaron los datos del inventario. Se conserva la copia local y no se sustituye la nube.');
         return;
       }
-      // Ignorar el eco de nuestro propio guardado
-      if (remoto._origen === DEVICE_ID) return;
+      if(_invSync.ocupado)return;
+      if(_invSync.pendiente){
+        // Un pendiente recuperado conoce su base: unirlo con la nube mediante transacción.
+        if(_invSync.base)empujarAFirebase();
+        else avisarFallaGuardado('Hay cambios locales anteriores a la primera lectura. Se conservan para revisión.');
+        return;
+      }
+      _invSync.base=InventarioMerge.clone(normalizarData(remoto));
       // Aplicar datos remotos.
       // El try/finally NO es adorno (jul 2026). Si algo tronaba aquí —casi
       // siempre al redibujar— la línea de abajo nunca corría y
@@ -2775,6 +2820,8 @@ function initFirebase() {
       } catch(e) {
         avisarFallaGuardado('Falló al aplicar los datos que llegaron de la nube. '
           + 'Recarga la página; si sigue, mándale esta foto a Eugenio.', e);
+        setEstadoSync('offline','No se pudieron aplicar los datos');
+        return;
       } finally {
         fbAplicandoRemoto = false;   // PASE LO QUE PASE
       }
@@ -2786,7 +2833,8 @@ function initFirebase() {
 
     // Estado de conexión
     firebase.database().ref('.info/connected').on('value', (s) => {
-      setEstadoSync(s.val() ? 'ok' : 'offline', s.val() ? 'Sincronizado' : 'Sin conexión — datos locales');
+      if(!s.val())setEstadoSync('offline','Sin conexión — datos locales');
+      else if(_invSync.pendiente)empujarAFirebase();
     });
   } catch(e) {
     console.error('No se pudo iniciar Firebase:', e);
@@ -2826,70 +2874,60 @@ function _limpiarLlaves(valor, cuenta){
   return valor;
 }
 
+// Un guardado pendiente conserva su base y sus cambios, incluso tras recargar.
+var _invSync={base:null,ocupado:false,pendiente:false};
+try { const x=JSON.parse(localStorage.getItem('tpm_guardado_pendiente')||'null');
+  if(x&&x.local){_invSync.base=x.base||null;_invSync.pendiente=true;_invSync.recuperado=x.local;}
+} catch(e){console.warn('No se pudo leer el guardado pendiente',e);}
 function empujarAFirebase() {
-  if (!fbRef) return;
-  if (!esEditor()) {
-    // Solo Ver nunca escribe en la nube. ESTO SE AVISA: antes se regresaba
-    // callado, así que el cambio se guardaba solo en esa computadora, se veía
-    // bien al recargar (venía del navegador) y luego DESAPARECÍA cuando la nube
-    // mandaba su copia. Se veía como "está bugeado", pero era el modo.
-    avisarFallaGuardado('Estás en modo <b>Solo Ver</b>: el cambio NO se subió a la nube y se va a perder. '
-      + 'Entra como <b>Editor</b> (botón de arriba) y vuelve a hacerlo.');
-    return;
-  }
-  // Se limpia DATA en el mismo lugar (no una copia): así lo local y la nube
-  // quedan iguales y la llave mala no vuelve a aparecer en el siguiente guardado.
-  var cuenta = { n: 0 };
-  _limpiarLlaves(DATA, cuenta);
-  if (cuenta.n) { console.warn('Se corrigieron ' + cuenta.n + ' llaves inválidas antes de subir'); guardarLocal(); }
-  // ══════════════════════════════════════════════════════════════════
-  // CANDADO CONTRA EL BORRADO MASIVO (10 ago 2026)
-  // ──────────────────────────────────────────────────────────────────
-  // El 8 de agosto había 709 piezas y el 10 amanecieron 484: se
-  // perdieron 243, incluidos los 111 arneses completos, 15 ventas
-  // atendidas y 5 salidas. Nadie borró nada.
-  //
-  // Qué pasó: el inventario se sube en UN SOLO bloque que reemplaza todo.
-  // Si una computadora no logra aplicar lo que llega de la nube — se cayó
-  // el internet un momento, o falló al redibujar — se queda con su copia
-  // vieja. Y en cuanto esa persona edita CUALQUIER cosa, sube su copia
-  // vieja encima de la buena. Un cambio de una pieza borró 243.
-  //
-  // El candado: antes de subir se compara contra lo que hay en la nube.
-  // Si esta computadora va a mandar MENOS del 85% de las piezas que ya
-  // están allá, NO se sube y se avisa en grande. Perder inventario ahora
-  // exige ignorar un aviso a propósito, no un descuido.
-  //
-  // Se deja pasar hasta un 15% menos para no estorbar en lo normal: una
-  // tanda de ventas o una limpieza de faltantes baja el número de a poco.
-  // ══════════════════════════════════════════════════════════════════
-  const _miasVivas = (DATA.piezas || []).length;
-  fbRef.once('value').then(function(snap){
-    const remoto = snap.val();
-    const _nubeVivas = (remoto && Array.isArray(remoto.piezas)) ? remoto.piezas.length : 0;
-    if (_nubeVivas >= 20 && _miasVivas < _nubeVivas * 0.85) {
-      setEstadoSync('offline', 'NO se guardó — revisa');
-      avisarFallaGuardado(
-        'NO SE GUARDÓ, a propósito.\n\n'
-        + 'Esta computadora tiene ' + _miasVivas + ' piezas y en la nube hay ' + _nubeVivas + '. '
-        + 'Subirlas borraría ' + (_nubeVivas - _miasVivas) + ' piezas del inventario de todos.\n\n'
-        + 'Casi siempre es que esta compu se quedó con datos viejos. '
-        + 'RECARGA LA PÁGINA (Ctrl+Shift+R) y vuelve a intentar. '
-        + 'Si después de recargar sigue saliendo esto, mándale esta foto a Eugenio y NO sigas capturando aquí.',
-        new Error('bloqueado: ' + _miasVivas + ' local vs ' + _nubeVivas + ' en la nube'));
+  if(!fbRef||!esEditor())return;
+  if(_invSync.recuperado){DATA=_invSync.recuperado;delete _invSync.recuperado;}
+  _limpiarLlaves(DATA,{n:0});
+  _invSync.pendiente=true;
+  try {localStorage.setItem('tpm_guardado_pendiente',JSON.stringify({base:_invSync.base,local:DATA}));}
+  catch(e){avisarFallaGuardado('No se pudo conservar la copia pendiente en esta computadora.',e);}
+  if(_invSync.ocupado)return;
+  if(!_invSync.base){setEstadoSync('offline','Esperando los datos de la nube');return;}
+  const base=InventarioMerge.clone(_invSync.base), enviado=InventarioMerge.clone(DATA);
+  _invSync.ocupado=true;
+  setEstadoSync('offline','Guardando cambios…');
+  let conflicto=null;
+  fbRef.transaction(function(remoto){
+    conflicto=null;
+    try {
+      if(!remoto||!Array.isArray(remoto.piezas))throw new Error('La nube no contiene un inventario válido. No se reemplazará con una copia local.');
+      const limpio=InventarioMerge.clone(remoto);
+      delete limpio._key;delete limpio._origen;delete limpio._ts;
+      const unido=InventarioMerge.merge(base,enviado,limpio);
+      if(remoto.piezas.length>=20&&(unido.piezas||[]).length<remoto.piezas.length*0.85)
+        throw new Error('El cambio quitaría más del 15% de las piezas. No se aplicó.');
+      return {...unido,_origen:DEVICE_ID,_ts:Date.now(),_key:EDITOR_KEY};
+    }catch(e){conflicto=e;return;}
+  },function(error,committed,snapshot){
+    _invSync.ocupado=false;
+    if(error||!committed){
+      setEstadoSync('offline','NO se guardó — cambios conservados');
+      avisarFallaGuardado('No se confirmó el guardado. Tus cambios siguen en esta computadora; no se reemplazó el inventario.',error||conflicto);
       return;
     }
-    _subirDeVerdad();
-  }).catch(function(){ _subirDeVerdad(); });   // sin red, se intenta igual
-
-  function _subirDeVerdad(){
-  const payload = { ...DATA, _origen: DEVICE_ID, _ts: Date.now(), _key: EDITOR_KEY };
-  fbRef.set(payload).then(() => setEstadoSync('ok', 'Sincronizado'))
-    .catch((e) => {
-      setEstadoSync('offline', 'Sin permiso o sin conexión');
-      avisarFallaGuardado('La nube RECHAZÓ el cambio. Quedó solo en esta computadora.', e);
-    });
-  }
+    try {
+      const confirmado=normalizarData(snapshot.val());
+      // Conserva también lo que el usuario editó mientras esperaba a Firebase.
+      const siguiente=InventarioMerge.merge(enviado,DATA,confirmado);
+      _invSync.base=InventarioMerge.clone(confirmado);
+      DATA=normalizarData(siguiente);
+      _invSync.pendiente=!InventarioMerge.eq(DATA,confirmado);
+      guardarLocal();
+      if(_invSync.pendiente){empujarAFirebase();return;}
+      localStorage.removeItem('tpm_guardado_pendiente');
+      refrescarVistaActual();
+      setEstadoSync('ok','Sincronizado');
+    }catch(e){
+      _invSync.pendiente=true;
+      setEstadoSync('offline','Cambios pendientes de revisar');
+      avisarFallaGuardado('Se recibió el guardado, pero quedan cambios locales por revisar.',e);
+    }
+  },false); // No mostrar como confirmado un cambio que solo existe en la caché.
 }
 
 function normalizarData(obj) {
