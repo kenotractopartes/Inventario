@@ -2880,7 +2880,8 @@ try { const x=JSON.parse(localStorage.getItem('tpm_guardado_pendiente')||'null')
   if(x&&x.local){_invSync.base=x.base||null;_invSync.pendiente=true;_invSync.recuperado=x.local;}
 } catch(e){console.warn('No se pudo leer el guardado pendiente',e);}
 function empujarAFirebase() {
-  if(!fbRef||!esEditor())return;
+  if(!fbRef)return;
+  if(!esEditor()){ avisarFallaGuardado('Esta cuenta tiene acceso de lectura: el cambio no se guardó en la nube.'); return; }
   if(_invSync.recuperado){DATA=_invSync.recuperado;delete _invSync.recuperado;}
   _limpiarLlaves(DATA,{n:0});
   _invSync.pendiente=true;
