@@ -183,6 +183,14 @@
   .marca{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-bottom:30px;border-bottom:1px solid var(--linea);}
   .logo-superficie{flex:0 1 440px;min-width:0;}
   .logo{display:block;width:100%;height:auto;mix-blend-mode:lighten;}
+  @keyframes logo-saludo{
+    0%,100%{transform:perspective(900px) rotateY(0) rotateX(0) translateY(0) scale(1);filter:brightness(1);}
+    38%{transform:perspective(900px) rotateY(-2.2deg) rotateX(.7deg) translateY(-2px) scale(1.006);filter:brightness(1.07);}
+    68%{transform:perspective(900px) rotateY(.7deg) rotateX(-.25deg) translateY(-.6px) scale(1.002);filter:brightness(1.025);}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .logo-en-movimiento{animation:logo-saludo 3.6s ease-in-out .3s 1;}
+  }
   .lema{margin:0;color:var(--suave);font-size:13px;line-height:1.7;text-align:right;}
   .lema strong{display:block;color:#eae2ff;font-size:11px;font-weight:750;letter-spacing:.12em;}
   .consulta-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;padding:38px 0 34px;align-items:start;}
@@ -335,5 +343,19 @@
     } catch (e) {}
   })();
   </script>
+<script>
+// Un saludo discreto al cargar el logo: una sola vez, sin ocultar la imagen.
+(function(){
+  var logo=document.querySelector('.logo');
+  if(!logo) return;
+  function iniciar(){
+    if(!logo.naturalWidth || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    logo.addEventListener('animationend',function(){logo.classList.remove('logo-en-movimiento');},{once:true});
+    requestAnimationFrame(function(){logo.classList.add('logo-en-movimiento');});
+  }
+  if(logo.complete) iniciar();
+  else logo.addEventListener('load',iniciar,{once:true});
+})();
+</script>
 </body>
 </html>
