@@ -1406,6 +1406,17 @@ const FAMILIAS = [
     botones: ['Radiador'] },
   { id: 'cabezas', nombre: 'Cabezas de Motor', nombreSingular: 'Cabeza de Motor', color: '#e0d4c0', tipo: 'porMotor',
     botones: ['ISX','N14','N14 Plus','ISM','M11','Detroit S60','DD4','DD5','DD6','DD15','Caterpillar C13','Caterpillar C15','PX8','BigCam'] },
+  // ── MONOBLOCK (15 sep 2026, lo pidió Eugenio) ─────────────────────
+  // El block del motor. Se captura por modelo de motor (los mismos botones
+  // que Cabeza de Motor) con AÑO y N° DE SERIE: el block trae el número
+  // troquelado, y sin serie no se puede facturar.
+  // `tieneAnioSerie` pinta la cajita de Año + Serie en captura y edición.
+  // Se guardan como extras.fichaAño y extras.serie A PROPÓSITO, con los
+  // mismos nombres que usan Motor y Chasis: así la tarjeta, la impresión,
+  // el Excel y la factura los leen sin tocarles nada. No lleva CPL ni HP:
+  // eso es del motor armado, no del block.
+  { id: 'monoblocks', nombre: 'Monoblocks', nombreSingular: 'Monoblock', color: '#dcd3e8', tipo: 'porMotor', tieneAnioSerie: true,
+    botones: ['ISX','N14','N14 Plus','ISM','M11','Detroit S60','DD4','DD5','DD6','DD15','Caterpillar C13','Caterpillar C15','PX8','BigCam'] },
   { id: 'ciguenales', nombre: 'Cigüeñales', nombreSingular: 'Cigüeñal', color: '#d4d8f0', tipo: 'libre',
     botones: [], placeholderLibre: 'Modelo, número, estado (010/020), etc.' },
   { id: 'campanas', nombre: 'Campanas de Motor', nombreSingular: 'Campana de Motor', color: '#f0e0d4', tipo: 'porMotor',
@@ -4016,7 +4027,10 @@ function abrirAdelantarFactura(){
 var FACTURA_FAMILIAS = {
   motores: { sat: '26101504' },
   chasis:  { sat: '25102100' },
-  cabinas: { sat: '25181607' }
+  cabinas: { sat: '25181607' },
+  // Monoblock (15 sep 2026): la clave que Maura YA usó 9 veces para
+  // "MONOBLOCK" en piezas.js (IX032, L042, M036, NV024). No se inventó.
+  monoblocks: { sat: '26101700' }
 };
 // El código interno de chasis y cabinas depende de la MARCA. Sale de los
 // que Maura ya usó: TCF001 Freightliner, TCK001 Kenworth, TCI001
@@ -4086,6 +4100,11 @@ function descripcionFactura(p){
     var est = (e.estadoMotor || '').toUpperCase() === 'RECONSTRUIDO' ? 'RECONSTRUIDO' : 'USADO';
     return { texto: ('MOTOR ' + modelo + ' NO. SERIE: ' + serie + ' ' + est).replace(/\s+/g,' ').trim(),
              sat: FACTURA_FAMILIAS.motores.sat, cod: '' };
+  }
+  if (fam === 'monoblocks') {
+    // El modelo es el del motor (ISX, N14…); el año y la serie son del block.
+    return { texto: ('MONOBLOCK ' + modelo + ' ' + anio + ' NO. SERIE: ' + serie + ' USADO').replace(/\s+/g,' ').trim(),
+             sat: FACTURA_FAMILIAS.monoblocks.sat, cod: '' };
   }
   if (fam === 'chasis') {
     var partes = ['MARCA: ' + marca];
@@ -5491,8 +5510,8 @@ function detalleDePiezas(piezas) {
     const ex = p.extras || {};
     const precioTag = precioBadge(p);
 
-    // Para Motor, Cabina, Chasis: formato de tabla con todos los datos
-    if (f && (f.tieneInfoMotor || f.tieneFichaTecnica)) {
+    // Para Motor, Cabina, Chasis (y Monoblock): formato de tabla con todos los datos
+    if (f && (f.tieneInfoMotor || f.tieneFichaTecnica || f.tieneAnioSerie)) {
       const filas = [];
       // Datos del motor
       if (ex.estadoMotor) filas.push(['Estado', escapeHtml(ex.estadoMotor)]);
@@ -6003,6 +6022,25 @@ function seleccionarFamilia(famId) {
       </div>`;
   }
 
+  // Monoblock: Año + N° de Serie. Reusa el id `pieza-serie` del motor: nunca
+  // están los dos bloques a la vez (una familia es motor O es monoblock).
+  if (f.tieneAnioSerie) {
+    html += `
+      <div style="background:#faf8f3; border:1px solid #cec7b8; border-left:3px solid #b03a2e; border-radius:2px; padding:14px; margin-bottom:16px;">
+        <div style="font-weight:800; color:#1a1a1a; margin-bottom:10px; font-size:14px; text-transform:uppercase; letter-spacing:0.5px;">Datos del ${escapeHtml((f.nombreSingular || f.nombre || '').toLowerCase())}</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Año</label>
+            <input type="text" id="pieza-anio" placeholder="Ej. 2015" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label>N° de Serie</label>
+            <input type="text" id="pieza-serie" placeholder="Ej. 79870195">
+          </div>
+        </div>
+      </div>`;
+  }
+
   // Ficha Técnica: para Motor, Cabina, Chasis. Precarga datos del camión si existe.
   if (f.tieneFichaTecnica) {
     const esMotor = (f.id === 'motores');
@@ -6258,6 +6296,16 @@ function guardarPieza() {
     if (cpl) baseExtras.cpl = cpl;
     if (hp) baseExtras.hp = hp;
     // estadoMotor ya se guarda en _piezaExtras vía selectPiezaExtra
+  }
+
+  // Monoblock: año y serie. Con los MISMOS nombres de campo que motor y
+  // chasis (extras.serie, extras.fichaAño) para que la tarjeta, la
+  // impresión, el Excel y la factura los lean sin un solo cambio.
+  if (f.tieneAnioSerie) {
+    const serieMb = document.getElementById('pieza-serie')?.value.trim();
+    const anioMb  = document.getElementById('pieza-anio')?.value.trim();
+    if (serieMb) baseExtras.serie = serieMb;
+    if (anioMb)  baseExtras.fichaAño = anioMb;
   }
 
   // Ficha técnica (Motor, Cabina, Chasis)
@@ -7735,6 +7783,19 @@ function editarPieza(id) {
       </div>`;
   }
 
+  // Monoblock: Año + N° de Serie. Los ids edit-fichaAño y edit-serie ya los
+  // lee el guardado de la edición cuando existen — no hay que tocarlo.
+  if (f?.tieneAnioSerie) {
+    html += `
+      <div style="background:#faf8f3; border:1px solid #cec7b8; border-left:3px solid #b03a2e; border-radius:2px; padding:14px; margin:16px 0;">
+        <div style="font-weight:800; margin-bottom:10px; font-size:14px; text-transform:uppercase;">Datos del ${escapeHtml((f.nombreSingular || f.nombre || '').toLowerCase())}</div>
+        <div class="field-row">
+          <div class="field"><label>Año</label><input type="text" id="edit-fichaAño" value="${escapeHtml(ex.fichaAño || '')}" inputmode="numeric"></div>
+          <div class="field"><label>N° de Serie</label><input type="text" id="edit-serie" value="${escapeHtml(ex.serie || '')}"></div>
+        </div>
+      </div>`;
+  }
+
   if (f?.tieneFichaTecnica) {
     html += `
       <div style="background:#faf8f3; border:1px solid #cec7b8; border-left:3px solid #b03a2e; border-radius:2px; padding:14px; margin:16px 0;">
@@ -8926,7 +8987,7 @@ function _renderResultadosBusqueda() {
                 : '');
 
             let cuerpoPieza;
-            if (fam && (fam.tieneInfoMotor || fam.tieneFichaTecnica)) {
+            if (fam && (fam.tieneInfoMotor || fam.tieneFichaTecnica || fam.tieneAnioSerie)) {
               let tablaHTML = detalleDePiezas([p]).join('');
               cuerpoPieza = `<div style="flex:1; min-width:0;">${tablaHTML}${origenTexto}</div>`;
             } else {
@@ -9308,6 +9369,7 @@ function columnasImprimir(f) {
   // Chasis (jul 2026): sin "Modelo" (venía vacío/redundante) y con "Ubicación"
   // en el patio, a pedido de Eugenio.
   if (f.id === 'chasis') return [...base,'Marca','Año','VIN','Ubicación','Precio'];
+  if (f.tieneAnioSerie) return [...base,'Año','Serie','Precio'];   // Monoblock
   if (f.tieneInfoMotor) return [...base,'Serie','CPL','HP','Precio'];
   if (f.tieneFichaTecnica) return [...base,'Marca','Modelo','Año','VIN','Precio'];
   if (f.id === 'diferenciales' || f.id === 'mancuernas') return [...base,'Libras','Marca Eje','Suspensión','Paso','Precio'];
