@@ -1038,6 +1038,7 @@
   <h3>💾 Respaldo de seguridad</h3>
   <p style="color:#666; font-size:14px; margin-bottom: 10px;">Archivo JSON con TODOS los datos.</p>
   <button class="btn btn-block" onclick="exportJSON()">⬇ Descargar Respaldo</button>
+  <button class="btn btn-block" onclick="descargarCopiasLocalesConservadas()">⬇ Copias locales conservadas para revisión</button>
   <div style="height: 10px"></div>
   <label class="btn btn-block" style="cursor:pointer; display:block;">
     ⬆ Restaurar desde Respaldo (reemplaza todo)
@@ -1512,6 +1513,7 @@ function _ricEsLaDeHoy(p){ return _ricEsSemana(p) && p.extras.ricSemana === _ric
 // Corre con setTimeout al arrancar (el mismo patrón que _limpiarModelosInyectores)
 // y no dentro de un render, para no meterse en su propio ciclo.
 function _ricAsegurarSemana(){
+  if(!inventarioBaseLista()) return;
   try {
     if (typeof esEditor !== 'function' || !esEditor()) return;
     if (!Array.isArray(DATA.piezas)) return;
@@ -2023,6 +2025,7 @@ function _estatusIgnorado(eid, serie){
 }
 
 function espejoChasisEstatus(data){
+  if(!inventarioBaseLista()) return;
   if(!esEditor()) return;                       // solo el editor crea piezas
   if(!DATA.estatusChasisSync) DATA.estatusChasisSync={};
   const quitados = dedupChasisEstatus();        // 1) limpia cualquier duplicado existente
@@ -2725,6 +2728,7 @@ function imprimirSalida(id, copias){
 // RESPALDO AUTOMÁTICO EN LA NUBE (snapshot semanal en Firebase, sin descargas)
 // ============================================================
 function respaldoAutomatico(){
+  if(!inventarioBaseLista()) return;
   try {
     if (!fbRef) return;                                                // sin Firebase iniciado (o preview), no respalda
     if (typeof esEditor === 'function' && !esEditor()) return;         // solo el editor respalda
@@ -2810,7 +2814,7 @@ function initFirebase() {
       if(_invSync.pendiente){
         // Un pendiente recuperado conoce su base: unirlo con la nube mediante transacción.
         if(_invSync.base)empujarAFirebase();
-        else avisarFallaGuardado('Hay cambios locales anteriores a la primera lectura. Se conservan para revisión.');
+        else mostrarRevisionLocal(remoto);
         return;
       }
       _invSync.base=InventarioMerge.clone(normalizarData(remoto));
@@ -2837,6 +2841,7 @@ function initFirebase() {
         fbAplicandoRemoto = false;   // PASE LO QUE PASE
       }
       setEstadoSync('ok', 'Sincronizado');
+      programarMantenimientoSeguro();
     }, (err) => {
       console.error('Firebase:', err);
       setEstadoSync('offline', 'Sin conexión — datos locales');
@@ -2886,14 +2891,101 @@ function _limpiarLlaves(valor, cuenta){
 }
 
 // Un guardado pendiente conserva su base y sus cambios, incluso tras recargar.
-var _invSync={base:null,ocupado:false,pendiente:false};
+var _invSync={base:null,ocupado:false,pendiente:false,recuperando:false};
 try { const x=JSON.parse(localStorage.getItem('tpm_guardado_pendiente')||'null');
   if(x&&x.local){_invSync.base=x.base||null;_invSync.pendiente=true;_invSync.recuperado=x.local;}
 } catch(e){console.warn('No se pudo leer el guardado pendiente',e);}
+// 21-sep-2026: startup helpers must not turn a stale cache into an edit.
+function inventarioBaseLista(){
+  return !!(fbListo && !fbAplicandoRemoto && _invSync && _invSync.base && !_invSync.pendiente && !_invSync.ocupado && !_invSync.recuperando);
+}
+var _invMantenimientoProgramado=false;
+function programarMantenimientoSeguro(){
+  if(_invMantenimientoProgramado) return;
+  _invMantenimientoProgramado=true;
+  setTimeout(function(){
+    _invMantenimientoProgramado=false;
+    if(!inventarioBaseLista()) return;
+    // Each helper rechecks the gate: if one starts a save the rest wait.
+    espejoChasisEstatus(_estatusChasisData);
+    _ricAsegurarSemana();
+    _limpiarModelosInyectores();
+    _recuperarFotosCampanas();
+    rellenarFichasFaltantes();
+  },0);
+}
+function mostrarRevisionLocal(remoto){
+  _invSync.remoto=InventarioMerge.clone(normalizarData(remoto));
+  setEstadoSync('offline','Copia local pendiente — revisar antes de editar');
+  avisarFallaGuardado('Esta computadora conserva una copia local pendiente. La nube tiene '+
+    _invSync.remoto.piezas.length+' piezas; esta copia tiene '+DATA.piezas.length+'. No se ha reemplazado la nube.');
+  const aviso=document.getElementById('aviso-falla-guardado');
+  if(aviso && !document.getElementById('inv-usar-nube')){
+    const btn=document.createElement('button');
+    btn.id='inv-usar-nube';btn.type='button';
+    btn.textContent='Ver datos de la nube y conservar copia local';
+    btn.style.cssText='display:block;margin-top:9px;padding:9px 12px;border:1px solid white;border-radius:6px;background:white;color:#75271e;font-weight:700;cursor:pointer';
+    btn.onclick=usarNubeConRespaldoLocal;
+    aviso.appendChild(btn);
+  }
+}
+async function usarNubeConRespaldoLocal(){
+  if(!_invSync.pendiente || _invSync.base || _invSync.ocupado || _invSync.recuperando) return;
+  _invSync.recuperando=true;
+  const btn=document.getElementById('inv-usar-nube');if(btn)btn.disabled=true;
+  try{
+    // get() asks the server; failure leaves the current pending data untouched.
+    const snap=await fbRef.get();
+    const remoto=snap.val();
+    if(!remoto || !Array.isArray(remoto.piezas) || !remoto.piezas.length)
+      throw new Error('No llegó un inventario válido de la nube. Se conserva la copia actual.');
+    const localAnterior=InventarioMerge.clone(DATA);
+    const pendienteAnterior=localStorage.getItem('tpm_guardado_pendiente');
+    const archivo='tpm_revision_local_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+    const respaldo=JSON.stringify({fecha:new Date().toISOString(),motivo:'Copia pendiente sin base de comparación',local:localAnterior,pendiente:pendienteAnterior});
+    // No discard on quota failures. Read back the archive before changing caches.
+    localStorage.setItem(archivo,respaldo);
+    if(localStorage.getItem(archivo)!==respaldo)throw new Error('No se pudo verificar el respaldo local.');
+    const confirmado=normalizarData(remoto);
+    localStorage.setItem(STORE_KEY,JSON.stringify(confirmado));
+    localStorage.removeItem('tpm_guardado_pendiente');
+    _invSync.base=InventarioMerge.clone(confirmado);
+    _invSync.pendiente=false;delete _invSync.recuperado;delete _invSync.remoto;
+    fbAplicandoRemoto=true;
+    try{
+      DATA=confirmado;
+      _undoStack=[];_snapPrevio=snapActual();
+      refrescarVistaActual();
+    }finally{fbAplicandoRemoto=false;}
+    const aviso=document.getElementById('aviso-falla-guardado');if(aviso)aviso.remove();
+    setEstadoSync('ok','Sincronizado');
+    toast('Inventario actualizado. La copia anterior quedó conservada en esta computadora.','success');
+    // This recovery action never writes to Firebase. Normal maintenance resumes
+    // on the next cloud event, with the accepted baseline and the existing merge.
+  }catch(e){
+    avisarFallaGuardado('No se pudo cambiar a la nube de forma segura. Conserva esta pestaña abierta.',e);
+  }finally{
+    _invSync.recuperando=false;
+    if(btn)btn.disabled=false;
+  }
+}
+function descargarCopiasLocalesConservadas(){
+  const copias=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k && k.indexOf('tpm_revision_local_')===0){
+      try{copias.push({archivo:k,respaldo:JSON.parse(localStorage.getItem(k))});}catch(e){}
+    }
+  }
+  if(!copias.length){toast('No hay copias locales pendientes conservadas.','info');return;}
+  const url=URL.createObjectURL(new Blob([JSON.stringify(copias,null,2)],{type:'application/json'}));
+  const a=document.createElement('a');a.href=url;a.download='copias-locales-inventario-'+new Date().toISOString().slice(0,10)+'.json';a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+}
+
 function empujarAFirebase() {
   if(!fbRef)return;
   if(!esEditor()){ avisarFallaGuardado('Esta cuenta tiene acceso de lectura: el cambio no se guardó en la nube.'); return; }
-  if(_invSync.recuperado){DATA=_invSync.recuperado;delete _invSync.recuperado;}
   _limpiarLlaves(DATA,{n:0});
   _invSync.pendiente=true;
   try {localStorage.setItem('tpm_guardado_pendiente',JSON.stringify({base:_invSync.base,local:DATA}));}
@@ -2934,6 +3026,7 @@ function empujarAFirebase() {
       localStorage.removeItem('tpm_guardado_pendiente');
       refrescarVistaActual();
       setEstadoSync('ok','Sincronizado');
+      programarMantenimientoSeguro();
     }catch(e){
       _invSync.pendiente=true;
       setEstadoSync('offline','Cambios pendientes de revisar');
@@ -3003,6 +3096,7 @@ let DATA = cargar();
 _snapPrevio = JSON.stringify({ camiones: DATA.camiones, piezas: DATA.piezas, folioCounter: DATA.folioCounter });
 
 function cargar() {
+  if(_invSync.recuperado){ const d=_invSync.recuperado; delete _invSync.recuperado; return d; }
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) return JSON.parse(raw);
@@ -3930,6 +4024,7 @@ var FAMILIAS_FOTOS_MODELO = ['inyectores', 'arboles', 'transmisiones'];
 // guardar como INDIVIDUAL de esa pieza. Solo lee Storage y re-guarda: NO borra
 // nada. Solo Editor; no toca las piezas que ya tienen fotos.
 function _recuperarFotosCampanas(){
+  if(!inventarioBaseLista()) return;
   if(typeof esEditor === 'function' && !esEditor()) return;
   if(typeof firebase === 'undefined' || !firebase.storage) return;
   var st = firebase.storage();
@@ -4428,6 +4523,7 @@ function txtEstadoPieza(p){ return esFaltante(p) ? 'FALTANTE' : 'VENDIDA'; }
 function colorEstadoPieza(p){ return esFaltante(p) ? '#b8860b' : '#c0392b'; }
 
 function _limpiarModelosInyectores(){
+  if(!inventarioBaseLista()) return;
   if(typeof esEditor === 'function' && !esEditor()) return;
   if(typeof DATA === 'undefined' || !DATA.piezas) return;
   var RENOMBRAR = {
@@ -4625,6 +4721,7 @@ function guardarMedia(p, media){
 //    porque ya no falta ninguna.
 var _fichasBarridas = false, _fichasIntentos = 0;
 function rellenarFichasFaltantes(){
+  if(!inventarioBaseLista()) return;
   if(_fichasBarridas) return;
   // Puede dispararse antes de que cargue el inventario o antes de que haya
   // sesión. En vez de rendirse en silencio, reintenta un rato.
@@ -11426,7 +11523,7 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
     if(typeof DATA==='undefined') return hoyISO();
     if(!DATA.ventasDesde){
       var h = hoyISO();
-      if(editor()){ DATA.ventasDesde = h; try{ guardar(); }catch(e){} }
+      if(editor() && inventarioBaseLista()){ DATA.ventasDesde = h; try{ guardar(); }catch(e){} }
       return h;
     }
     return DATA.ventasDesde;
