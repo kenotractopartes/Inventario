@@ -775,6 +775,7 @@
     <button class="btn btn-mini" style="background:#d6ecff; color:#1a1a1a; border-color:#5fa3d8;" onclick="verTodasPiezas('transmisiones')">Transmisión</button>
     <button class="btn btn-mini" style="background:#d4d4d4; color:#1a1a1a; border-color:#999;" onclick="verTodasPiezas('chasis')">Chasis</button>
     <button class="btn btn-mini" style="background:#cfe9e9; color:#1a1a1a; border-color:#6db8a0;" onclick="verTodasPiezas('mancuernas')">Mancuerna</button>
+    <button class="btn btn-mini" style="background:#cfe9e9; color:#1a1a1a; border-color:#6db8a0;" onclick="verTodasPiezas('fundas')">Funda</button>
     <button class="btn btn-mini" style="background:#f5d6e8; color:#1a1a1a; border-color:#c87da8;" onclick="verTodasPiezas('cabinas')">Cabina</button>
     <button class="btn btn-mini" style="background:#f0d8d0; color:#1a1a1a; border-color:#c89a8a;" onclick="verInyectoresEstados()">Inyectores</button>
     <button class="btn btn-mini" id="btn-fotos-inicio" style="background:#185FA5; color:#fff; border-color:#185FA5; font-weight:800; margin-left:16px;" onclick="verPiezasConFotos()" title="Ver las piezas que ya tienen fotos">📷 Fotos<span id="btn-fotos-count"></span></button>
@@ -1391,6 +1392,10 @@ const FAMILIAS = [
     marcas: ['Rockwell','Spicer','Eaton'] },
   { id: 'mancuernas', nombre: 'Mancuernas', nombreSingular: 'Mancuerna', color: '#cfe9e9', tipo: 'especial-mancuernas',
     botones: ['Mancuerna 42k','Mancuerna 44k','Mancuerna 46k'],
+    marcas: ['Meritor (Rockwell)','Spicer','Unemon'],
+    suspensiones: ['4 Bolsas','Muelles (tuerca y capuchón)'] },
+  { id: 'fundas', nombre: 'Fundas', nombreSingular: 'Funda', color: '#cfe9e9', tipo: 'especial-mancuernas',
+    botones: ['Funda 42k','Funda 44k','Funda 46k'],
     marcas: ['Meritor (Rockwell)','Spicer','Unemon'],
     suspensiones: ['4 Bolsas','Muelles (tuerca y capuchón)'] },
   { id: 'cabinas', nombre: 'Cabinas', nombreSingular: 'Cabina', color: '#f5d6e8', tipo: 'fichaSolo', tieneFichaTecnica: true,
@@ -8345,7 +8350,7 @@ function panelFiltroLibras(fam){
 // Las mayúsculas NO parten un modelo en dos: "EUGENIO" y "eugenio" caen
 // juntos, y se enseña la ortografía más usada.
 // ══════════════════════════════════════════════════════════════════
-var FAM_CON_FILTRO_PROPIO = ['diferenciales', 'mancuernas', 'chasis', 'arneses'];
+var FAM_CON_FILTRO_PROPIO = ['diferenciales', 'mancuernas', 'fundas', 'chasis', 'arneses'];
 function _claveModelo(s){
   return String(s == null ? '' : s).toLowerCase().trim().replace(/\s+/g, ' ');
 }
@@ -8887,13 +8892,13 @@ function renderBusqueda() {
 
   // Panel de filtros SOLO cuando estás en la familia Chasis.
   if (_filtroFamilia === 'chasis') filtros.innerHTML += panelFiltrosChasis();
-  if (_filtroFamilia === 'diferenciales' || _filtroFamilia === 'mancuernas') filtros.innerHTML += panelFiltroLibras(_filtroFamilia);
+  if (_filtroFamilia === 'diferenciales' || _filtroFamilia === 'mancuernas' || _filtroFamilia === 'fundas') filtros.innerHTML += panelFiltroLibras(_filtroFamilia);
   // Panel de filtros SOLO cuando estás en la familia Arneses (zona del cuarto + tipo).
   if (_filtroFamilia === 'arneses') filtros.innerHTML += panelFiltrosArnes();
   // Cofres y Puertas: buscador propio + marca de camión, ARRIBA del de modelos.
   if (_filtroFamilia && FAM_CON_MARCA_CAMION.indexOf(_filtroFamilia) !== -1)
     filtros.innerHTML += panelMarcaYBuscador(_filtroFamilia);
-  // El desplegable de modelos: en todas las familias menos las cuatro que ya
+  // El desplegable de modelos: en todas las familias excepto las que ya
   // traen un filtro hecho a la medida de su naturaleza.
   if (_filtroFamilia && FAM_CON_FILTRO_PROPIO.indexOf(_filtroFamilia) === -1)
     filtros.innerHTML += panelFiltroModelo(_filtroFamilia);
@@ -8935,8 +8940,8 @@ function _renderResultadosBusqueda() {
     if (_filtroChasisMarca !== null) piezas = piezas.filter(p => marcaDeFiltro(p) === _filtroChasisMarca);
     if (_filtroChasisAnio !== null) piezas = piezas.filter(p => anioDeFiltro(p) === _filtroChasisAnio);
   }
-  // Libraje, en las dos familias que se distinguen por eso.
-  if ((_filtroFamilia === 'diferenciales' || _filtroFamilia === 'mancuernas') && _filtroLibras !== null) {
+  // Libraje, en las familias que se distinguen por eso.
+  if ((_filtroFamilia === 'diferenciales' || _filtroFamilia === 'mancuernas' || _filtroFamilia === 'fundas') && _filtroLibras !== null) {
     piezas = piezas.filter(p => librasDePieza(p) === _filtroLibras);
   }
   // Cofres y Puertas: marca del camión y buscador de la familia.
@@ -9137,7 +9142,7 @@ function setFiltro(id) {
   _filtroEstadoIny = null;
   // Al cambiar de familia, resetear los filtros de chasis.
   if (id !== 'chasis') { _filtroChasisConsec = null; _filtroChasisBaja = null; _filtroChasisMarca = null; _filtroChasisAnio = null; }
-  if (id !== 'diferenciales' && id !== 'mancuernas') _filtroLibras = null;
+  if (id !== 'diferenciales' && id !== 'mancuernas' && id !== 'fundas') _filtroLibras = null;
   if (id !== 'arneses') { _filtroArnesZona = null; _filtroArnesTipo = null; }
   _filtroModelo = null;   // el modelo de una familia no significa nada en otra
   if (FAM_CON_MARCA_CAMION.indexOf(id) === -1) { _filtroMarcaCam = null; _filtroTextoFam = ''; }
@@ -9469,7 +9474,7 @@ function columnasImprimir(f) {
   if (f.tieneAnioSerie) return [...base,'Año','Serie','Precio'];   // Monoblock
   if (f.tieneInfoMotor) return [...base,'Serie','CPL','HP','Precio'];
   if (f.tieneFichaTecnica) return [...base,'Marca','Modelo','Año','VIN','Precio'];
-  if (f.id === 'diferenciales' || f.id === 'mancuernas') return [...base,'Libras','Marca Eje','Suspensión','Paso','Precio'];
+  if (f.id === 'diferenciales' || f.id === 'mancuernas' || f.id === 'fundas') return [...base,'Libras','Marca Eje','Suspensión','Paso','Precio'];
   return [...base,'Motor','Serie / N° Parte','Precio'];
 }
 function valorColumna(p, col) {
