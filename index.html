@@ -14,6 +14,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="media-video-preview.css?v=20260928-1">
+<script src="media-video-preview.js?v=20260928-1"></script>
 <!-- ═══════════════ 📦 ENVÍOS — estilos ═══════════════ -->
 <style>
   /* El mismo rojo que usa la pantalla de la pared para lo vencido: el botón
@@ -4829,7 +4831,7 @@ function renderModalFotos(){
     ? '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(90px,1fr)); gap:8px; margin:10px 0;">' +
       media.map(function(m, i){
         var mini = m.t === 'video'
-          ? '<div style="width:100%;height:74px;background:#1a1a1a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;border-radius:6px;">▶</div>'
+          ? '<button type="button" class="inv-video-thumb" data-video-index="' + i + '" aria-label="Ver video ' + (i + 1) + '"><span class="inv-video-play" aria-hidden="true">▶</span><span class="inv-video-hint">Cargando vista…</span></button>'
           : '<img src="' + (m.web || m.url || '') + '" style="width:100%;height:74px;object-fit:cover;border-radius:6px;display:block;" alt="">';
         return '<div style="position:relative;">' + mini +
           '<button onclick="borrarMediaPieza(' + i + ')" style="position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;border:none;background:#c0392b;color:#fff;font-size:13px;cursor:pointer;line-height:1;">✕</button></div>';
@@ -4865,6 +4867,7 @@ function renderModalFotos(){
     copiarBtn +
     '<div style="font-size:12px; color:#999; text-align:center; margin-top:6px;">Se guardan en HD. En el teléfono puedes usar la cámara directo.</div>' +
     compartir;
+  if (window.InventarioVideoPreview) InventarioVideoPreview.mount(body, media);
 }
 
 // ── COPIAR FOTOS A OTRAS PIEZAS (jul 2026) ──────────────────────────────────
@@ -5325,9 +5328,9 @@ document.addEventListener('keydown', function(e){
 // MODAL HELPERS
 // ============================================================
 function openModal(id) { document.getElementById(id).classList.add('active'); }
-function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); if (id === 'modal-fotos' && window.InventarioVideoPreview) InventarioVideoPreview.dispose(); }
 document.querySelectorAll('.modal-bg').forEach(bg => {
-  bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('active'); });
+  bg.addEventListener('click', e => { if (e.target === bg) closeModal(bg.id); });
 });
 
 // ============================================================
