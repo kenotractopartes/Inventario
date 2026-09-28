@@ -720,13 +720,39 @@
 <div id="lock-screen" style="position:fixed;inset:0;z-index:100000;background:#17140f;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:Georgia,serif;">
   <div style="font-size:28px;font-weight:800;letter-spacing:1px;margin-bottom:6px;">Tracto Partes Magaña</div>
   <div style="font-size:13px;color:#c9a24b;text-transform:uppercase;letter-spacing:2px;margin-bottom:28px;font-family:Arial,sans-serif;">Inventario · Acceso privado</div>
-  <div style="width:100%;max-width:320px;">
+  <div id="lock-wait" role="status" aria-live="polite" style="width:100%;max-width:320px;font:14px/1.5 Arial,sans-serif;color:#d9d3c8;">
+    <div id="lock-wait-text">Abriendo inventario…</div>
+    <button id="lock-retry" type="button" onclick="location.reload()" style="display:none;margin:16px auto 0;padding:10px 16px;border:1px solid #c9a24b;border-radius:6px;background:transparent;color:#fff;font:600 14px Arial,sans-serif;cursor:pointer;">Reintentar</button>
+  </div>
+  <noscript>Activa JavaScript para abrir el inventario.</noscript>
+  <div id="lock-fields" style="display:none;width:100%;max-width:320px;">
     <input type="email" id="lock-email" placeholder="Correo" autocomplete="username" value="raultractopartes@gmail.com" style="width:100%;padding:13px;font-size:16px;border:none;border-radius:6px;font-family:Arial,sans-serif;text-align:center;margin-bottom:10px;">
     <input type="password" id="lock-input" placeholder="Contraseña" autocomplete="current-password" style="width:100%;padding:14px;font-size:17px;border:none;border-radius:6px;font-family:Arial,sans-serif;text-align:center;" onkeydown="if(event.key==='Enter')desbloquearAcceso()">
     <button onclick="desbloquearAcceso()" style="width:100%;margin-top:12px;padding:14px;font-size:16px;font-weight:700;background:#b03a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:Arial,sans-serif;">Entrar</button>
     <div id="lock-msg" style="color:#e79; font-size:13px; margin-top:10px; min-height:16px; font-family:Arial,sans-serif;"></div>
   </div>
 </div>
+
+<script>
+// Presentación del acceso: nunca deduce una sesión del dispositivo o de la caché.
+var _authVistaEstado = 'pending', _authEsperaTimer = null;
+function mostrarEstadoAcceso(estado, mensaje){
+  _authVistaEstado = estado;
+  clearTimeout(_authEsperaTimer);
+  var panel=document.getElementById('lock-screen'), campos=document.getElementById('lock-fields');
+  var espera=document.getElementById('lock-wait'), texto=document.getElementById('lock-wait-text');
+  var retry=document.getElementById('lock-retry');
+  if(panel) panel.style.display=estado==='ready'?'none':'flex';
+  if(campos) campos.style.display=estado==='login'?'block':'none';
+  if(espera) espera.style.display=(estado==='login'||estado==='ready')?'none':'block';
+  if(texto) texto.textContent=mensaje || 'Abriendo inventario…';
+  if(retry) retry.style.display=(estado==='slow'||estado==='error')?'inline-block':'none';
+  if(estado==='pending') _authEsperaTimer=setTimeout(function(){
+    if(_authVistaEstado==='pending') mostrarEstadoAcceso('slow','Está tardando en comprobar tu sesión. Revisa tu conexión o vuelve a intentar.');
+  },12000);
+}
+mostrarEstadoAcceso('pending');
+</script>
 
 <nav>
   <button class="active" data-view="camiones">🏠 Inicio</button>
@@ -9980,24 +10006,31 @@ function importJSONold(event) {
 // pero la conexión al inventario (initFirebase) espera a que haya sesión.
 var _authGateListo = false;
 function initAuthGate(){
-  var ls = document.getElementById('lock-screen'); if(ls) ls.style.display='flex';
   if(typeof firebase === 'undefined' || !firebase.auth){
-    var m=document.getElementById('lock-msg'); if(m) m.textContent='Sin conexión — revisa tu internet.';
+    mostrarEstadoAcceso('error','No se pudo conectar. Revisa tu internet y vuelve a intentar.');
     return;
   }
-  try { if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig); } catch(e){}
-  var auth = firebase.auth();
-  try { auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e){}
-  auth.onAuthStateChanged(function(user){
-    var ls = document.getElementById('lock-screen');
-    if(user){
-      if(ls) ls.style.display='none';
-      if(!_authGateListo){ _authGateListo = true; try { initFirebase(); } catch(e){ console.warn('initFirebase:', e); } }
-    } else {
-      if(ls){ ls.style.display='flex'; var p=document.getElementById('lock-input'); if(p) setTimeout(function(){ p.focus(); }, 120); }
-    }
-  });
+  try {
+    if(!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    var auth = firebase.auth();
+    try { auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e){}
+    auth.onAuthStateChanged(function(user){
+      if(user){
+        mostrarEstadoAcceso('ready');
+        if(!_authGateListo){ _authGateListo = true; try { initFirebase(); } catch(e){ console.warn('initFirebase:', e); } }
+      } else {
+        mostrarEstadoAcceso('login');
+        var p=document.getElementById('lock-input');
+        if(p) setTimeout(function(){ if(_authVistaEstado==='login') p.focus(); },120);
+      }
+    },function(){
+      mostrarEstadoAcceso('error','No se pudo comprobar tu sesión. Revisa tu conexión y vuelve a intentar.');
+    });
+  } catch(e){
+    mostrarEstadoAcceso('error','No se pudo iniciar el acceso. Vuelve a intentar.');
+  }
 }
+
 window.desbloquearAcceso = function(){
   var emEl=document.getElementById('lock-email'), pwEl=document.getElementById('lock-input'), msg=document.getElementById('lock-msg');
   var em=(emEl && emEl.value || '').trim(), pw=(pwEl && pwEl.value || '');
