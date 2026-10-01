@@ -50,6 +50,14 @@ function data(count){return {camiones:[],piezas:Array.from({length:count},(_,i)=
  e=environment({local,cloud:data(0)});e.c.initFirebase();e.emit();await e.c.usarNubeConRespaldoLocal();assert.equal(e.c.DATA.piezas.length,12);assert(e.storage.has('tpm_guardado_pendiente'));tests++;
  // A recoverable edit with a known baseline still uses the existing transaction.
  e=environment({local,cloud,base:Merge.clone(local)});e.c.initFirebase();e.emit();assert.equal(e.writes(),1);assert(!e.nodes.has('inv-usar-nube'));tests++;
+ // A conflicting split with a known baseline can be discarded only after
+ // preserving a verified local archive; Firebase itself is never overwritten.
+ e=environment({local,cloud,base:Merge.clone(local)});e.c._invSync.conflictoCorte=true;
+ e.c.mostrarRevisionLocal(cloud);assert(e.nodes.has('inv-usar-nube'));
+ await e.c.usarNubeConRespaldoLocal();assert.equal(e.c.DATA.piezas.length,41);
+ assert.equal(e.writes(),0);assert.equal(e.c._invSync.pendiente,false);
+ key=[...e.storage.keys()].find(k=>k.startsWith('tpm_revision_local_'));assert(key);
+ assert.match(e.storage.get(key),/Conflicto al desarmar un corte/);tests++;
  // Restart reads the pending payload before any helper can run, not the stale cache.
  e=environment({local,cloud});e.c._invSync.recuperado=data(43);assert.equal(e.c.cargar().piezas.length,43);assert(!e.c._invSync.recuperado);tests++;
  // Existing three-way merge retains concurrent independent additions and rejects conflicts.

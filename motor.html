@@ -130,7 +130,7 @@ function render(){
     var esVideo = m.t === 'video';
     visor =
       '<div class="visor">' +
-        (f.vendida ? '<span class="cinta-vendido">VENDIDO</span>' : '') +
+        (f.desarmado ? '<span class="cinta-vendido">DESARMADO</span>' : (f.vendida ? '<span class="cinta-vendido">VENDIDO</span>' : '')) +
         (esVideo
           ? '<video src="' + esc(m.url || m.web) + '" controls playsinline preload="metadata"></video>'
           : '<img src="' + esc(m.web || m.url) + '" alt="' + esc(f.titulo || 'Foto de la pieza') + '">') +
@@ -173,9 +173,11 @@ function render(){
     ? '<a class="btn-hd" href="' + esc(actual.hd) + '" target="_blank" rel="noopener">⬇️ Ver esta foto en alta calidad</a>'
     : '';
 
-  var avisoVendido = f.vendida
-    ? '<div class="aviso-vendido"><strong>Esta pieza ya se vendió.</strong><br>Pregúntanos en el mostrador — puede que tengamos otra igual o parecida. Col. Argentina, Monterrey.</div>'
-    : '';
+  var avisoVendido = f.desarmado
+    ? '<div class="aviso-vendido"><strong>Este corte ya se desarmó.</strong><br>La cabina y el motor se registraron como piezas separadas; pregunta por su disponibilidad en el mostrador.</div>'
+    : (f.vendida
+      ? '<div class="aviso-vendido"><strong>Esta pieza ya se vendió.</strong><br>Pregúntanos en el mostrador — puede que tengamos otra igual o parecida. Col. Argentina, Monterrey.</div>'
+      : '');
 
   document.getElementById('contenido').innerHTML =
     visor +

@@ -14,6 +14,23 @@
     if(eq(local,base))return clone(remote);
     if(eq(remote,base)||eq(local,remote))return clone(local);
     if(Array.isArray(base)&&Array.isArray(local)&&Array.isArray(remote)){
+      // Desarmar un corte crea dos piezas vendibles. Si otro equipo modificó
+      // ese mismo corte mientras tanto (venta, apartado, edición, etc.), una
+      // unión campo por campo dejaría el corte vendido y los componentes en
+      // stock. Rechazar toda la transacción y conservar el pendiente local.
+      if(path==='inventario/piezas'){
+        const localPorId=new Map(local.filter(Boolean).map(p=>[String(p.id),p]));
+        const remotoPorId=new Map(remote.filter(Boolean).map(p=>[String(p.id),p]));
+        for(const anterior of base){
+          if(!anterior||anterior.familia!=='cortes'||anterior.desarmado)continue;
+          const l=localPorId.get(String(anterior.id)),r=remotoPorId.get(String(anterior.id));
+          if(!l||!r)continue;
+          const lDesarmo=!!l.desarmado, rDesarmo=!!r.desarmado;
+          if((lDesarmo&&!eq(r,anterior))||(rDesarmo&&!eq(l,anterior)))
+            throw new Error('Otro equipo cambió el corte '+(anterior.folioInterno||anterior.id)+
+              ' durante el desarme. No se guardó la operación; revisa el corte en la nube.');
+        }
+      }
       const indexed=a=>a.every(x=>x&&typeof x==='object'&&x.id!==undefined)&&new Set(a.map(x=>String(x.id))).size===a.length;
       if([base,local,remote].every(indexed)){
         const maps=[base,local,remote].map(a=>new Map(a.map(x=>[String(x.id),x])));
