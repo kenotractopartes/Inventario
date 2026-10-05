@@ -13,19 +13,19 @@ function func(name){
 const functions=['initFirebase','inventarioBaseLista','programarMantenimientoSeguro','mostrarRevisionLocal','usarNubeConRespaldoLocal','empujarAFirebase','normalizarData','cargar','_ricAsegurarSemana','espejoChasisEstatus','_limpiarModelosInyectores','_recuperarFotosCampanas','rellenarFichasFaltantes','respaldoAutomatico'];
 function environment({local,cloud,base=null,pending=true,quota=false}){
  const storage=new Map([['tpm_inventario_v1',JSON.stringify(local)],['tpm_guardado_pendiente',JSON.stringify({base,local})]]);
- const nodes=new Map(),timers=[];let valueListener,writeCount=0,getError=false;
+ const nodes=new Map(),timers=[];let valueListener,writeCount=0,getError=false,transactionDone;
  const node=()=>({appendChild(x){nodes.set(x.id,x)},remove(){nodes.delete(this.id)},style:{}});
- const ref={on(event,fn){valueListener=fn;},get:async()=>{if(getError)throw Error('offline');return {val:()=>structuredClone(cloud)};},transaction(){writeCount++;}};
+ const ref={on(event,fn){valueListener=fn;},get:async()=>{if(getError)throw Error('offline');return {val:()=>structuredClone(cloud)};},transaction(update,done){writeCount++;transactionDone=done;}};
  const c={console,Date,Math,JSON,Array,Object,Set,Map,InventarioMerge:Merge,DATA:structuredClone(local),_invSync:{base,pendiente:pending,ocupado:false,recuperando:false},fbListo:false,fbAplicandoRemoto:false,fbRef:ref,fbApp:null,FB_PATH:'inventario_patio',firebaseConfig:{},STORE_KEY:'tpm_inventario_v1',CATALOGOS_DEFAULT:{},FAMILIAS_OVERRIDE_DEFAULT:{},EDITOR_KEY:'test',DEVICE_ID:'test',_undoStack:[],_snapPrevio:'',_invMantenimientoProgramado:false,_estatusChasisData:{},esEditor:()=>true,
  firebase:{apps:[{}],app:()=>({}),database:()=>({ref:path=>path==='inventario_patio'?ref:{on(){}}})},
  localStorage:{getItem:k=>storage.get(k)||null,setItem(k,v){if(quota && k.startsWith('tpm_revision_local_'))throw Error('quota');storage.set(k,v);},removeItem:k=>storage.delete(k)},
  document:{getElementById:id=>nodes.get(id),createElement:()=>node()},
  avisarFallaGuardado(msg){c.lastWarning=msg;if(!nodes.has('aviso-falla-guardado')){const n=node();n.id='aviso-falla-guardado';nodes.set(n.id,n);}},
  setEstadoSync:(state,text)=>{c.status={state,text}},toast(){},refrescarVistaActual(){c.renders=(c.renders||0)+1;},guardarLocal(){storage.set(c.STORE_KEY,JSON.stringify(c.DATA));return true;},snapActual:()=>JSON.stringify(c.DATA),
- setTimeout:(fn,ms)=>{timers.push(fn)},_limpiarLlaves(){},guardar(){writeCount++;},RIC_FAM:'ricardo',_ricLunes:()=> '2026-09-21',_ricRotulo:()=> '21 al 27 de septiembre',
+ setTimeout:(fn,ms)=>{timers.push(fn)},_limpiarLlaves(){},guardar(){writeCount++;},exportJSON(){},RIC_FAM:'ricardo',_ricLunes:()=> '2026-09-21',_ricRotulo:()=> '21 al 27 de septiembre',
  };
  vm.createContext(c);vm.runInContext(functions.map(func).join('\n'),c);
- return {c,storage,nodes,timers,emit(){valueListener({val:()=>structuredClone(cloud)})},writes:()=>writeCount,failGet(){getError=true}};
+ return {c,storage,nodes,timers,emit(){valueListener({val:()=>structuredClone(cloud)})},writes:()=>writeCount,failGet(){getError=true},abortTransaction(error){transactionDone(error||null,false,null)}};
 }
 function data(count){return {camiones:[],piezas:Array.from({length:count},(_,i)=>({id:'p'+i,familia:'mancuernas',modelo:'M'+i})),catalogos:{},familiasOverride:{},estatusChasisSync:{},chasisIgnorados:{ids:{},series:{}},salidas:[],folioCounter:1,ventasAtendidas:{},ventasDesde:'',conteos:[]};}
 (async()=>{
@@ -50,6 +50,9 @@ function data(count){return {camiones:[],piezas:Array.from({length:count},(_,i)=
  e=environment({local,cloud:data(0)});e.c.initFirebase();e.emit();await e.c.usarNubeConRespaldoLocal();assert.equal(e.c.DATA.piezas.length,12);assert(e.storage.has('tpm_guardado_pendiente'));tests++;
  // A recoverable edit with a known baseline still uses the existing transaction.
  e=environment({local,cloud,base:Merge.clone(local)});e.c.initFirebase();e.emit();assert.equal(e.writes(),1);assert(!e.nodes.has('inv-usar-nube'));tests++;
+ // A rejected write never changes Firebase and exposes the current local JSON export.
+ e.abortTransaction(new Error('conflicto de prueba'));
+ assert(e.nodes.has('inv-descargar-pendiente'));assert.equal(e.c.DATA.piezas.length,12);assert.equal(e.writes(),1);tests++;
  // A conflicting split with a known baseline can be discarded only after
  // preserving a verified local archive; Firebase itself is never overwritten.
  e=environment({local,cloud,base:Merge.clone(local)});e.c._invSync.conflictoCorte=true;

@@ -3063,6 +3063,15 @@ function empujarAFirebase() {
     if(error||!committed){
       setEstadoSync('offline','NO se guardó — cambios conservados');
       avisarFallaGuardado('No se confirmó el guardado. Tus cambios siguen en esta computadora; no se reemplazó el inventario.',error||conflicto);
+      const aviso=document.getElementById('aviso-falla-guardado');
+      if(aviso && !document.getElementById('inv-descargar-pendiente')){
+        const btn=document.createElement('button');
+        btn.id='inv-descargar-pendiente';btn.type='button';
+        btn.textContent='⬇ Descargar copia de esta computadora';
+        btn.style.cssText='display:block;margin-top:9px;padding:9px 12px;border:1px solid white;border-radius:6px;background:white;color:#75271e;font-weight:700;cursor:pointer';
+        btn.onclick=exportJSON;
+        aviso.appendChild(btn);
+      }
       if(conflicto && /^Otro equipo cambió el corte /.test(conflicto.message || '')){
         _invSync.conflictoCorte=true;
         fbRef.get().then(s=>{if(_invSync.pendiente && s.val())mostrarRevisionLocal(s.val());})
@@ -13078,10 +13087,9 @@ function _burroPicado(d, ev){
   // ⚠️ Y ESO EXPLICA TAMBIÉN LOS BEEPS QUE «A VECES NO SUENAN»: es el mismo
   //    `_pizAudio` para los dos. Esto arregla los dos de un jalón.
   //
-  // ⚠️ El aviso es la mitad que importa. Un desbloqueo silencioso vuelve a
-  //    fallar el día que nadie toque la pantalla, y otra vez sin explicación.
+  // El navegador desbloquea el audio con el primer toque. Si sigue dormido,
+  // se reintenta sin mostrar el aviso repetitivo solicitado retirar.
   // ══════════════════════════════════════════════════════════════════════
-  var _pizAudioAvisado = false;
 
   // Devuelve true si el audio ya puede sonar. Si se llama DESDE un clic
   // (porToque), el resume() sí cuenta para el navegador.
@@ -13089,18 +13097,9 @@ function _burroPicado(d, ev){
     try {
       if(!_pizAudio) _pizAudio = new (window.AudioContext || window.webkitAudioContext)();
       if(_pizAudio.state === 'suspended'){ try { _pizAudio.resume(); } catch(e){} }
-      if(_pizAudio.state === 'running'){
-        _pizAudioAvisado = false;
-        return true;
-      }
+      if(_pizAudio.state === 'running')return true;
     } catch(e){}
     return false;
-  }
-  // Una sola vez, para no ser pesado: si algo quiso sonar y no pudo, se dice.
-  function _pizAvisarMudo(){
-    if(_pizAudioAvisado) return;
-    _pizAudioAvisado = true;
-    try { toast('🔇 El sonido está dormido — pícale a cualquier lado de esta pantalla para despertarlo', 'error'); } catch(e){}
   }
   // El primer toque de quien sea despierta el audio. `capture` para agarrarlo
   // aunque el clic sea sobre un botón que detenga la propagación.
@@ -13132,7 +13131,7 @@ function _burroPicado(d, ev){
     if(_pizVozBuf) return;
     if(_pizVozDesde && Date.now() - _pizVozDesde < PIZ_VOZ_PLAZO) return;
     try {
-      if(!_pizDesbloquear(false)){ _pizAvisarMudo(); return; }
+      if(!_pizDesbloquear(false))return;
       _pizVozDesde = Date.now();
       var bin = atob(PIZ_VOZ_B64), n = bin.length, u = new Uint8Array(n);
       for(var i = 0; i < n; i++) u[i] = bin.charCodeAt(i);
@@ -13195,10 +13194,9 @@ function _burroPicado(d, ev){
   // bloqueado devuelve false y el pendiente no se marca, para reintentarlo.
   function _pizAlarma(veces){
     try {
-      // Mismo desbloqueo que la voz: si está dormido, se avisa en vez de
-      // callarse. Antes esto devolvía false sin decir nada y el pendiente se
-      // soltaba para reintentar — para siempre, si nadie tocaba la pantalla.
-      if(!_pizDesbloquear(false)){ _pizAvisarMudo(); return false; }
+      // Mismo desbloqueo que la voz. Si está dormido, no se marca como sonado:
+      // el siguiente toque puede habilitarlo y se reintenta sin aviso visual.
+      if(!_pizDesbloquear(false))return false;
       // ⚠️ UN SOLO BEEP POR REGISTRO (28 ago 2026). Keno lo pidió así: la
       //    tanda de tres notas repetidas tres veces duraba ~2 s y en el
       //    mostrador eso cansa — y lo que cansa se acaba apagando.
