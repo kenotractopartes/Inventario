@@ -13,19 +13,19 @@ function func(name){
 const functions=['initFirebase','inventarioBaseLista','programarMantenimientoSeguro','mostrarRevisionLocal','usarNubeConRespaldoLocal','empujarAFirebase','normalizarData','cargar','_ricAsegurarSemana','espejoChasisEstatus','_limpiarModelosInyectores','_recuperarFotosCampanas','rellenarFichasFaltantes','respaldoAutomatico'];
 function environment({local,cloud,base=null,pending=true,quota=false}){
  const storage=new Map([['tpm_inventario_v1',JSON.stringify(local)],['tpm_guardado_pendiente',JSON.stringify({base,local})]]);
- const nodes=new Map(),timers=[];let valueListener,writeCount=0,getError=false,transactionDone;
+ const nodes=new Map(),timers=[];let valueListener,writeCount=0,getError=false,transactionDone,transactionUpdate;
  const node=()=>({appendChild(x){nodes.set(x.id,x)},remove(){nodes.delete(this.id)},style:{}});
- const ref={on(event,fn){valueListener=fn;},get:async()=>{if(getError)throw Error('offline');return {val:()=>structuredClone(cloud)};},transaction(update,done){writeCount++;transactionDone=done;}};
+ const ref={on(event,fn){valueListener=fn;},get:async()=>{if(getError)throw Error('offline');return {val:()=>structuredClone(cloud)};},transaction(update,done){writeCount++;transactionUpdate=update;transactionDone=done;}};
  const c={console,Date,Math,JSON,Array,Object,Set,Map,InventarioMerge:Merge,DATA:structuredClone(local),_invSync:{base,pendiente:pending,ocupado:false,recuperando:false},fbListo:false,fbAplicandoRemoto:false,fbRef:ref,fbApp:null,FB_PATH:'inventario_patio',firebaseConfig:{},STORE_KEY:'tpm_inventario_v1',CATALOGOS_DEFAULT:{},FAMILIAS_OVERRIDE_DEFAULT:{},EDITOR_KEY:'test',DEVICE_ID:'test',_undoStack:[],_snapPrevio:'',_invMantenimientoProgramado:false,_estatusChasisData:{},esEditor:()=>true,
  firebase:{apps:[{}],app:()=>({}),database:()=>({ref:path=>path==='inventario_patio'?ref:{on(){}}})},
  localStorage:{getItem:k=>storage.get(k)||null,setItem(k,v){if(quota && k.startsWith('tpm_revision_local_'))throw Error('quota');storage.set(k,v);},removeItem:k=>storage.delete(k)},
  document:{getElementById:id=>nodes.get(id),createElement:()=>node()},
  avisarFallaGuardado(msg){c.lastWarning=msg;if(!nodes.has('aviso-falla-guardado')){const n=node();n.id='aviso-falla-guardado';nodes.set(n.id,n);}},
- setEstadoSync:(state,text)=>{c.status={state,text}},toast(){},refrescarVistaActual(){c.renders=(c.renders||0)+1;},guardarLocal(){storage.set(c.STORE_KEY,JSON.stringify(c.DATA));return true;},snapActual:()=>JSON.stringify(c.DATA),
+ setEstadoSync:(state,text)=>{c.status={state,text}},toast(msg,type){c.lastToast={msg,type}},confirm:()=>true,refrescarVistaActual(){c.renders=(c.renders||0)+1;},guardarLocal(){storage.set(c.STORE_KEY,JSON.stringify(c.DATA));return true;},snapActual:()=>JSON.stringify(c.DATA),
  setTimeout:(fn,ms)=>{timers.push(fn)},_limpiarLlaves(){},guardar(){writeCount++;},exportJSON(){},RIC_FAM:'ricardo',_ricLunes:()=> '2026-09-21',_ricRotulo:()=> '21 al 27 de septiembre',
  };
  vm.createContext(c);vm.runInContext(functions.map(func).join('\n'),c);
- return {c,storage,nodes,timers,emit(){valueListener({val:()=>structuredClone(cloud)})},writes:()=>writeCount,failGet(){getError=true},abortTransaction(error){transactionDone(error||null,false,null)}};
+ return {c,storage,nodes,timers,emit(){valueListener({val:()=>structuredClone(cloud)})},writes:()=>writeCount,failGet(){getError=true},abortTransaction(error){transactionDone(error||null,false,null)},rejectConflict(){assert.equal(transactionUpdate(structuredClone(cloud)),undefined);transactionDone(null,false,null)},setCloud(v){cloud=structuredClone(v)}};
 }
 function data(count){return {camiones:[],piezas:Array.from({length:count},(_,i)=>({id:'p'+i,familia:'mancuernas',modelo:'M'+i})),catalogos:{},familiasOverride:{},estatusChasisSync:{},chasisIgnorados:{ids:{},series:{}},salidas:[],folioCounter:1,ventasAtendidas:{},ventasDesde:'',conteos:[]};}
 (async()=>{
@@ -53,6 +53,32 @@ function data(count){return {camiones:[],piezas:Array.from({length:count},(_,i)=
  // A rejected write never changes Firebase and exposes the current local JSON export.
  e.abortTransaction(new Error('conflicto de prueba'));
  assert(e.nodes.has('inv-descargar-pendiente'));assert.equal(e.c.DATA.piezas.length,12);assert.equal(e.writes(),1);tests++;
+ // An incompatible edit/removal of the same piece offers a read-only route
+ // back to the cloud, while archiving both the local data and pending baseline.
+ let b=data(2),l=Merge.clone(b),r=Merge.clone(b);l.piezas.shift();r.piezas[0].modelo='cambio de otro equipo';
+ e=environment({local:l,cloud:r,base:b});e.c.initFirebase();e.emit();assert.equal(e.writes(),1);
+ e.rejectConflict();await Promise.resolve();await Promise.resolve();
+ assert.equal(e.c._invSync.conflictoDato,true);assert(e.nodes.has('inv-usar-nube'));
+ assert.match(e.c.lastWarning,/cambios incompatibles entre equipos/);
+ e.emit();assert.equal(e.writes(),1);
+ e.c.confirm=()=>false;await e.c.usarNubeConRespaldoLocal();
+ assert.equal(e.c.DATA.piezas.length,1);assert(e.storage.has('tpm_guardado_pendiente'));assert.equal(e.writes(),1);tests++;
+ e.c.confirm=()=>true;await e.c.usarNubeConRespaldoLocal();
+ assert.equal(e.c.DATA.piezas.length,2);assert.equal(e.c.DATA.piezas[0].modelo,'cambio de otro equipo');
+ assert.equal(e.c._invSync.pendiente,false);assert.equal(e.writes(),1);
+ key=[...e.storage.keys()].find(k=>k.startsWith('tpm_revision_local_'));assert(key);
+ const archived=JSON.parse(e.storage.get(key));assert.equal(archived.local.piezas.length,1);
+ assert.equal(JSON.parse(archived.pendiente).base.piezas.length,2);
+ assert.match(archived.motivo,/Conflicto entre equipos/);
+ assert.match(archived.detalle,/inventario\/piezas\/p0/);
+ assert(!e.storage.has('tpm_guardado_pendiente'));
+ assert.match(e.c.lastToast.msg,/NO se subieron/);
+ e.emit();assert.equal(e.writes(),1);assert.equal(e.c.status.state,'ok');tests++;
+ // If the archive cannot be verified, keep the original pending edit and cache.
+ e=environment({local:l,cloud:r,base:b,quota:true});e.c.initFirebase();e.emit();e.rejectConflict();
+ await Promise.resolve();await Promise.resolve();await e.c.usarNubeConRespaldoLocal();
+ assert.equal(e.c.DATA.piezas.length,1);assert(e.storage.has('tpm_guardado_pendiente'));
+ assert.equal(e.c._invSync.pendiente,true);assert.equal(e.writes(),1);tests++;
  // A conflicting split with a known baseline can be discarded only after
  // preserving a verified local archive; Firebase itself is never overwritten.
  e=environment({local,cloud,base:Merge.clone(local)});e.c._invSync.conflictoCorte=true;
@@ -64,7 +90,7 @@ function data(count){return {camiones:[],piezas:Array.from({length:count},(_,i)=
  // Restart reads the pending payload before any helper can run, not the stale cache.
  e=environment({local,cloud});e.c._invSync.recuperado=data(43);assert.equal(e.c.cargar().piezas.length,43);assert(!e.c._invSync.recuperado);tests++;
  // Existing three-way merge retains concurrent independent additions and rejects conflicts.
- let b=data(1),l=Merge.clone(b),r=Merge.clone(b);l.piezas.push({id:'local'});r.piezas.push({id:'raul'});assert.equal(Merge.merge(b,l,r).piezas.length,3);
+ b=data(1);l=Merge.clone(b);r=Merge.clone(b);l.piezas.push({id:'local'});r.piezas.push({id:'raul'});assert.equal(Merge.merge(b,l,r).piezas.length,3);
  l=Merge.clone(b);r=Merge.clone(b);l.piezas[0].modelo='one';r.piezas[0].modelo='two';assert.throws(()=>Merge.merge(b,l,r));tests++;
  let scripts=0;for(const m of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)){if(m[1].trim()){new vm.Script(m[1]);scripts++;}}
  console.log(`${tests} safety scenarios passed; ${scripts} inline scripts compile.`);

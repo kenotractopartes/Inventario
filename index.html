@@ -2863,6 +2863,7 @@ function initFirebase() {
       }
       if(_invSync.ocupado)return;
       if(_invSync.pendiente){
+        if(_invSync.conflictoCorte || _invSync.conflictoDato){mostrarRevisionLocal(remoto);return;}
         // Un pendiente recuperado conoce su base: unirlo con la nube mediante transacción.
         if(_invSync.base)empujarAFirebase();
         else mostrarRevisionLocal(remoto);
@@ -2901,7 +2902,7 @@ function initFirebase() {
     // Estado de conexión
     firebase.database().ref('.info/connected').on('value', (s) => {
       if(!s.val())setEstadoSync('offline','Sin conexión — datos locales');
-      else if(_invSync.pendiente)empujarAFirebase();
+      else if(_invSync.pendiente && !_invSync.conflictoCorte && !_invSync.conflictoDato)empujarAFirebase();
     });
   } catch(e) {
     console.error('No se pudo iniciar Firebase:', e);
@@ -2969,7 +2970,8 @@ function mostrarRevisionLocal(remoto){
   _invSync.remoto=InventarioMerge.clone(normalizarData(remoto));
   setEstadoSync('offline','Copia local pendiente — revisar antes de editar');
   avisarFallaGuardado('Esta computadora conserva una copia local pendiente. La nube tiene '+
-    _invSync.remoto.piezas.length+' piezas; esta copia tiene '+DATA.piezas.length+'. No se ha reemplazado la nube.');
+    _invSync.remoto.piezas.length+' piezas; esta copia tiene '+DATA.piezas.length+'. No se ha reemplazado la nube.'+
+    (_invSync.conflictoDato ? ' Hay cambios incompatibles entre equipos. Al abrir la nube, los cambios locales quedarán archivados para revisarlos; no se subirán automáticamente.' : ''));
   const aviso=document.getElementById('aviso-falla-guardado');
   if(aviso && !document.getElementById('inv-usar-nube')){
     const btn=document.createElement('button');
@@ -2981,7 +2983,9 @@ function mostrarRevisionLocal(remoto){
   }
 }
 async function usarNubeConRespaldoLocal(){
-  if(!_invSync.pendiente || (_invSync.base && !_invSync.conflictoCorte) || _invSync.ocupado || _invSync.recuperando) return;
+  if(!_invSync.pendiente || (_invSync.base && !_invSync.conflictoCorte && !_invSync.conflictoDato) || _invSync.ocupado || _invSync.recuperando) return;
+  if(_invSync.conflictoDato && !confirm('Hay cambios de esta computadora que no se han subido. Se archivarán aquí para revisión y abrirás la versión actual de la nube. ¿Continuar?'))return;
+  const habiaConflictoDato=!!_invSync.conflictoDato;
   _invSync.recuperando=true;
   const btn=document.getElementById('inv-usar-nube');if(btn)btn.disabled=true;
   try{
@@ -2993,7 +2997,7 @@ async function usarNubeConRespaldoLocal(){
     const localAnterior=InventarioMerge.clone(DATA);
     const pendienteAnterior=localStorage.getItem('tpm_guardado_pendiente');
     const archivo='tpm_revision_local_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
-    const respaldo=JSON.stringify({fecha:new Date().toISOString(),motivo:_invSync.conflictoCorte ? 'Conflicto al desarmar un corte' : 'Copia pendiente sin base de comparación',local:localAnterior,pendiente:pendienteAnterior});
+    const respaldo=JSON.stringify({fecha:new Date().toISOString(),motivo:_invSync.conflictoCorte ? 'Conflicto al desarmar un corte' : (_invSync.conflictoDato ? 'Conflicto entre equipos' : 'Copia pendiente sin base de comparación'),detalle:_invSync.conflictoDetalle||'',local:localAnterior,pendiente:pendienteAnterior});
     // No discard on quota failures. Read back the archive before changing caches.
     localStorage.setItem(archivo,respaldo);
     if(localStorage.getItem(archivo)!==respaldo)throw new Error('No se pudo verificar el respaldo local.');
@@ -3001,7 +3005,7 @@ async function usarNubeConRespaldoLocal(){
     localStorage.setItem(STORE_KEY,JSON.stringify(confirmado));
     localStorage.removeItem('tpm_guardado_pendiente');
     _invSync.base=InventarioMerge.clone(confirmado);
-    _invSync.pendiente=false;delete _invSync.recuperado;delete _invSync.remoto;delete _invSync.conflictoCorte;
+    _invSync.pendiente=false;delete _invSync.recuperado;delete _invSync.remoto;delete _invSync.conflictoCorte;delete _invSync.conflictoDato;delete _invSync.conflictoDetalle;
     fbAplicandoRemoto=true;
     try{
       DATA=confirmado;
@@ -3010,7 +3014,9 @@ async function usarNubeConRespaldoLocal(){
     }finally{fbAplicandoRemoto=false;}
     const aviso=document.getElementById('aviso-falla-guardado');if(aviso)aviso.remove();
     setEstadoSync('ok','Sincronizado');
-    toast('Inventario actualizado. La copia anterior quedó conservada en esta computadora.','success');
+    toast(habiaConflictoDato
+      ? 'Ya ves el inventario de la nube. Los cambios de esta computadora NO se subieron; la copia quedó guardada para revisión.'
+      : 'Inventario actualizado. La copia anterior quedó conservada en esta computadora.',habiaConflictoDato?'error':'success');
     // This recovery action never writes to Firebase. Normal maintenance resumes
     // on the next cloud event, with the accepted baseline and the existing merge.
   }catch(e){
@@ -3072,10 +3078,14 @@ function empujarAFirebase() {
         btn.onclick=exportJSON;
         aviso.appendChild(btn);
       }
-      if(conflicto && /^Otro equipo cambió el corte /.test(conflicto.message || '')){
-        _invSync.conflictoCorte=true;
+      if(conflicto && (/^Otro equipo cambió el corte /.test(conflicto.message || '') || /^Otro equipo cambió el mismo dato \(/.test(conflicto.message || ''))){
+        // No reintentar el mismo conflicto: conservar el pendiente y ofrecer
+        // abrir la nube solo después de archivar y verificar la copia local.
+        _invSync.conflictoDetalle=conflicto.message;
+        if(/^Otro equipo cambió el corte /.test(conflicto.message || ''))_invSync.conflictoCorte=true;
+        else _invSync.conflictoDato=true;
         fbRef.get().then(s=>{if(_invSync.pendiente && s.val())mostrarRevisionLocal(s.val());})
-          .catch(e=>avisarFallaGuardado('No se pudo consultar la versión de la nube para revisar el corte.',e));
+          .catch(e=>avisarFallaGuardado('No se pudo consultar la versión de la nube para revisar el conflicto.',e));
       }
       return;
     }
