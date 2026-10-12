@@ -129,6 +129,11 @@ let n=0;async function test(name,fn){await fn();console.log('PASS',name);n++;}
     assert.equal(child.camionAño,'');assert.equal(child.extras.hp,'');assert.equal(child.extras.estadoMotor,'');
     for(const render of ['renderPiezaItem','renderPiezaItemConCamion'])assert.match(e.c[render](child),/⚠ CPL: pendiente/);
     e.c.editarPieza(child.id);assert.match(e.nodes.get('modal-pieza-body').innerHTML,/<label>CPL <span[^>]*title=[^>]*>⚠ Falta dato/);
+    const editor=e.nodes.get('modal-pieza-body').innerHTML;
+    for (const [id] of e.c.datosPendientesDeCorte(child)) {
+      const label=new RegExp('<label>[^<]*<span[^>]*>⚠ Falta dato</span></label>\\s*<input[^>]*id="'+id+'"');
+      assert.match(editor,label, 'Falta aviso inline para '+id);
+    }
     assert.equal(e.nodes.get('edit-cpl').value,'');
     const values={'edit-folio':'901','edit-fichaMarca':'Volvo','edit-fichaModelo':'D13','edit-fichaAño':'2015',
       'edit-fichaVin':'VIN','edit-fichaNoMotor':'NO','edit-cpl':'4583','edit-hp':'400','edit-estadoMotor':'Usado'};
@@ -144,8 +149,10 @@ let n=0;async function test(name,fn){await fn();console.log('PASS',name);n++;}
     assert(!e.c.avisosDatosCorte(child).includes('Extra'));assert.equal(e.nodes.get('edit-fichaVin').value,'');
     assert.match(e.nodes.get('modal-pieza-body').innerHTML,/<label>VIN <span/);
   });
-  for(const mode of ['cancel','offline','reader','sold','apart-change','duplicate-component','invalid-price','invalid-date'])await test(`blocked ${mode} changes no records`,()=>{
-    const e=env();e.c.venderPieza('corte-sintetico');e.nodes.get('venta-corte-retener').value='motor';e.c.actualizarVentaCorte();
+  for(const mode of ['cancel','offline','reader','sold','apart-change','duplicate-component','missing-origin-folio','invalid-price','invalid-date'])await test(`blocked ${mode} changes no records`,()=>{
+    const e=env();
+    if(mode==='missing-origin-folio'){delete e.c.DATA.piezas[0].folioInterno;e.c._invSync.base=Merge.clone(e.c.DATA);}
+    e.c.venderPieza('corte-sintetico');e.nodes.get('venta-corte-retener').value='motor';e.c.actualizarVentaCorte();
     if(mode==='cancel')e.c.confirm=()=>false;
     if(mode==='offline')e.c._invSync.pendiente=true;
     if(mode==='reader')e.c.esEditor=()=>false;
