@@ -1192,6 +1192,18 @@ mostrarEstadoAcceso('pending');
       <button class="modal-close" onclick="closeModal('modal-venta')">×</button>
     </div>
     <p style="font-size:15px; color:#17140f; font-weight:700; margin-bottom:16px;" id="venta-desc"></p>
+    <div id="venta-corte-opciones" hidden>
+      <div class="field">
+        <label>¿Qué se vendió del corte?</label>
+        <select id="venta-corte-retener" onchange="actualizarVentaCorte()">
+          <option value="">— Elige qué se va y qué se queda —</option>
+          <option value="todo">Corte completo — se va todo</option>
+          <option value="motor">Se vende el resto — se queda el motor</option>
+          <option value="cabina">Se vende el resto — se queda la cabina</option>
+        </select>
+      </div>
+      <div class="info-bar" id="venta-corte-resumen" aria-live="polite"></div>
+    </div>
     <div class="field">
       <label>Fecha de venta</label>
       <input type="date" id="venta-fecha">
@@ -1949,9 +1961,9 @@ function deshacerUltima() {
   // No permitir que una instantánea anterior lo resucite ni borre sus partes.
   const actuales = DATA.piezas || [], anteriores = snap.piezas || [];
   const revierteDesarme = actuales.some(p => p.familia === 'cortes' && p.desarmado &&
-    (!anteriores.some(q => q.id === p.id && q.desarmado) ||
-     !anteriores.some(q => q.id === p.componentesCorte?.cabina) ||
-     !anteriores.some(q => q.id === p.componentesCorte?.motor)));
+    (!anteriores.some(q => q.id === p.id && q.desarmado &&
+      InventarioMerge.eq(q.ventaCorte, p.ventaCorte)) ||
+     Object.values(p.componentesCorte || {}).some(id => !anteriores.some(q => q.id === id))));
   if (revierteDesarme) {
     _undoStack.push(ultima);
     toast('No se puede deshacer: otro equipo desarmó un corte después de esta acción', 'error');
@@ -4306,7 +4318,7 @@ function facturarPieza(id){
     cantidad: 1,
     // Si YA se vendió, manda lo que de verdad se cobró, no lo que se pedía.
     // Facturar el precio de lista cuando hubo descuento saca la factura mal.
-    precioSinIva: Number(p.precioVenta || p.precioSugerido) || 0,
+    precioSinIva: precioVentaRegistrada(p),
     folio: p.folioInterno || ''
   };
   // Se pasa por la dirección, codificado, para que aguante acentos y comas.
@@ -5724,10 +5736,13 @@ function detalleDePiezas(piezas) {
          ['Corte · Info extra',ex.corteExtra],['Folio interno',p.folioInterno]]
           .forEach(([nombre,valor]) => { if (valor) filas.push([nombre, escapeHtml(String(valor))]); });
       }
+      datosPendientesDeCorte(p).forEach(([,nombre]) => filas.push([escapeHtml(nombre), '<span style="color:#a66a00" title="Abre Editar para completar este dato">⚠ Falta dato</span>']));
+      if (ex.infoExtraCorte) filas.push(['Info extra del corte', escapeHtml(ex.infoExtraCorte)]);
       if (ex.origenCorte) {
         const o = ex.origenCorte;
         filas.push(['ⓘ Origen', escapeHtml('Viene del corte ' + (o.folio || '') + ' · ' +
-          [o.marca,o.modelo,o.anio].filter(Boolean).join(' ') + ' · Desarmado el ' +
+          (o.titulo || [o.marca,o.modelo,o.anio].filter(Boolean).join(' ')) +
+          (o.motivo === 'venta-parcial' ? ' · Retenido tras venta parcial el ' : ' · Desarmado el ') +
           new Date(o.fecha).toLocaleDateString('es-MX', {day:'numeric',month:'long',year:'numeric'}))]);
       }
       if (p.notas) filas.push(['Notas', `<em style="color:#888;">${escapeHtml(p.notas)}</em>`]);
@@ -6235,7 +6250,7 @@ function seleccionarFamilia(famId) {
   if (f.tieneCorte) {
     const sugeridos = [...new Set([...getBotonesFamilia('motores'), ...getCatalogos().motores])];
     html += `
-      <div class="info-bar">El corte se registra como <strong>una sola unidad</strong>. Su cabina y motor no aparecen en sus familias hasta que elijas desarmarlo.</div>
+      <div class="info-bar">El corte se registra como <strong>una sola unidad</strong>. Su cabina y motor pasan a sus familias solo al desarmar o al quedarse después de una venta parcial.</div>
       <div style="background:#f9f3f7;border:1px solid #d8bacd;border-left:3px solid #a65b80;padding:14px;margin-bottom:16px;">
         <strong>Cabina del corte</strong>
         <div class="field-row"><div class="field"><label>Marca</label><input id="pieza-corte-cabina-marca" value="${camion ? escapeHtml(camion.marca || '') : ''}" placeholder="Ej. Kenworth"></div>
@@ -6726,6 +6741,7 @@ function renderPiezaItem(p) {
         <div class="pieza-name">${f?.nombreSingular || f?.nombre || p.familia}: ${escapeHtml(p.modelo || '')}${p.familia === 'cortes' && p.folioInterno ? ' · Folio ' + escapeHtml(p.folioInterno) : ''}${precio}${_alertaHuerfano(p)}${badgeApartada(p)}</div>
         <div class="pieza-detail">${extras}${p.vendida ? ' · <strong style="color:'+colorEstadoPieza(p)+'">'+txtEstadoPieza(p)+'</strong>' : ''}</div>
         ${origenCorteInfo(p)}
+        ${avisosDatosCorte(p)}
       </div>
       <div class="pieza-actions">
         ${p.vendida
@@ -6778,12 +6794,46 @@ function formatExtras(ex, modelo) {
 function origenCorteInfo(p) {
   const o = p && p.extras && p.extras.origenCorte;
   if (!o) return '';
-  const identidad = [o.marca,o.modelo,o.anio].filter(Boolean).join(' ');
+  const identidad = o.titulo || [o.marca,o.modelo,o.anio].filter(Boolean).join(' ');
   const fecha = o.fecha ? new Date(o.fecha).toLocaleDateString('es-MX', {day:'numeric',month:'long',year:'numeric'}) : 'sin fecha';
   return `<details style="margin-top:5px;font-size:12px;color:#315a3b;">
-    <summary style="cursor:pointer;font-weight:700;">ⓘ Viene de un corte</summary>
-    <div style="padding:6px 9px;background:#eef6ef;border-radius:5px;">Corte ${escapeHtml(o.folio || 'sin folio')} · ${escapeHtml(identidad)}<br>Se desarmó el ${escapeHtml(fecha)}.<br>${p.folioInterno ? 'Folio propio: ' + escapeHtml(p.folioInterno) : 'Folio propio pendiente de Raúl.'}</div>
+    <summary style="cursor:pointer;font-weight:700;">ⓘ Viene de un corte · Folio ${escapeHtml(o.folio || 'sin folio')} · ${escapeHtml(identidad)}</summary>
+    <div style="padding:6px 9px;background:#eef6ef;border-radius:5px;">${o.motivo === 'venta-parcial' ? 'Se quedó después de vender el resto del corte' : 'Se desarmó'} el ${escapeHtml(fecha)}.<br>${p.folioInterno ? 'Folio propio: ' + escapeHtml(p.folioInterno) : 'Folio propio pendiente de Raúl.'}${p.extras.infoExtraCorte ? '<br>Info del corte: ' + escapeHtml(p.extras.infoExtraCorte) : ''}${o.corteId ? `<br><button class="btn btn-mini" onclick="abrirFotosPieza('${escapeHtml(o.corteId)}')">📷 Ver fotos del corte original</button>` : ''}</div>
   </details>`;
+}
+
+// Avisos calculados al dibujar: al completar un dato dejan de aparecer.
+// Precios y texto extra son opcionales; no se inventan para llenar una ficha.
+function datosPendientesDeCorte(p) {
+  if (!p?.extras?.origenCorte || !['motores','cabinas'].includes(p.familia)) return [];
+  const ex = p.extras;
+  const campos = [['edit-folio','Folio propio',p.folioInterno],
+    ['edit-fichaMarca','Marca',ex.fichaMarca],['edit-fichaModelo','Modelo de ficha',ex.fichaModelo],
+    ['edit-fichaAño','Año',ex.fichaAño],['edit-fichaVin','VIN',ex.fichaVin]];
+  if (p.familia === 'motores') campos.push(['edit-modelo','Modelo de motor',p.modelo],
+    ['edit-serie','N° Serie',ex.serie],['edit-cpl','CPL',ex.cpl],['edit-hp','HP',ex.hp],
+    ['edit-estadoMotor','Estado del motor',ex.estadoMotor],['edit-fichaNoMotor','N° Motor',ex.fichaNoMotor]);
+  return campos.filter(([, ,valor]) => valor == null || String(valor).trim() === '');
+}
+function avisosDatosCorte(p) {
+  const faltan = datosPendientesDeCorte(p);
+  return faltan.length ? `<div style="margin-top:6px;padding:7px 9px;background:#fff5dc;border:1px solid #dfba61;border-radius:5px;font-size:12px;color:#744d00;" role="status"><strong>⚠ Datos pendientes — abre Editar</strong><br>${faltan.map(([,nombre]) => '⚠ ' + escapeHtml(nombre) + ': pendiente').join(' · ')}</div>` : '';
+}
+function marcarCamposPendientesCorte(p, html) {
+  for (const [id] of datosPendientesDeCorte(p)) {
+    const patron = new RegExp('(<label>)([^<]*)(</label>\\s*<input[^>]*\\bid="' + id + '")');
+    html = html.replace(patron, '$1$2 <span style="color:#a66a00" title="Falta este dato; complétalo y guarda">⚠ Falta dato</span>$3');
+  }
+  return html;
+}
+
+function resumenVentaCorte(p) {
+  if (!p?.ventaCorte) return '';
+  return p.ventaCorte.retenido === 'motor' ? 'Venta parcial · se quedó el motor' : 'Venta parcial · se quedó la cabina';
+}
+function precioVentaRegistrada(p) {
+  // Sin precio capturado en una venta parcial no usar el precio del corte entero.
+  return p.ventaCorte ? (Number(p.precioVenta) || 0) : (Number(p.precioVenta) || Number(p.precioSugerido) || 0);
 }
 
 // Modal de "Ver todas las piezas de una familia" (botones rápidos del Inicio)
@@ -6815,7 +6865,7 @@ function verTodasPiezas(famId) {
     }
   }
   if (famId === 'cortes' && desarmados) {
-    html += `<button class="btn btn-small btn-block" style="margin-top:15px;" onclick="verHistorialCortes()">ⓘ Ver historial de ${desarmados} corte(s) desarmado(s)</button>`;
+    html += `<button class="btn btn-small btn-block" style="margin-top:15px;" onclick="verHistorialCortes()">ⓘ Ver historial de ${desarmados} corte(s) separado(s)</button>`;
   }
 
   document.getElementById('modal-pieza-body').innerHTML = html;
@@ -6826,13 +6876,13 @@ function verHistorialCortes() {
   _reabrirModalPieza = verHistorialCortes;
   const cortes = DATA.piezas.filter(p => p.familia === 'cortes' && p.desarmado)
     .sort((a,b) => (b.fechaDesarmado || 0) - (a.fechaDesarmado || 0));
-  document.getElementById('modal-pieza-title').textContent = 'Historial de cortes desarmados';
+  document.getElementById('modal-pieza-title').textContent = 'Historial de cortes separados';
   document.getElementById('modal-pieza-body').innerHTML =
     '<button class="btn btn-small" onclick="verTodasPiezas(\'cortes\')">← Cortes disponibles</button>' +
-    '<div class="info-bar" style="margin-top:10px;">Estos cortes ya no están disponibles como unidad. Sus cabinas y motores están en sus familias con su origen identificado.</div>' +
+    '<div class="info-bar" style="margin-top:10px;">Estos cortes ya no están disponibles como unidad. Los componentes que quedaron están en sus familias; cada separación conserva el corte de origen.</div>' +
     (cortes.length ? cortes.map(p => `<div class="pieza-item" style="display:block;">
       <strong>Corte ${escapeHtml(p.folioInterno || '')} · ${escapeHtml(p.modelo || '')}</strong>
-      <div style="font-size:13px;color:#666;margin:6px 0;">Desarmado el ${new Date(p.fechaDesarmado).toLocaleDateString('es-MX', {day:'numeric',month:'long',year:'numeric'})}</div>
+      <div style="font-size:13px;color:#666;margin:6px 0;">${p.ventaCorte ? escapeHtml(resumenVentaCorte(p)) + ' · Separado el ' : 'Desarmado el '}${new Date(p.fechaDesarmado).toLocaleDateString('es-MX', {day:'numeric',month:'long',year:'numeric'})}</div>
       ${botonFotos(p)}
     </div>`).join('') : '<p>No hay cortes desarmados.</p>');
   openModal('modal-pieza');
@@ -6986,6 +7036,7 @@ function renderPiezaItemConCamion(p) {
           <div style="font-size:18px; font-weight:900; color:#1a1a1a;">${escapeHtml(p.modelo || '')}${p.familia === 'cortes' && p.folioInterno ? ' · Folio ' + escapeHtml(p.folioInterno) : ''}${precio}${_alertaHuerfano(p)}${estadoInyBadge(p)}${badgeApartada(p)}${p.bajoPedido ? ' <span class="badge" style="background:#c9a24b;">Bajo pedido</span>' : ''}</div>
           <div style="font-size:13px; color:#777; margin-top:2px;">${extras}${p.vendida ? ' · <strong style="color:'+colorEstadoPieza(p)+'">'+txtEstadoPieza(p)+'</strong>' : ''}</div>
           ${origenCorteInfo(p)}
+        ${avisosDatosCorte(p)}
           ${p.notas ? `<div style="font-size:14px; color:#4a4a4a; background:#f7f3ea; border-left:3px solid #c9a24b; border-radius:2px; padding:7px 11px; margin-top:5px;">📝 ${escapeHtml(p.notas)}</div>` : ''}
           ${(function(){
             // La misma nota de Maura, también aquí. Keno la pidió en la ficha
@@ -7020,11 +7071,13 @@ function renderPiezaItemConCamion(p) {
 }
 
 let _piezaVendiendoId = null;
+let _piezaVendiendoCorteBase = null;
 function venderPieza(id) {
   const p = DATA.piezas.find(x => x.id === id);
   if (!p) return;
   if (p.desarmado) { toast('Este corte ya fue desarmado y no está a la venta', 'error'); return; }
   _piezaVendiendoId = id;
+  _piezaVendiendoCorteBase = p.familia === 'cortes' ? InventarioMerge.clone(p) : null;
   const f = FAMILIAS.find(x => x.id === p.familia);
   const hoy = new Date().toISOString().slice(0,10);
   document.getElementById('venta-desc').textContent = `${f?.nombreSingular || 'Pieza'}: ${p.modelo || ''}`;
@@ -7032,12 +7085,123 @@ function venderPieza(id) {
   // Si estaba apartada, precargar el precio acordado con el cliente.
   const precio = (p.apartada && p.apartadoInfo && p.apartadoInfo.precio) ? p.apartadoInfo.precio : (p.precioSugerido || '');
   document.getElementById('venta-precio').value = precio;
+  document.getElementById('venta-corte-opciones').hidden = p.familia !== 'cortes';
+  document.getElementById('venta-corte-retener').value = '';
+  document.getElementById('venta-corte-resumen').textContent = 'El corte se conservará en el historial. Solo lo que se quede pasará a su familia.';
   document.getElementById('modal-venta').classList.add('active');
+}
+
+function actualizarVentaCorte() {
+  const retenido = document.getElementById('venta-corte-retener').value;
+  const p = DATA.piezas.find(x => x.id === _piezaVendiendoId);
+  if (!p || p.familia !== 'cortes') return;
+  const parcial = retenido === 'motor' || retenido === 'cabina';
+  const nombre = retenido === 'motor' ? 'motor' : 'cabina';
+  document.getElementById('venta-corte-resumen').textContent = parcial
+    ? `Se vende el resto del corte. Se queda UN ${nombre}, que pasará a ${retenido === 'motor' ? 'Motores' : 'Cabinas'} con sus datos y el folio de origen ${p.folioInterno || ''}. Su folio propio y precio quedan pendientes para Raúl. Captura abajo solo el precio de lo vendido.`
+    : (retenido === 'todo' ? 'Se va el corte completo. No se crearán motores ni cabinas disponibles.' : 'Elige qué se va y qué se queda.');
+  // No trasladar el precio de una unidad completa a su venta parcial.
+  document.getElementById('venta-precio').value = parcial ? '' :
+    ((p.apartada && p.apartadoInfo?.precio) ? p.apartadoInfo.precio : (p.precioSugerido || ''));
+}
+
+function componenteRetenidoDeCorte(corte, tipo, fecha) {
+  const ex = corte.extras || {}, cab = ex.corteCabina || {}, mot = ex.corteMotor || {};
+  const motor = tipo === 'motor', datos = motor ? mot : cab;
+  const origen = {corteId:corte.id, folio:corte.folioInterno || '', titulo:corte.modelo || '',
+    marca:cab.marca || '', modelo:cab.modelo || '', anio:cab.anio || '', fecha,
+    motivo:'venta-parcial', retenido:tipo};
+  return {id:corte.id + '_' + tipo, familia:motor ? 'motores' : 'cabinas',
+    modelo:motor ? (mot.modelo || '') : 'Cabina', motor:motor ? (mot.modelo || '') : '',
+    camionId:corte.camionId || null, camionFolio:corte.camionFolio || 'SUELTA',
+    camionMarca:datos.marca || '', camionModelo:(motor ? mot.fichaModelo : cab.modelo) || '',
+    camionAño:datos.anio || '', marca:datos.marca || '', año:datos.anio || '',
+    precioSugerido:0, precioMax:0, vendida:false, bajoPedido:false, fechaRegistro:fecha,
+    notas:corte.notas || '',
+    extras:{fichaMarca:datos.marca || '', fichaModelo:(motor ? mot.fichaModelo : cab.modelo) || '',
+      fichaAño:datos.anio || '', fichaVin:datos.vin || '', fichaExtra:datos.extra || '',
+      ...(motor ? {serie:mot.serie || '', cpl:mot.cpl || '', hp:mot.hp || '',
+        estadoMotor:mot.estado || '', fichaNoMotor:mot.noMotor || ''} : {}),
+      ubicacion:ex.ubicacion || '', infoExtraCorte:ex.corteExtra || '',
+      datosComponenteCorte:InventarioMerge.clone(datos), origenCorte:origen}};
+}
+
+function confirmarVentaCorte() {
+  const id = _piezaVendiendoId;
+  let p = DATA.piezas.find(x => x.id === id);
+  const retenido = document.getElementById('venta-corte-retener').value;
+  const parcial = retenido === 'motor' || retenido === 'cabina';
+  const valida = () => p && p.familia === 'cortes' && !p.vendida && !p.desarmado && !p.faltante &&
+    esEditor() && inventarioBaseLista() && InventarioMerge.eq(p, _piezaVendiendoCorteBase);
+  if (!valida()) { toast('El corte cambió o falta sincronizar. Vuelve a abrir Vendí; no se cambió nada.', 'error'); return; }
+  if (!['todo','motor','cabina'].includes(retenido)) { toast('Elige qué se vendió y qué se queda del corte', 'error'); return; }
+  if (parcial && (!p.folioInterno || DATA.piezas.some(x => x.id === id + '_motor' || x.id === id + '_cabina'))) {
+    toast('Falta el folio del corte o ya existen sus componentes. No se duplicaron piezas.', 'error'); return;
+  }
+  const fechaStr = document.getElementById('venta-fecha').value;
+  const fechaVenta = fechaStr ? new Date(fechaStr + 'T12:00:00').getTime() : Date.now();
+  const precioRaw = document.getElementById('venta-precio').value.replace(/[,$\s]/g,'');
+  const precio = precioRaw ? Number(precioRaw) : 0;
+  if (!Number.isFinite(fechaVenta) || !Number.isFinite(precio) || precio < 0) {
+    toast('Revisa la fecha y el precio de venta; no se cambió nada', 'error'); return;
+  }
+  const aviso = `Corte ${p.folioInterno || ''} · ${p.modelo || ''}\n\n` + (parcial
+    ? `Se vende el resto y se queda UN ${retenido}. Pasará a su familia con el origen identificado y los campos faltantes pendientes.\nEl corte sale de disponibles y se conserva con sus fotos en el historial. Esta separación no se puede deshacer con ↶.\n`
+    : 'Se vende el corte completo. No se crean componentes disponibles.\n') +
+    (precioRaw ? 'Precio de lo vendido: ' + fmtDinero(precio) : 'Precio de lo vendido: sin capturar') + '\n\n¿Confirmar esta venta?';
+  if (!confirm(aviso)) return;
+  // Un evento de nube pudo llegar mientras estaba abierta la confirmación.
+  p = DATA.piezas.find(x => x.id === id);
+  if (!valida() || (parcial && DATA.piezas.some(x => x.id === id + '_motor' || x.id === id + '_cabina'))) {
+    toast('El corte cambió mientras confirmabas; vuelve a abrir Vendí.', 'error'); return;
+  }
+  const fecha = Date.now();
+  const componente = parcial ? componenteRetenidoDeCorte(p, retenido, fecha) : null;
+  pushUndo(parcial ? 'Venta parcial de corte' : 'Registrar venta');
+  p.vendida = true; p.fechaVenta = fechaVenta;
+  if (parcial || precioRaw) p.precioVenta = precio;
+  if (p.apartada) { delete p.apartada; delete p.apartadoInfo; }
+  if (componente) {
+    // Reusar el archivo desarmado activa también la protección de unión de
+    // las versiones anteriores: una venta simultánea no puede duplicar stock.
+    p.desarmado = true; p.fechaDesarmado = fecha;
+    p.componentesCorte = {[retenido]:componente.id};
+    p.ventaCorte = {retenido, componenteId:componente.id, fecha, fechaVenta};
+    DATA.piezas.push(componente);
+  }
+  guardar(); // Original vendido y único componente en la MISMA transacción.
+  if (parcial) { _undoStack.length = 0; renderHistorialAcciones(); }
+  _piezaVendiendoId = null; _piezaVendiendoCorteBase = null;
+  closeModal('modal-venta');
+  if (document.getElementById('modal-pieza')?.classList.contains('active')) closeModal('modal-pieza');
+  refrescarVistaActual();
+  toast('Venta guardándose. Espera a que diga Sincronizado; no la repitas.', 'info');
+  // No tocar fichas públicas/Leadway ni anunciar éxito antes del recibo de nube.
+  let intentos = 0;
+  const alConfirmar = () => {
+    const piezas = _invSync.base?.piezas || [];
+    const original = piezas.find(x => x.id === id);
+    const hijo = componente && piezas.find(x => x.id === componente.id);
+    if (!_invSync.pendiente && !_invSync.ocupado && original?.vendida &&
+        original.fechaVenta === fechaVenta && original.precioVenta === p.precioVenta &&
+        (!componente || (original.ventaCorte?.componenteId === componente.id && hijo?.extras?.origenCorte?.corteId === id))) {
+      [original, ...(hijo ? [hijo] : [])].forEach(x => {
+        if (hijo || (typeof PUB !== 'undefined' && PUB[x.id]))
+          Promise.resolve().then(() => publicarFicha(x)).catch(e => avisarFallaGuardado('La venta se guardó, pero falta actualizar su ficha pública.', e));
+      });
+      bajarDeLeadwayAlVender(original);
+      playDing(); toast(hijo ? `Venta sincronizada. El ${retenido} quedó en su familia; revisa sus datos pendientes.` : 'Venta sincronizada', 'success');
+    } else if (_invSync.conflictoCorte || _invSync.conflictoDato || ++intentos >= 30) {
+      avisarFallaGuardado('La venta del corte aún no está confirmada. No la repitas; revisa la sincronización y conserva la copia local.');
+    } else setTimeout(alConfirmar, 1000);
+  };
+  setTimeout(alConfirmar, 1000);
 }
 
 function confirmarVenta() {
   const p = DATA.piezas.find(x => x.id === _piezaVendiendoId);
   if (!p) return;
+  if (p.familia === 'cortes') { confirmarVentaCorte(); return; }
   if (p.desarmado || (p.familia === 'cortes' && !inventarioBaseLista())) {
     toast('No se puede vender este corte: ya está desarmado o falta sincronizar con la nube', 'error'); return;
   }
@@ -7084,7 +7248,7 @@ function confirmarVenta() {
 function reactivarPieza(id) {
   const p = DATA.piezas.find(x => x.id === id);
   if (!p) return;
-  if (p.desarmado) { toast('El corte ya se convirtió en cabina y motor; no se puede reactivar aquí', 'error'); return; }
+  if (p.desarmado) { toast(p.ventaCorte ? 'Este corte se vendió parcialmente y su componente ya está separado. No se puede regresar la unidad completa con ↶.' : 'El corte ya se convirtió en cabina y motor; no se puede reactivar aquí', 'error'); return; }
   if (!confirm('¿Regresar esta pieza al patio (no vendida)?')) return;
   pushUndo('Regresar pieza al patio');
   p.vendida = false;
@@ -8048,7 +8212,7 @@ function renderVentas() {
   }).sort((a,b) => (b.fechaVenta||0) - (a.fechaVenta||0));
 
   const totalPiezas = lista.length;
-  const totalDinero = lista.reduce((s,p) => s + (p.precioVenta || p.precioSugerido || 0), 0);
+  const totalDinero = lista.reduce((s,p) => s + precioVentaRegistrada(p), 0);
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const ventasHoy = vendidas.filter(p => p.fechaVenta && p.fechaVenta >= hoy.getTime()).length;
   document.getElementById('ventas-stats').innerHTML = `
@@ -8068,7 +8232,7 @@ function renderVentas() {
   cont.innerHTML = Object.keys(porFecha).sort((a,b)=>b.localeCompare(a)).map(fecha => {
     const piezas = porFecha[fecha];
     const fechaTxt = fecha === 'sin-fecha' ? 'Sin fecha' : fechaCorta(new Date(fecha+'T12:00:00').getTime()).split(' · ')[0];
-    const totalDia = piezas.reduce((s,p)=>s+(p.precioVenta||p.precioSugerido||0),0);
+    const totalDia = piezas.reduce((s,p)=>s+precioVentaRegistrada(p),0);
     return `
       <div class="card" style="padding:0; overflow:hidden; margin-bottom:14px;">
         <div class="card-header" style="background:#17140f; color:#fff; padding:12px 16px; margin:0;">
@@ -8078,12 +8242,12 @@ function renderVentas() {
         <div style="padding:8px 16px;">
           ${piezas.map(p => {
             const f = FAMILIAS.find(x => x.id === p.familia);
-            const precio = p.precioVenta || p.precioSugerido || 0;
+            const precio = precioVentaRegistrada(p);
             return `
               <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #f0ece2;">
                 <div>
                   <span style="font-weight:700;">${escapeHtml(f?.nombreSingular||'Pieza')}: ${escapeHtml(p.modelo||'')}</span>
-                  <span style="font-size:12px; color:#999;"> ${p.motor?'· '+escapeHtml(p.motor):''}</span>
+                  <span style="font-size:12px; color:#999;"> ${p.motor?'· '+escapeHtml(p.motor):''}</span>${p.ventaCorte ? '<div style="font-size:12px;color:#315a3b;">' + escapeHtml(resumenVentaCorte(p)) + '</div>' : ''}
                 </div>
                 <div style="display:flex; align-items:center; gap:10px;">
                   <span style="font-family:'Courier New',monospace; font-weight:700; color:#2e7d46;">${precio?fmtDinero(precio):'—'}</span>
@@ -8118,6 +8282,7 @@ function editarPieza(id) {
   document.getElementById('modal-pieza-title').textContent = `Editar ${f?.nombreSingular || 'Pieza'}`;
 
   let html = `
+    ${ex.origenCorte ? origenCorteInfo(p) + avisosDatosCorte(p) : ''}
     <h3 style="margin-top:0; background:#17140f; color:#fff; display:inline-block; padding:8px 16px; border-radius:2px; font-size:18px; font-family:Georgia,serif;">${f?.nombreSingular || 'Pieza'}</h3>
 
     ${f?.tieneCorte
@@ -8268,7 +8433,7 @@ function editarPieza(id) {
     <button class="btn btn-success btn-block" onclick="guardarEdicionPieza('${p.id}')">Guardar Cambios</button>
   `;
 
-  document.getElementById('modal-pieza-body').innerHTML = html;
+  document.getElementById('modal-pieza-body').innerHTML = ex.origenCorte ? marcarCamposPendientesCorte(p, html) : html;
   openModal('modal-pieza');
 }
 
@@ -8492,7 +8657,7 @@ function renderComprasLista(q) {
     var f = FAMILIAS.find(function(x) { return x.id === p.familia; });
     var fam = f ? (f.nombreSingular || f.nombre) : p.familia;
     var compra = Number(p.precioCompra) || 0;
-    var venta = esFaltante(p) ? 0 : (Number(p.precioVenta) || Number(p.precioSugerido) || 0);  // faltante no es venta
+    var venta = esFaltante(p) ? 0 : precioVentaRegistrada(p);  // faltante no es venta
     var gan = (compra && venta) ? (venta - compra) : null;
     return '<div style="padding:10px 4px;border-bottom:1px solid #eee;">' +
       '<div style="font-weight:700;">' + escapeHtml(fam) + (p.modelo ? ': ' + escapeHtml(p.modelo) : '') + (p.vendida ? ' <span style="color:'+colorEstadoPieza(p)+';font-size:11px;font-weight:700;">'+txtEstadoPieza(p)+'</span>' : '') + '</div>' +
@@ -9692,7 +9857,7 @@ function excelFilaCorte(p) {
     mot.modelo || '',mot.serie || '',mot.cpl || '',mot.hp || '',mot.estado || '',mot.marca || '',
     mot.fichaModelo || '',mot.anio || '',mot.vin || '',mot.noMotor || '',mot.extra || '',
     ex.corteExtra || '',ex.ubicacion || '',p.precioSugerido || '',p.precioMax || '',p.notas || '',
-    p.desarmado ? 'DESARMADO' : (p.vendida ? txtEstadoPieza(p) : 'En Patio'),
+    p.ventaCorte ? resumenVentaCorte(p) : (p.desarmado ? 'DESARMADO' : (p.vendida ? txtEstadoPieza(p) : 'En Patio')),
     p.fechaRegistro ? new Date(p.fechaRegistro).toLocaleDateString('es-MX') : '',
     p.fechaDesarmado ? new Date(p.fechaDesarmado).toLocaleDateString('es-MX') : ''];
 }
@@ -9702,8 +9867,8 @@ function excelFilaDe(p) {
   const f = FAMILIAS.find(x => x.id === p.familia);
   const camion = DATA.camiones.find(c => c.id === p.camionId);
   const origen = ex.origenCorte ? ('Origen: corte ' + (ex.origenCorte.folio || '') + ' ' +
-    [ex.origenCorte.marca,ex.origenCorte.modelo,ex.origenCorte.anio].filter(Boolean).join(' ') +
-    ' · desarmado ' + new Date(ex.origenCorte.fecha).toLocaleDateString('es-MX')) : '';
+    (ex.origenCorte.titulo || [ex.origenCorte.marca,ex.origenCorte.modelo,ex.origenCorte.anio].filter(Boolean).join(' ')) +
+    (ex.origenCorte.motivo === 'venta-parcial' ? ' · retenido tras venta parcial ' : ' · desarmado ') + new Date(ex.origenCorte.fecha).toLocaleDateString('es-MX')) : '';
   return [
     p.folioInterno || '',
     camion ? camion.folio : (p.camionFolio && p.camionFolio !== 'SUELTA' ? p.camionFolio : ''),
