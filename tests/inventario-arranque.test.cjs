@@ -25,7 +25,7 @@ function environment({local,cloud,base=null,pending=true,quota=false}){
  setTimeout:(fn,ms)=>{timers.push(fn)},_limpiarLlaves(){},guardar(){writeCount++;},exportJSON(){},RIC_FAM:'ricardo',_ricLunes:()=> '2026-09-21',_ricRotulo:()=> '21 al 27 de septiembre',
  };
  vm.createContext(c);vm.runInContext(functions.map(func).join('\n'),c);
- return {c,storage,nodes,timers,emit(){valueListener({val:()=>structuredClone(cloud)})},writes:()=>writeCount,failGet(){getError=true},abortTransaction(error){transactionDone(error||null,false,null)},rejectConflict(){assert.equal(transactionUpdate(structuredClone(cloud)),undefined);transactionDone(null,false,null)},setCloud(v){cloud=structuredClone(v)}};
+ return {c,storage,nodes,timers,emit(){valueListener({val:()=>structuredClone(cloud)})},writes:()=>writeCount,computeTransaction:v=>transactionUpdate(v),failGet(){getError=true},abortTransaction(error){transactionDone(error||null,false,null)},rejectConflict(){assert.equal(transactionUpdate(structuredClone(cloud)),undefined);transactionDone(null,false,null)},setCloud(v){cloud=structuredClone(v)}};
 }
 function data(count){return {camiones:[],piezas:Array.from({length:count},(_,i)=>({id:'p'+i,familia:'mancuernas',modelo:'M'+i})),catalogos:{},familiasOverride:{},estatusChasisSync:{},chasisIgnorados:{ids:{},series:{}},salidas:[],folioCounter:1,ventasAtendidas:{},ventasDesde:'',conteos:[]};}
 (async()=>{
@@ -92,6 +92,12 @@ function data(count){return {camiones:[],piezas:Array.from({length:count},(_,i)=
  // Existing three-way merge retains concurrent independent additions and rejects conflicts.
  b=data(1);l=Merge.clone(b);r=Merge.clone(b);l.piezas.push({id:'local'});r.piezas.push({id:'raul'});assert.equal(Merge.merge(b,l,r).piezas.length,3);
  l=Merge.clone(b);r=Merge.clone(b);l.piezas[0].modelo='one';r.piezas[0].modelo='two';assert.throws(()=>Merge.merge(b,l,r));tests++;
+ // Slow clock and two saves within the same millisecond still advance cloud revision.
+ b=data(1);l=Merge.clone(b);r=Merge.clone(b);r._ts=Date.now()+60000;
+ e=environment({local:l,cloud:r,base:b});e.c.empujarAFirebase();
+ let revision1=e.computeTransaction(r);assert.equal(revision1._ts,r._ts+1);
+ let revision2=e.computeTransaction(revision1);assert.equal(revision2._ts,revision1._ts+1);
+ assert.deepEqual(JSON.parse(JSON.stringify(revision2.piezas)),b.piezas);tests++;
  let scripts=0;for(const m of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)){if(m[1].trim()){new vm.Script(m[1]);scripts++;}}
  console.log(`${tests} safety scenarios passed; ${scripts} inline scripts compile.`);
 })().catch(e=>{console.error(e);process.exit(1)});

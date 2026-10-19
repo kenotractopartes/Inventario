@@ -746,7 +746,7 @@
     </div>
     <div id="catalogo-clientes-estado" role="status" aria-live="polite">Copia el enlace y pégalo en WhatsApp o donde atiendas al cliente.</div>
     <div id="catalogo-stock-estado" role="status" aria-live="polite" style="font-size:12px;margin-top:6px"></div>
-    <button class="btn btn-mini solo-editor" type="button" onclick="programarCatalogoDisponible()">↻ Comprobar disponibilidad</button>
+    <button class="btn btn-mini solo-editor" type="button" onclick="programarCatalogoDisponible()">↻ Verificar actualización</button>
   </div>
 </dialog>
 
@@ -3112,7 +3112,7 @@ function empujarAFirebase() {
       const unido=InventarioMerge.merge(base,enviado,limpio);
       if(remoto.piezas.length>=20&&(unido.piezas||[]).length<remoto.piezas.length*0.85)
         throw new Error('El cambio quitaría más del 15% de las piezas. No se aplicó.');
-      return {...unido,_origen:DEVICE_ID,_ts:Date.now(),_key:EDITOR_KEY};
+      return {...unido,_origen:DEVICE_ID,_ts:Math.max(Date.now(),Number(remoto._ts||0)+1),_key:EDITOR_KEY};
     }catch(e){conflicto=e;return;}
   },function(error,committed,snapshot){
     _invSync.ocupado=false;
@@ -4725,37 +4725,32 @@ function botonFotos(p){
 }
 
 // Escuchar el nodo público en vivo (se engancha al conectar Firebase).
-var _catalogoConectado=false, _catalogoTimer=null, _catalogoOcupado=false, _catalogoRepetir=false, _catalogoReintentos=0;
+// Solo consulta estado. El catálogo lo actualiza Cloud Functions, no este navegador.
+var _catalogoConectado=false, _catalogoTimer=null, _catalogoEsperaDesde=0;
 function programarCatalogoDisponible(){
-  if(!window.CatalogoStock || !fbRef || !_catalogoConectado) return;
-  var u=firebase.auth().currentUser;
-  if(!u || u.email!=='raultractopartes@gmail.com') return;
-  if(_catalogoOcupado){_catalogoRepetir=true;return;}
   clearTimeout(_catalogoTimer);
   _catalogoTimer=setTimeout(actualizarCatalogoDisponible,600);
 }
 async function actualizarCatalogoDisponible(){
-  if(_catalogoOcupado) return;
-  _catalogoOcupado=true; _catalogoRepetir=false;
   var el=document.getElementById('catalogo-stock-estado');
+  if(!el) return;
+  if(!_catalogoConectado){el.textContent='Sin conexión para comprobar el catálogo.';return;}
   try{
-    var resultado=await CatalogoStock.sincronizar({
-      conectado:()=>_catalogoConectado,
-      leer:()=>fbRef.get().then(s=>s.val()),
-      transaccion:fn=>new Promise((resolve,reject)=>{
-        firebase.database().ref('fichas_publicas/_catalogo_v2').transaction(fn,
-          (err,ok,snap)=>err?reject(err):resolve(snap && snap.val()),false);
-      })
-    });
-    _catalogoReintentos=0;
-    if(el) el.textContent='✓ Catálogo actualizado: '+resultado.total+' piezas disponibles. Sin precios.';
+    var datos=await Promise.all([
+      firebase.database().ref('inventario_patio/_ts').get(),
+      firebase.database().ref('catalogo_disponible').get()
+    ]);
+    var stock=datos[1].val();
+    if(!CatalogoStock.valido(stock) || stock.revision!==datos[0].val())throw Error('Pendiente');
+    _catalogoEsperaDesde=0;
+    el.textContent='✓ Actualización automática en la nube: '+stock.total+' piezas disponibles. Sin precios.';
   }catch(e){
-    if(el) el.textContent='⚠ Catálogo pendiente de actualizar. '+(e.message||'Revisa la conexión.')+' Puedes seguir usando el inventario.';
-    console.warn('Catálogo disponible:',e);
-    if(++_catalogoReintentos<=3) _catalogoTimer=setTimeout(programarCatalogoDisponible,10000);
-  }finally{
-    _catalogoOcupado=false;
-    if(_catalogoRepetir) programarCatalogoDisponible();
+    if(!_catalogoEsperaDesde) _catalogoEsperaDesde=Date.now();
+    el.textContent=Date.now()-_catalogoEsperaDesde>=60000
+      ? 'El catálogo no se ha podido actualizar. Avisa a soporte; las existencias sin confirmar siguen ocultas.'
+      : 'Actualizando desde el inventario. El catálogo oculta existencias pendientes de confirmar.';
+    clearTimeout(_catalogoTimer);
+    if(_catalogoConectado) _catalogoTimer=setTimeout(actualizarCatalogoDisponible,Date.now()-_catalogoEsperaDesde>=60000?30000:5000);
   }
 }
 
@@ -4768,6 +4763,8 @@ function escucharFichasPublicas(){
   try {
     firebase.database().ref('fichas_publicas').on('value', function(snap){ PUB = snap.val() || {}; _refresca(); });
     firebase.database().ref('media_modelo').on('value', function(snap){ MEDIA_MODELO = snap.val() || {}; _refresca(); });
+    firebase.database().ref('inventario_patio/_ts').on('value', programarCatalogoDisponible);
+    // La comprobación es de lectura; el servicio sigue funcionando al cerrar esta pestaña.
   } catch(e){ console.error('fichas/media:', e); }
 }
 

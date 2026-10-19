@@ -199,7 +199,7 @@ function medirPantalla(famId, famNombre){
 //    cabinas ni radiadores. Sale del inventario de Raúl; si algún día se
 //    agrega una familia nueva allá, hay que agregarla aquí.
 var FAMILIAS = CatalogoStock.familias;
-var PZ = {}, FICHAS = {}, MEDIA = {}, listo = {piezas:false,media:false}, conexion=false;
+var PZ = {}, FICHAS = {}, MEDIA = {}, listo = {piezas:false,media:false,fichas:false,revision:false}, conexion=false, revisionInventario=null, stockActual=null, reintentoStock=null;
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -264,7 +264,7 @@ function pintar(){
   document.getElementById('wa-general').href =
     wa('Hola, vi su catálogo de piezas y quiero preguntarles por una refacción.');
 
-  if(!listo.piezas || !listo.media || !conexion){ fallo(); return; }
+  if(!listo.piezas || !listo.media || !listo.fichas || !listo.revision || !conexion || !stockActual || stockActual.revision!==revisionInventario){ fallo(); return; }
   if(!fam){ medirPantalla('', ''); pintarFamilias(app); return; }
   pintarFamilia(app, fam);
 }
@@ -427,25 +427,42 @@ firebase.initializeApp({
 });
 function fallo(){
   document.getElementById('app').innerHTML =
-    '<div class="vacio-caja"><p>No podemos confirmar la disponibilidad en este momento.<br>'
+    '<div class="vacio-caja"><p>Estamos comprobando la disponibilidad actual.<br>'
     + 'Escríbenos y con gusto te decimos qué tenemos.</p>'
     + '<a class="wa" href="' + wa('Hola, quiero preguntar por una refacción.')
     + '" target="_blank" rel="noopener">💬 Escribir por WhatsApp</a></div>';
+  try{cerrarLupa();}catch(_){} // La limpieza visual nunca debe impedir retirar stock sin confirmar.
 }
-firebase.database().ref('.info/connected').on('value', function(s){
+// La lectura del stock también está condicionada por reglas a la revisión vigente.
+var stockRef=firebase.database().ref('catalogo_disponible');
+function escucharStock(){
+  clearTimeout(reintentoStock);
+  stockRef.off('value',recibirStock);
+  if(!conexion) return;
+  stockRef.on('value',recibirStock,function(){
+    listo.piezas=false;stockActual=null;PZ={};fallo();
+    if(conexion) reintentoStock=setTimeout(escucharStock,2000);
+  });
+}
+function recibirStock(s){
+  stockActual=s.val();listo.piezas=CatalogoStock.valido(stockActual);
+  PZ=listo.piezas?(stockActual.piezas||{}):{};
+  pintar();
+}
+firebase.database().ref('.info/connected').on('value',function(s){
   conexion=s.val()===true;
-  if(conexion && listo.piezas && listo.media) pintar(); else if(!conexion) fallo();
+  if(!conexion){listo.piezas=false;stockActual=null;PZ={};clearTimeout(reintentoStock);fallo();}
+  else escucharStock();
 });
-firebase.database().ref('fichas_publicas').on('value', function(s){
-  var datos=s.val() || {}, stock=datos._catalogo_v2;
-  listo.piezas=CatalogoStock.valido(stock);
-  if(!listo.piezas){PZ={};fallo();return;}
-  PZ=stock.piezas || {}; FICHAS=datos;
-  if(listo.media && conexion) pintar();
-}, function(){listo.piezas=false;PZ={};fallo();});
+firebase.database().ref('inventario_patio/_ts').on('value',function(s){
+  revisionInventario=s.val();listo.revision=Number.isSafeInteger(revisionInventario)&&revisionInventario>0;
+  pintar();
+},function(){listo.revision=false;fallo();});
+firebase.database().ref('fichas_publicas').on('value',function(s){
+  FICHAS=s.val()||{};listo.fichas=true;pintar();
+},function(){listo.fichas=false;fallo();});
 firebase.database().ref('media_modelo').on('value',function(s){
-  MEDIA=s.val() || {};listo.media=true;
-  if(listo.piezas && conexion) pintar();
+  MEDIA=s.val()||{};listo.media=true;pintar();
 },function(){listo.media=false;fallo();});
 </script>
 </body>
