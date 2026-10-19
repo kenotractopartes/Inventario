@@ -95,6 +95,18 @@
   #lupa .x { position:absolute; top:14px; right:16px; background:rgba(255,255,255,.16); border:0; color:#fff;
              font-size:22px; width:40px; height:40px; border-radius:11px; cursor:pointer; }
   .cargando { text-align:center; color:var(--gris); padding:50px 20px; font-size:15px; }
+
+  /* Buscador público: conserva la portada y usa solo existencias confirmadas. */
+  .busqueda-cabecera { display:grid; grid-template-columns:minmax(0,1fr) minmax(146px, min(45%,300px)); align-items:center; gap:12px; margin:20px 0 12px; }
+  .busqueda-cabecera h2.titulo { margin:0; }
+  .busqueda-campo { position:relative; display:block; min-width:0; }
+  .busqueda-campo svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); width:18px; height:18px; color:var(--azul); pointer-events:none; }
+  #buscar-pieza { width:100%; min-width:0; min-height:46px; padding:11px 9px 11px 37px; border:1px solid var(--azul-borde); border-radius:12px; background:#fff; color:var(--tinta); font:inherit; font-size:16px; box-shadow:0 2px 7px rgba(64,28,134,.04); }
+  #buscar-pieza::placeholder { color:var(--gris); opacity:1; }
+  #buscar-pieza:focus-visible { outline:2px solid var(--azul); outline-offset:2px; }
+  .busqueda-resumen { margin:8px 0 14px; color:var(--gris); font-size:14px; line-height:1.5; overflow-wrap:anywhere; }
+  .busqueda-limpiar { border:1px solid var(--linea); border-radius:10px; background:#fff; color:var(--azul); padding:9px 13px; min-height:44px; font:inherit; font-size:14px; font-weight:700; cursor:pointer; }
+  @media(max-width:370px){ .busqueda-cabecera {gap:9px;} .busqueda-cabecera h2.titulo {font-size:19px;} }
 </style>
 </head>
 <body>
@@ -119,6 +131,13 @@
     Si no ves lo que buscas, pregúntanos — es muy probable que sí lo tengamos.
   </div>
 
+  <div class="busqueda-cabecera">
+    <h2 class="titulo">¿Qué pieza buscas?</h2>
+    <label class="busqueda-campo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+      <input id="buscar-pieza" type="search" placeholder="Buscar pieza" aria-label="Buscar pieza, marca o modelo" aria-controls="app" maxlength="100" autocomplete="off" enterkeyhint="search" spellcheck="false">
+    </label>
+  </div>
   <div id="app"><div class="cargando">Cargando las piezas…</div></div>
 
   <footer>
@@ -130,6 +149,7 @@
 <div id="lupa" onclick="cerrarLupa()"><button class="x" onclick="cerrarLupa()">✕</button><img id="lupa-img" alt=""></div>
 
 <script src="catalogo-stock.js?v=20261019-1"></script>
+<script src="catalogo-busqueda.js?v=20261019-1"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
@@ -265,6 +285,8 @@ function pintar(){
     wa('Hola, vi su catálogo de piezas y quiero preguntarles por una refacción.');
 
   if(!listo.piezas || !listo.media || !listo.fichas || !listo.revision || !conexion || !stockActual || stockActual.revision!==revisionInventario){ fallo(); return; }
+  var consulta=document.getElementById('buscar-pieza').value.trim();
+  if(consulta){ pintarBusqueda(app,consulta); return; }
   if(!fam){ medirPantalla('', ''); pintarFamilias(app); return; }
   pintarFamilia(app, fam);
 }
@@ -276,7 +298,7 @@ function pintarFamilias(app){
     if(!f.familia || !seEnseña(f)) return;
     cuenta[f.familia] = (cuenta[f.familia] || 0) + 1;
   });
-  app.innerHTML = '<h2 class="titulo">¿Qué pieza buscas?</h2><p>Solo piezas disponibles para venta. Consulta por WhatsApp.</p><div class="rejilla">'
+  app.innerHTML = '<p>Solo piezas disponibles para venta. Consulta por WhatsApp.</p><div class="rejilla">'
     + FAMILIAS.map(function(f){
         var n = cuenta[f.id] || 0;
         return '<button class="fam' + (n ? '' : ' vacia') + '" onclick="location.hash=\'' + f.id + '\'">'
@@ -320,16 +342,25 @@ function pintarFamilia(app, famId){
                          piezas: piezas.length, tiene_piezas: piezas.length ? 'si' : 'no' });
   if(!piezas.length){ app.innerHTML = cab + cajaVacia(fam); return; }
 
+  app.innerHTML = cab + tarjetasPiezas(piezas);
+}
+
+// Mismas tarjetas, fotografías y WhatsApp para familias y búsqueda.
+function tarjetasPiezas(piezas,porRelevancia){
+  var familiasPorId=Object.create(null);
+  FAMILIAS.forEach(function(x){familiasPorId[x.id]=x;});
   // Agrupadas por modelo: 165 inyectores casi iguales no le sirven a nadie.
   // Sale "Inyector C15 — tenemos 40" y las fotos de ese modelo.
   // ⚠️ Se agrupa por el NOMBRE QUE VE EL CLIENTE, no por modelKey. Seis árboles
   //    ISX870 con folios distintos (331, 333, 406, 432, 476, 629) tienen seis
   //    modelKey distintos, y al quitarles el folio salían seis tarjetas que
   //    decían exactamente lo mismo. Para el cliente es una sola pieza: ISX870.
-  var grupos = {};
+  var grupos = Object.create(null);
   piezas.forEach(function(f){
-    var k = nombreParaCliente(f, fam);
-    if(!grupos[k]) grupos[k] = { f:f, n:0 };
+    var fam=familiasPorId[f.familia];
+    var k = f.familia+'|'+nombreParaCliente(f, fam);
+    if(!grupos[k]) grupos[k] = { f:f, n:0, puntos:0 };
+    grupos[k].puntos=Math.max(grupos[k].puntos,f._busquedaPuntos||0);
     // El representante manda la foto Y el renglón de abajo: se prefiere uno
     // que tenga foto, y entre esos, uno que además traiga modelo.
     var act = grupos[k].f;
@@ -344,15 +375,16 @@ function pintarFamilia(app, famId){
   //    tiene foto vaya primero.
   var llaves = Object.keys(grupos).sort(function(a, b){
     var ga = grupos[a], gb = grupos[b];
+    if(porRelevancia && ga.puntos!==gb.puntos)return gb.puntos-ga.puntos;
     var fa = fotosDe(ga.f).length ? 0 : 1, fb = fotosDe(gb.f).length ? 0 : 1;
     if(fa !== fb) return fa - fb;                       // primero las que tienen foto
     return a.localeCompare(b, 'es');
   });
-  if(!llaves.length){ app.innerHTML = cab + cajaVacia(fam); return; }
+  if(!llaves.length)return '';
 
-  app.innerHTML = cab + '<div class="tarjetas">'
+  return '<div class="tarjetas">'
     + llaves.map(function(k){
-        var g = grupos[k], f = g.f, fotos = fotosDe(f);
+        var g = grupos[k], f = g.f, fam=familiasPorId[f.familia], fotos = fotosDe(f);
         // ⚠️ Para el cuadrito se usa la MINIATURA (~32 KB) si ya existe. Las
         //    fotos subidas antes del 16 ago 2026 no la tienen: esas caen a la
         //    de 1600 px, que pesa 12 veces más pero se ve igual de bien.
@@ -386,6 +418,29 @@ function pintarFamilia(app, famId){
       }).join('')
     + '</div>';
 }
+
+function pintarBusqueda(app,consulta){
+  // PZ solo se acepta después de la validación de revisión/conexión en pintar().
+  var piezas=Object.keys(PZ).map(function(id){return Object.assign({},PZ[id],{_id:id});}).filter(seEnseña);
+  var resultados=CatalogoBusqueda.buscar(piezas,FAMILIAS,consulta);
+  var resumen='<p class="busqueda-resumen" role="status">'+resultados.length+(resultados.length===1?' pieza disponible':' piezas disponibles')+' para <strong>“'+esc(consulta)+'”</strong>'
+    +(resultados.some(function(r){return r.aproximada;})?'<br>Incluye coincidencias aproximadas. Revisa el modelo.':'')+'</p>';
+  var limpiar='<button type="button" class="busqueda-limpiar" onclick="limpiarBusqueda()">← Ver categorías</button>';
+  if(!resultados.length){
+    app.innerHTML=limpiar+resumen+'<div class="vacio-caja"><p>No encontramos una coincidencia disponible.<br>Prueba con el nombre, la marca o el modelo, o pregúntanos.</p><a class="wa" target="_blank" rel="noopener" data-ev="busqueda_sin_resultado" href="'+wa('Hola, busco: '+consulta+'. ¿Me pueden ayudar?')+'">💬 Preguntar por esta pieza</a></div>';return;
+  }
+  app.innerHTML=limpiar+resumen+tarjetasPiezas(resultados.map(function(r){return Object.assign({},r.pieza,{_busquedaPuntos:r.puntos});}),true);
+}
+function limpiarBusqueda(){
+  document.getElementById('buscar-pieza').value='';
+  if(location.hash)location.hash='';else pintar();
+  document.getElementById('buscar-pieza').focus();
+}
+document.getElementById('buscar-pieza').addEventListener('input',function(){pintar();});
+document.getElementById('buscar-pieza').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){e.preventDefault();this.blur();}
+  if(e.key==='Escape' && this.value){e.preventDefault();limpiarBusqueda();}
+});
 
 document.addEventListener('click', function(e){
   if(!e.target.closest) return;
