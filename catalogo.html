@@ -431,15 +431,15 @@ function pintarBusqueda(app,consulta){
   }
   app.innerHTML=limpiar+resumen+tarjetasPiezas(resultados.map(function(r){return Object.assign({},r.pieza,{_busquedaPuntos:r.puntos});}),true);
 }
-function limpiarBusqueda(){
+function limpiarBusqueda(conservarFoco){
   document.getElementById('buscar-pieza').value='';
   if(location.hash)location.hash='';else pintar();
-  document.getElementById('buscar-pieza').focus();
+  document.getElementById('buscar-pieza')[conservarFoco?'focus':'blur']();
 }
 document.getElementById('buscar-pieza').addEventListener('input',function(){pintar();});
 document.getElementById('buscar-pieza').addEventListener('keydown',function(e){
   if(e.key==='Enter'){e.preventDefault();this.blur();}
-  if(e.key==='Escape' && this.value){e.preventDefault();limpiarBusqueda();}
+  if(e.key==='Escape' && this.value){e.preventDefault();limpiarBusqueda(true);}
 });
 
 document.addEventListener('click', function(e){
