@@ -129,23 +129,16 @@
 
 <div id="lupa" onclick="cerrarLupa()"><button class="x" onclick="cerrarLupa()">✕</button><img id="lupa-img" alt=""></div>
 
+<script src="catalogo-stock.js?v=20261019-1"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 // ══════════════════════════════════════════════════════════════════════
 // CATÁLOGO PÚBLICO — lo que se le manda al cliente por WhatsApp
 // ──────────────────────────────────────────────────────────────────────
-// SOLO LECTURA y SIN PIN, a propósito. Lee dos nodos que ya son públicos
-// en las reglas de Firebase:
-//    fichas_publicas → los datos de la pieza (título, familia, motor)
-//    media_modelo    → las fotos
-// El inventario de verdad (`inventario_patio`) está CERRADO con llave y
-// esta página ni lo toca. Aquí NUNCA se enseña precio, ubicación en el
-// patio, costo ni proveedor — nada de eso vive siquiera en estos nodos.
-//
-// SE ACTUALIZA SOLO: una pieza entra al catálogo cuando Raúl le sube
-// fotos, y se sale si se las quita. No hay copia que subir a mano.
-// ══════════════════════════════════════════════════════════════════════
+// Solo lectura: _catalogo_v2 contiene únicamente piezas disponibles de la nube
+// confirmada. Las fichas históricas siguen sirviendo a sus QR, pero no suman
+// existencias. No se lee inventario_patio ni se muestran precios.
 var TEL = '528121529279';   // 81 2152 9279
 
 // ══════════════════════════════════════════════════════════════════════
@@ -205,9 +198,8 @@ function medirPantalla(famId, famNombre){
 //    hoy son 11 de 23, y esconderlas haría creer que no manejamos chasis,
 //    cabinas ni radiadores. Sale del inventario de Raúl; si algún día se
 //    agrega una familia nueva allá, hay que agregarla aquí.
-var FAMILIAS = [{"id": "arboles", "nombre": "Árboles de Levas", "sing": "Árbol de Levas"}, {"id": "motores", "nombre": "Motores", "sing": "Motor"}, {"id": "transmisiones", "nombre": "Transmisiones", "sing": "Transmisión"}, {"id": "turbos", "nombre": "Turbos", "sing": "Turbo"}, {"id": "compresores", "nombre": "Compresores", "sing": "Compresor"}, {"id": "diferenciales", "nombre": "Diferenciales", "sing": "Diferencial"}, {"id": "mancuernas", "nombre": "Mancuernas", "sing": "Mancuerna"}, {"id": "fundas", "nombre": "Fundas", "sing": "Funda"}, {"id": "cabinas", "nombre": "Cabinas", "sing": "Cabina"}, {"id": "cortes", "nombre": "Cortes", "sing": "Corte"}, {"id": "cofres", "nombre": "Cofres", "sing": "Cofre"}, {"id": "puertas", "nombre": "Puertas", "sing": "Puerta"}, {"id": "quintaRueda", "nombre": "Quinta Rueda", "sing": "Quinta Rueda"}, {"id": "fanclutches", "nombre": "Fanclutches", "sing": "Fanclutch"}, {"id": "radiadores", "nombre": "Radiadores", "sing": "Radiador"}, {"id": "cabezas", "nombre": "Cabezas de Motor", "sing": "Cabeza de Motor"}, {"id": "monoblocks", "nombre": "Monoblocks", "sing": "Monoblock"},{"id": "ciguenales", "nombre": "Cigüeñales", "sing": "Cigüeñal"}, {"id": "campanas", "nombre": "Campanas de Motor", "sing": "Campana de Motor"}, {"id": "chasis", "nombre": "Chasis", "sing": "Chasis"}, {"id": "complementos", "nombre": "Complementos de Cabina", "sing": "Complemento de Cabina"}, {"id": "computadoras", "nombre": "Computadoras", "sing": "Computadora"}, {"id": "inyectores", "nombre": "Inyectores", "sing": "Inyector"}, {"id": "arneses", "nombre": "Arneses", "sing": "Arnés"}, {"id": "otros", "nombre": "Otros", "sing": "Otro"}];
-
-var PZ = {}, MEDIA = {}, listo = 0;
+var FAMILIAS = CatalogoStock.familias;
+var PZ = {}, FICHAS = {}, MEDIA = {}, listo = {piezas:false,media:false}, conexion=false;
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -252,29 +244,14 @@ function nombreParaCliente(f, fam){
 }
 function plano(x){ return String(x || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
 
-// ⚠️ El inventario tiene una palomita por pieza —"esta NO sale en el catálogo"—
-//    que llega aquí como `web:false`. Hay que respetarla: si Raúl marca una
-//    pieza, deja de salir. (Las fichas viejas no traen el campo; esas sí salen.)
-//
-// Y aparte, esta lista: registros sueltos que Keno pidió sacar del catálogo
-// el 16 ago 2026 — los cuatro que había en la familia "Otros". La SECCIÓN se
-// queda: lo que metan a "Otros" de aquí en adelante sí va a salir.
-//
-// Va aquí y no en el inventario a propósito. Una ficha se queda pegada en la
-// nube aunque su pieza ya no exista en el inventario, y en ese caso el
-// inventario nunca la vuelve a escribir: solo el catálogo la puede tapar.
-// Para devolver alguna, se borra su renglón y ya.
-var FUERA = {
-  'pza_1783614738350_bu8uy_0': 'Otro: Bomba de inyeccion',
-  'pza_1784652079096_xks3m_0': 'Otro: EUGENIO',
-  'pza_1785437049450_4p93e_0': 'Otro: eugenio',
-  'pza_1785524208313_h58sj_0': 'Otro: CASCADIA - 31 JULIO'
-};
-function seEnseña(f){ return !!f && f.web !== false && !FUERA[f._id]; }
+// Solo los IDs vigentes de la proyección confirmada; sin excepciones antiguas
+// que ocultaban una pieza real aunque ya estuviera disponible nuevamente.
+function seEnseña(f){ return !!f && !!f.familia; }
 
 function fotosDe(f){
-  var lista = (f.media && f.media.length) ? f.media
-            : ((MEDIA[f.modelKey] && MEDIA[f.modelKey].media) || []);
+  var individual=(FICHAS[f._id] && FICHAS[f._id].media) || [];
+  var compartidas=(MEDIA[f.modelKey] && MEDIA[f.modelKey].media) || [];
+  var lista=individual.length?individual:compartidas;
   // ⚠️ SOLO fotos. Un video se guarda como {kb, t:'video', url} y NO trae
   //    miniatura (`web`/`hd`), así que la tarjeta salía en gris. Hay 155
   //    videos cargados; sin este filtro se cuelan.
@@ -287,6 +264,7 @@ function pintar(){
   document.getElementById('wa-general').href =
     wa('Hola, vi su catálogo de piezas y quiero preguntarles por una refacción.');
 
+  if(!listo.piezas || !listo.media || !conexion){ fallo(); return; }
   if(!fam){ medirPantalla('', ''); pintarFamilias(app); return; }
   pintarFamilia(app, fam);
 }
@@ -294,17 +272,16 @@ function pintar(){
 function pintarFamilias(app){
   var cuenta = {};
   Object.keys(PZ).forEach(function(id){
-    var f = PZ[id] || {};
-    f._id = id;
+    var f = Object.assign({},PZ[id],{_id:id});
     if(!f.familia || !seEnseña(f)) return;
     cuenta[f.familia] = (cuenta[f.familia] || 0) + 1;
   });
-  app.innerHTML = '<h2 class="titulo">¿Qué pieza buscas?</h2><div class="rejilla">'
+  app.innerHTML = '<h2 class="titulo">¿Qué pieza buscas?</h2><p>Solo piezas disponibles para venta. Consulta por WhatsApp.</p><div class="rejilla">'
     + FAMILIAS.map(function(f){
         var n = cuenta[f.id] || 0;
         return '<button class="fam' + (n ? '' : ' vacia') + '" onclick="location.hash=\'' + f.id + '\'">'
           + '<div class="n">' + esc(f.nombre) + '</div>'
-          + '<div class="c">' + (n ? (n + (n === 1 ? ' pieza' : ' piezas')) : 'Pregúntanos') + '</div>'
+          + '<div class="c">' + (n ? (n + (n === 1 ? ' disponible' : ' disponibles')) : 'Sin disponibilidad') + '</div>'
           + '</button>';
       }).join('')
     + '</div>';
@@ -315,8 +292,8 @@ function pintarFamilias(app){
 //    haría creer que no manejamos chasis, cabinas ni radiadores.
 function cajaVacia(fam){
   return '<div class="vacio-caja">'
-    + '<p>Ahorita no tenemos ninguna cargada aquí en la página,<br><b>pero sí las manejamos.</b><br>'
-    + 'Escríbenos y te decimos qué hay en el patio.</p>'
+    + '<p>Por ahora no tenemos piezas disponibles de esta familia.<br>'
+    + 'Escríbenos para consultar próximas entradas.</p>'
     + '<a class="wa" data-ev="familia_vacia" data-fam="' + esc(fam.id) + '"'
     + ' href="' + wa('Hola, ando buscando ' + fam.nombre.toLowerCase()
         + '. ¿Qué tienen disponible?') + '" target="_blank" rel="noopener">'
@@ -327,11 +304,12 @@ function pintarFamilia(app, famId){
   var fam = FAMILIAS.filter(function(x){ return x.id === famId; })[0];
   if(!fam){ location.hash = ''; return; }
   medirPantalla(fam.id, fam.nombre);
-  var piezas = Object.keys(PZ).map(function(id){ var f = PZ[id] || {}; f._id = id; return f; })
+  var piezas = Object.keys(PZ).map(function(id){ return Object.assign({},PZ[id],{_id:id}); })
                      .filter(function(f){ return f.familia === famId && seEnseña(f); });
 
   var cab = '<button class="volver" onclick="location.hash=\'\'">← Todas las piezas</button>'
-          + '<h2 class="titulo">' + esc(fam.nombre) + '</h2>';
+          + '<h2 class="titulo">' + esc(fam.nombre) + '</h2>'
+          + '<p>'+piezas.length+' piezas disponibles para venta</p>';
 
   // ⚠️ Familia SIN piezas cargadas: NO se esconde. Se dice claro que sí se
   //    manejan y se invita a preguntar. Es la mitad del catálogo.
@@ -351,14 +329,13 @@ function pintarFamilia(app, famId){
   var grupos = {};
   piezas.forEach(function(f){
     var k = nombreParaCliente(f, fam);
-    if(!grupos[k]) grupos[k] = { f:f, n:0, vendidas:0 };
+    if(!grupos[k]) grupos[k] = { f:f, n:0 };
     // El representante manda la foto Y el renglón de abajo: se prefiere uno
     // que tenga foto, y entre esos, uno que además traiga modelo.
     var act = grupos[k].f;
     if((!fotosDe(act).length && fotosDe(f).length) ||
        (fotosDe(f).length && !modeloDe(act) && modeloDe(f))) grupos[k].f = f;
     grupos[k].n++;
-    if(f.vendida) grupos[k].vendidas++;
   });
 
   // ⚠️ Las piezas SIN foto TAMBIÉN salen — decisión de Keno: "aunque los
@@ -369,8 +346,7 @@ function pintarFamilia(app, famId){
     var ga = grupos[a], gb = grupos[b];
     var fa = fotosDe(ga.f).length ? 0 : 1, fb = fotosDe(gb.f).length ? 0 : 1;
     if(fa !== fb) return fa - fb;                       // primero las que tienen foto
-    var va = ga.vendidas === ga.n ? 1 : 0, vb = gb.vendidas === gb.n ? 1 : 0;
-    return va - vb;                                     // lo vendido, al final
+    return a.localeCompare(b, 'es');
   });
   if(!llaves.length){ app.innerHTML = cab + cajaVacia(fam); return; }
 
@@ -383,18 +359,14 @@ function pintarFamilia(app, famId){
         var foto = fotos[0] ? (fotos[0].mini || fotos[0].web || fotos[0].hd) : '';
         var hd = fotos[0] ? (fotos[0].hd || fotos[0].web) : '';
         var modelo = modeloDe(f);
-        var todasVendidas = g.vendidas === g.n;
         var nombre = nombreParaCliente(f, fam);
         // El renglón de abajo solo si dice algo que el título no traiga ya.
         var sub = (modelo && plano(nombre).indexOf(plano(modelo)) < 0) ? modelo : '';
-        var msg = todasVendidas
-          ? 'Hola, vi en su página ' + nombre + (modelo ? ' (' + modelo + ')' : '')
-            + ' pero dice que ya se vendió. ¿Tienen otra igual?'
-          : (!fotos.length
+        var msg = !fotos.length
               ? 'Hola, me interesa: ' + nombre + (modelo ? ' — ' + modelo : '')
                 + '. En la página no tiene foto, ¿me pueden mandar una?'
-              : 'Hola, me interesa: ' + nombre + (modelo ? ' — ' + modelo : '') + '. ¿Sigue disponible?');
-        return '<div class="pz' + (todasVendidas ? ' vendida' : '') + '">'
+              : 'Hola, me interesa: ' + nombre + (modelo ? ' — ' + modelo : '') + '. ¿Sigue disponible?';
+        return '<div class="pz">'
           + (foto
               ? '<div class="foto" data-hd="' + esc(hd) + '">'
                 + '<img loading="lazy" src="' + esc(foto) + '" alt="' + esc(nombre) + '">'
@@ -405,13 +377,11 @@ function pintarFamilia(app, famId){
           + '<div class="cuerpo">'
             + '<div class="t">' + esc(nombre) + '</div>'
             + (sub ? '<div class="m">' + esc(sub) + '</div>' : '')
-            + (todasVendidas
-                ? '<div><span class="vendida-et">Ya se vendió</span></div>'
-                : (g.n > 1 ? '<div><span class="cant">Tenemos ' + (g.n - g.vendidas) + '</span></div>' : ''))
-            + '<a class="wa' + (todasVendidas ? ' gris' : '') + '" target="_blank" rel="noopener"'
-              + ' data-ev="' + (todasVendidas ? 'otra_igual' : (fotos.length ? 'me_interesa' : 'pedir_foto')) + '"'
+            + '<div><span class="cant">'+g.n+(g.n===1?' disponible':' disponibles')+'</span></div>'
+            + '<a class="wa" target="_blank" rel="noopener"'
+              + ' data-ev="' + (fotos.length ? 'me_interesa' : 'pedir_foto') + '"'
               + ' data-fam="' + esc(fam.id) + '" data-pieza="' + esc(nombre) + '" href="'
-              + wa(msg) + '">' + (todasVendidas ? '¿Tienes otra igual?' : (fotos.length ? '💬 Me interesa' : '💬 Pedir foto')) + '</a>'
+              + wa(msg) + '">' + (fotos.length ? '💬 Me interesa' : '💬 Pedir foto') + '</a>'
           + '</div></div>';
       }).join('')
     + '</div>';
@@ -455,18 +425,28 @@ firebase.initializeApp({
   databaseURL: 'https://inventario-julio-26-default-rtdb.firebaseio.com',
   projectId: 'inventario-julio-26'
 });
-function listoUno(){ if(++listo >= 2) pintar(); }
 function fallo(){
   document.getElementById('app').innerHTML =
-    '<div class="vacio-caja"><p>No se pudieron cargar las piezas en este momento.<br>'
+    '<div class="vacio-caja"><p>No podemos confirmar la disponibilidad en este momento.<br>'
     + 'Escríbenos y con gusto te decimos qué tenemos.</p>'
     + '<a class="wa" href="' + wa('Hola, quiero preguntar por una refacción.')
     + '" target="_blank" rel="noopener">💬 Escribir por WhatsApp</a></div>';
 }
-firebase.database().ref('fichas_publicas').on('value',
-  function(s){ PZ = s.val() || {}; listoUno(); }, fallo);
-firebase.database().ref('media_modelo').on('value',
-  function(s){ MEDIA = s.val() || {}; listoUno(); }, fallo);
+firebase.database().ref('.info/connected').on('value', function(s){
+  conexion=s.val()===true;
+  if(conexion && listo.piezas && listo.media) pintar(); else if(!conexion) fallo();
+});
+firebase.database().ref('fichas_publicas').on('value', function(s){
+  var datos=s.val() || {}, stock=datos._catalogo_v2;
+  listo.piezas=CatalogoStock.valido(stock);
+  if(!listo.piezas){PZ={};fallo();return;}
+  PZ=stock.piezas || {}; FICHAS=datos;
+  if(listo.media && conexion) pintar();
+}, function(){listo.piezas=false;PZ={};fallo();});
+firebase.database().ref('media_modelo').on('value',function(s){
+  MEDIA=s.val() || {};listo.media=true;
+  if(listo.piezas && conexion) pintar();
+},function(){listo.media=false;fallo();});
 </script>
 </body>
 </html>

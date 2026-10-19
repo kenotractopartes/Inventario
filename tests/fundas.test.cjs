@@ -71,5 +71,5 @@ test('actual list filters Fundas by libras without mixing families or sold piece
  c._filtroLibras=null;c._renderResultadosBusqueda();assert.equal(c._gruposUltimoRender.fundas.ids.length,2);
  c._filtroFamilia='mancuernas';c._renderResultadosBusqueda();assert.deepEqual(Array.from(c._gruposUltimoRender.mancuernas.ids),['m44']);
 });
-test('catalog recognizes Fundas as an independent family',()=>{const s=fs.readFileSync(path.join(__dirname,'../catalogo.html'),'utf8');const a=JSON.parse(s.match(/var FAMILIAS = (\[.*?\]);/)[1]);assert.equal(a.filter(x=>x.id==='fundas').length,1);assert.equal(a.find(x=>x.id==='fundas').sing,'Funda');});
+test('catalog recognizes Fundas as an independent family',()=>{const s=fs.readFileSync(path.join(__dirname,'../catalogo.html'),'utf8');assert.match(s,/var FAMILIAS = CatalogoStock.familias/);const a=require('../catalogo-stock.js').familias;assert.equal(a.filter(x=>x.id==='fundas').length,1);assert.equal(a.find(x=>x.id==='fundas').sing,'Funda');});
 console.log(`${passed} tests passed; no live data accessed`);

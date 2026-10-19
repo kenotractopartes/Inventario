@@ -26,7 +26,7 @@ function env(){
       }
     },get innerHTML(){return this.markup||''}};}
   for(const id of ['modal-pieza-body','modal-pieza-title'])nodes.set(id,node(id));
-  const c={console,Date,Math,JSON,Array,Object,Set,Map,InventarioMerge,DATA:{camiones:[],piezas:[],familiasOverride:{}},MEDIA_MODELO:{},PUB:{},
+  const c={console,Date,Math,JSON,Array,Object,Set,Map,DATA:{camiones:[],piezas:[],familiasOverride:{}},MEDIA_MODELO:{},PUB:{},
     document:{getElementById:id=>nodes.get(id)||null},_piezaCamionId:null,_piezaFamilia:null,_piezaModelo:null,_piezaExtras:{},_modoCompra:false,
     _invSync:{base:{piezas:[]},pendiente:false,ocupado:false},_reabrirModalPieza:null,
     _undoStack:[{desc:'Cambio anterior'}],renderHistorialAcciones(){},
@@ -59,7 +59,7 @@ test('family and public catalog contain Cortes, with individual photos',()=>{
   const {c}=env();assert.equal(c.FAMILIAS.filter(f=>f.id==='cortes').length,1);
   assert(!c.FAMILIAS_FOTOS_MODELO.includes('cortes'));
   const cat=fs.readFileSync(path.join(__dirname,'../catalogo.html'),'utf8');
-  const familias=JSON.parse(cat.match(/var FAMILIAS = (\[.*?\]);/)[1]);
+  assert.match(cat,/var FAMILIAS = CatalogoStock.familias/);const familias=require('../catalogo-stock.js').familias;
   assert.equal(familias.filter(f=>f.id==='cortes').length,1);
 });
 let piece;

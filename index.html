@@ -15,6 +15,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js" crossorigin="anonymous"></script>
 <link rel="stylesheet" href="media-video-preview.css?v=20260928-1">
+<script src="catalogo-stock.js?v=20261019-1"></script>
 <script src="media-video-preview.js?v=20260928-1"></script>
 <!-- ═══════════════ 📦 ENVÍOS — estilos ═══════════════ -->
 <style>
@@ -810,11 +811,13 @@ mostrarEstadoAcceso('pending');
     <strong>📖 Catálogo para clientes</strong>
     <label for="catalogo-clientes-link">Enlace público para compartir</label>
     <div class="catalogo-compartir-fila">
-      <input id="catalogo-clientes-link" type="text" readonly value="https://fotonas.tractopartes.com/catalogo.html" onclick="this.select()" spellcheck="false">
+      <input id="catalogo-clientes-link" type="text" readonly value="https://fotonas.tractopartes.com/catalogo.html?r=fb" onclick="this.select()" spellcheck="false">
       <button class="btn btn-mini" type="button" onclick="copiarEnlaceCatalogo()">📋 Copiar enlace</button>
-      <a class="btn btn-mini" href="https://fotonas.tractopartes.com/catalogo.html" target="_blank" rel="noopener noreferrer">↗ Abrir catálogo</a>
+      <a class="btn btn-mini" href="https://fotonas.tractopartes.com/catalogo.html?r=fb" target="_blank" rel="noopener noreferrer">↗ Abrir catálogo</a>
     </div>
     <div id="catalogo-clientes-estado" role="status" aria-live="polite">Copia el enlace y pégalo en WhatsApp o donde atiendas al cliente.</div>
+    <div id="catalogo-stock-estado" role="status" aria-live="polite" style="font-size:12px;margin-top:6px"></div>
+    <button class="btn btn-mini solo-editor" type="button" onclick="programarCatalogoDisponible()">↻ Comprobar disponibilidad</button>
   </div>
 
   <h3 style="margin-top:0;">Ver todas las piezas de:</h3>
@@ -2932,6 +2935,8 @@ function initFirebase() {
 
     // Estado de conexión
     firebase.database().ref('.info/connected').on('value', (s) => {
+      _catalogoConectado=!!s.val();
+      if(_catalogoConectado) programarCatalogoDisponible();
       if(!s.val())setEstadoSync('offline','Sin conexión — datos locales');
       else if(_invSync.pendiente && !_invSync.conflictoCorte && !_invSync.conflictoDato)empujarAFirebase();
     });
@@ -2984,6 +2989,7 @@ function inventarioBaseLista(){
 }
 var _invMantenimientoProgramado=false;
 function programarMantenimientoSeguro(){
+  if(typeof programarCatalogoDisponible==='function') programarCatalogoDisponible();
   if(_invMantenimientoProgramado) return;
   _invMantenimientoProgramado=true;
   setTimeout(function(){
@@ -4706,6 +4712,40 @@ function botonFotos(p){
 }
 
 // Escuchar el nodo público en vivo (se engancha al conectar Firebase).
+var _catalogoConectado=false, _catalogoTimer=null, _catalogoOcupado=false, _catalogoRepetir=false, _catalogoReintentos=0;
+function programarCatalogoDisponible(){
+  if(!window.CatalogoStock || !fbRef || !_catalogoConectado) return;
+  var u=firebase.auth().currentUser;
+  if(!u || u.email!=='raultractopartes@gmail.com') return;
+  if(_catalogoOcupado){_catalogoRepetir=true;return;}
+  clearTimeout(_catalogoTimer);
+  _catalogoTimer=setTimeout(actualizarCatalogoDisponible,600);
+}
+async function actualizarCatalogoDisponible(){
+  if(_catalogoOcupado) return;
+  _catalogoOcupado=true; _catalogoRepetir=false;
+  var el=document.getElementById('catalogo-stock-estado');
+  try{
+    var resultado=await CatalogoStock.sincronizar({
+      conectado:()=>_catalogoConectado,
+      leer:()=>fbRef.get().then(s=>s.val()),
+      transaccion:fn=>new Promise((resolve,reject)=>{
+        firebase.database().ref('fichas_publicas/_catalogo_v2').transaction(fn,
+          (err,ok,snap)=>err?reject(err):resolve(snap && snap.val()),false);
+      })
+    });
+    _catalogoReintentos=0;
+    if(el) el.textContent='✓ Catálogo actualizado: '+resultado.total+' piezas disponibles. Sin precios.';
+  }catch(e){
+    if(el) el.textContent='⚠ Catálogo pendiente de actualizar. '+(e.message||'Revisa la conexión.')+' Puedes seguir usando el inventario.';
+    console.warn('Catálogo disponible:',e);
+    if(++_catalogoReintentos<=3) _catalogoTimer=setTimeout(programarCatalogoDisponible,10000);
+  }finally{
+    _catalogoOcupado=false;
+    if(_catalogoRepetir) programarCatalogoDisponible();
+  }
+}
+
 function escucharFichasPublicas(){
   function _refresca(){
     if (typeof refrescarVistaActual === 'function') refrescarVistaActual();
