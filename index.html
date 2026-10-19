@@ -239,6 +239,14 @@
   .view { display: none; }
   .view.active { display: block; }
 
+  .catalogo-compartir { margin-bottom:18px; padding:12px 14px; background:#fff; border:1px solid #d8d2c4; border-radius:9px; font-family:Arial,sans-serif; }
+  .catalogo-compartir strong { display:block; color:#1a3a2e; font-size:15px; }
+  .catalogo-compartir label { display:block; margin:5px 0; color:#6b6459; font-size:12px; }
+  .catalogo-compartir-fila { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .catalogo-compartir-fila input { flex:1 1 330px; width:100%; min-width:0; margin:0; font:14px/1.4 Arial,sans-serif; padding:10px; }
+  .catalogo-compartir-fila .btn { display:inline-flex; align-items:center; min-height:40px; text-decoration:none; }
+  #catalogo-clientes-estado { margin-top:7px; color:#52605b; font-size:12px; line-height:1.4; }
+
   /* SECTION TITLES */
   h2 { font-size: 30px; font-weight: 700; margin-bottom: 20px; color: #17140f; padding-left: 14px; border-left: 4px solid #b03a2e; font-family: Georgia, serif; }
   h3 { font-size: 15px; font-weight: 700; margin: 22px 0 12px; color: #17140f; text-transform: uppercase; letter-spacing: 1px; font-family: Arial, sans-serif; }
@@ -796,6 +804,17 @@ mostrarEstadoAcceso('pending');
              oninput="sincroBuscador(this)" style="flex:1; min-width:0;">
       <button class="btn btn-mini" onclick="limpiarBuscador()" title="Limpiar búsqueda" style="white-space:nowrap;">✕ Limpiar</button>
     </div>
+  </div>
+
+  <div class="catalogo-compartir" id="catalogo-compartir">
+    <strong>📖 Catálogo para clientes</strong>
+    <label for="catalogo-clientes-link">Enlace público para compartir</label>
+    <div class="catalogo-compartir-fila">
+      <input id="catalogo-clientes-link" type="text" readonly value="https://fotonas.tractopartes.com/catalogo.html" onclick="this.select()" spellcheck="false">
+      <button class="btn btn-mini" type="button" onclick="copiarEnlaceCatalogo()">📋 Copiar enlace</button>
+      <a class="btn btn-mini" href="https://fotonas.tractopartes.com/catalogo.html" target="_blank" rel="noopener noreferrer">↗ Abrir catálogo</a>
+    </div>
+    <div id="catalogo-clientes-estado" role="status" aria-live="polite">Copia el enlace y pégalo en WhatsApp o donde atiendas al cliente.</div>
   </div>
 
   <h3 style="margin-top:0;">Ver todas las piezas de:</h3>
@@ -5063,6 +5082,22 @@ function compartirFichaWhatsApp(){
   var texto = textoCompartirFicha();
   if (navigator.share) { navigator.share({ text: texto }).catch(function(){}); return; }
   window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+}
+
+// Copia únicamente el catálogo público; no incluye sesión ni datos del inventario.
+async function copiarEnlaceCatalogo(){
+  var campo = document.getElementById('catalogo-clientes-link');
+  var estado = document.getElementById('catalogo-clientes-estado');
+  if(!campo || !estado) return;
+  try {
+    if(!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') throw new Error('Sin portapapeles');
+    await navigator.clipboard.writeText(campo.value);
+    estado.textContent = '✓ Enlace copiado. Ya puedes pegarlo en WhatsApp.';
+  } catch(e) {
+    campo.focus();
+    campo.select();
+    estado.textContent = 'No se pudo copiar automáticamente. Copia el enlace seleccionado con el menú del teléfono o con Ctrl+C / ⌘C.';
+  }
 }
 
 function copiarLinkFicha(){
