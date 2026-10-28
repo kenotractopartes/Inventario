@@ -11544,7 +11544,7 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
   function mSubscribe(){
     if(!mDb || mUnsub) return;
     mCargando=true; mError=''; render();
-    mUnsub = mDb.collection('maura_ingresos').onSnapshot(function(snap){
+    mUnsub = mDb.collection('maura_vistas_ventas').onSnapshot(function(snap){
       var arr=[];
       snap.forEach(function(doc){
         var o; try{ o=JSON.parse(doc.data().json); }catch(e){ return; }
@@ -15490,7 +15490,7 @@ var SAL_HIST = [{"p":"ALAMBRE","f":"2026-05-18","m":100.0,"t":"2 KILO ALAMBRE RE
     // qué. Es la misma falla de `fbAplicandoRemoto` que dejó al inventario
     // sin subir a la nube.
     var pet;
-    try { pet = base.collection('maura_egresos').get(); }
+    try { pet = base.collection('maura_vistas_taller').get(); }
     catch(e){ _buscandoMaura = false; _errMaura = 'No se pudo preguntar a Maura.'; return Promise.resolve([]); }
     return pet.then(function(snap){
       _errMaura = '';
