@@ -11863,7 +11863,14 @@ body[data-seccion="estatus"] .barra-seccion-sticky{display:none !important}
   function limite(p,ms){var timer;return Promise.race([p,new Promise(function(_,reject){timer=setTimeout(function(){reject(new Error('Sin respuesta a tiempo'));},ms);})]).finally(function(){clearTimeout(timer);});}
   async function pedir(ruta,body){
     var c=new AbortController();_controllers.add(c);var t=setTimeout(function(){c.abort();},ruta==='comprobante'?60000:45000);
-    try{var r=await fetch(BASE+ruta,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:c.signal});var d=await r.json();if(!r.ok&&!(ruta==='cep'&&d.estado==='datos'))throw new Error(d.error||d.mensaje||'No hubo respuesta válida');return d;}
+    try{
+      var user=null;
+      try{user=firebase.app('maura').auth().currentUser;}catch(_){}
+      if(!user)try{user=firebase.auth().currentUser;}catch(_){}
+      if(!user)throw new Error('Vuelve a entrar al inventario para usar este servicio.');
+      var idToken=await user.getIdToken();
+      if(c.signal.aborted)throw new DOMException('Cancelado','AbortError');
+      var r=await fetch(BASE+ruta,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},body,{_tmaIdToken:idToken})),signal:c.signal});var d=await r.json();if(!r.ok&&!(ruta==='cep'&&d.estado==='datos'))throw new Error(d.error||d.mensaje||'No hubo respuesta válida');return d;}
     finally{clearTimeout(t);_controllers.delete(c);}
   }
   function db(){if(!_db){var app;try{app=firebase.app('maura');}catch(e){app=firebase.initializeApp(MAURA_CFG,'maura');}_db=app.firestore();}return _db;}
