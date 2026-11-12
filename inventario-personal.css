@@ -1,0 +1,53 @@
+/* INV-PERSONAL-OSCURO-1111: sólo estos accesos, nunca registros del inventario. */
+/* Al ocultar accesos, el buscador conserva su propio renglón debajo. */
+#filtros-familia { display:block; }
+#inv-accesos-inicio > [data-inv-ui-hidden="true"],
+#inv-filtros-rapidos > [data-inv-ui-hidden="true"] { display:none !important; }
+.inv-personal-encabezado { display:flex; align-items:center; gap:10px; margin:0 0 12px; }
+.inv-personal-encabezado > h2,.inv-personal-encabezado > h3 { margin-bottom:0; }
+.inv-personal-eng { display:inline-flex; align-items:center; justify-content:center; flex:none;
+ width:30px; height:30px; border:1px solid var(--inv-border,#cfc7b8); border-radius:50%;
+ background:var(--inv-surface,#fff); color:var(--inv-text,#302b24); font-size:15px; cursor:pointer; }
+.inv-personal-eng:hover { background:var(--inv-tint,#e9e2d5); }
+#inv-personal { width:660px; max-width:calc(100vw - 24px); max-height:calc(100dvh - 28px);
+ margin:auto; padding:0; border:1px solid var(--inv-border,#cec7b8); border-radius:14px;
+ color:var(--inv-text,#302b24); background:var(--inv-surface,#fffdf9); font:14px/1.5 Arial,sans-serif;
+ box-shadow:0 22px 80px #0005; overflow:auto; }
+#inv-personal::backdrop { background:#111b2c99; }
+#inv-personal .inv-personal-cab { position:sticky; top:0; z-index:2; display:flex; align-items:center;
+ justify-content:space-between; gap:12px; padding:16px 20px; border-bottom:1px solid var(--inv-border,#ddd4c2); background:var(--inv-surface,#fffdf9); }
+#inv-personal h2 { font:700 19px/1.3 Arial,sans-serif; color:inherit; padding:0; margin:0; border:0; }
+#inv-personal h3 { color:var(--inv-muted,#645a4c); font:700 13px Arial,sans-serif; margin:22px 0 10px; letter-spacing:.3px; }
+#inv-personal .inv-personal-cerrar { min-width:34px; min-height:34px; font-size:23px; }
+#inv-personal button { background:var(--inv-soft,#eee8de); color:var(--inv-text,#302b24); border:1px solid var(--inv-border,#cec7b8); border-radius:7px; cursor:pointer; font-family:Arial,sans-serif; }
+#inv-personal button:disabled { cursor:default; opacity:.35; }
+#inv-personal button:hover:not(:disabled) { background:var(--inv-tint,#e9dfce); }
+#inv-personal button:focus-visible,.inv-personal-eng:focus-visible { outline:3px solid var(--inv-accent,#725c39); outline-offset:2px; }
+#inv-personal .inv-personal-cuerpo { padding:16px 20px 20px; }
+#inv-personal .inv-personal-cuerpo > p { color:var(--inv-muted,#645a4c); margin:0 0 14px; }
+#inv-personal .inv-personal-fila { display:flex; align-items:center; gap:9px; border:1px solid var(--inv-border,#d5ccbe);
+ padding:9px; border-radius:9px; margin-bottom:7px; background:var(--inv-surface,#fff); }
+#inv-personal .inv-personal-agarre { color:var(--inv-muted,#827565); font-size:22px; cursor:grab; }
+#inv-personal .inv-personal-nombre { flex:1; min-width:0; font-weight:600; overflow-wrap:anywhere; }
+#inv-personal .inv-personal-acciones { display:flex; gap:5px; }
+#inv-personal .inv-personal-acciones button { min-width:32px; min-height:32px; padding:3px 7px; font-size:15px; }
+#inv-personal .inv-personal-acciones button:last-child { font-size:12px; }
+#inv-personal .inv-personal-fila.arrastrando { opacity:.45; }
+#inv-personal .inv-personal-mas { display:flex; flex-wrap:wrap; gap:7px; }
+#inv-personal .inv-personal-mas button { min-height:34px; padding:7px 10px; font-size:12px; text-align:left; }
+#inv-personal .inv-personal-pie { margin-top:19px; padding-top:14px; border-top:1px solid var(--inv-border,#d5ccbe); }
+#inv-personal .inv-personal-restaurar { padding:8px 12px; font-size:12px; font-weight:600; }
+#inv-personal #inv-personal-estado { font-weight:600; margin:12px 0 5px; }
+#inv-personal .inv-personal-nota { font-size:12px; color:var(--inv-muted,#645a4c); }
+.inv-personal-filtro-aviso { padding:8px 11px; margin:8px 0; border:1px solid var(--inv-border,#cfc7b8);
+ background:var(--inv-soft,#f2ede2); color:var(--inv-text,#302b24); font:13px/1.5 Arial,sans-serif; border-radius:6px; }
+.inv-personal-filtro-aviso button { background:transparent; color:inherit; border:0; text-decoration:underline; cursor:pointer; font:600 13px Arial,sans-serif; }
+@media(max-width:480px){
+ #inv-personal .inv-personal-cab { padding:14px; }
+ #inv-personal .inv-personal-cuerpo { padding:14px; }
+ #inv-personal .inv-personal-fila { flex-wrap:wrap; gap:6px; }
+ #inv-personal .inv-personal-nombre { flex-basis:calc(100% - 35px); }
+ #inv-personal .inv-personal-acciones { margin-left:26px; }
+ #inv-personal .inv-personal-acciones button { min-width:37px; min-height:36px; }
+}
+@media print { .inv-personal-eng,#inv-personal,.inv-personal-filtro-aviso { display:none !important; } }
